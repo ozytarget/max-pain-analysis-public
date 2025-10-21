@@ -35,16 +35,93 @@ from contextlib import contextmanager
 from threading import Lock
 from plotly.subplots import make_subplots
 import yfinance as yf
+from dotenv import load_dotenv  # ← NUEVO: Para cargar variables de entorno
 
+# ============================================================================
+# CONFIGURACIÓN INICIAL DE STREAMLIT (DEBE SER LO PRIMERO)
+# ============================================================================
+st.set_page_config(
+    page_title="Pro Scanner",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# ============================================================================
+# CARGAR VARIABLES DE ENTORNO DE FORMA SEGURA
+# ============================================================================
+# Cargar variables desde archivo .env (desarrollo local)
+load_dotenv()
 
+def get_api_key(key_name: str) -> Optional[str]:
+    """
+    Obtiene API key de forma segura desde:
+    1. Variables de entorno (.env para desarrollo local)
+    2. Streamlit Secrets (para deployment en Streamlit Cloud)
+    """
+    # Intento 1: Variable de entorno (.env local)
+    value = os.getenv(key_name)
+    if value:
+        return value
+    
+    # Intento 2: Streamlit Secrets (para producción)
+    try:
+        return st.secrets[key_name]
+    except Exception:
+        return None
 
+# ============================================================================
+# CARGAR API KEYS DE FORMA SEGURA
+# ============================================================================
+FMP_API_KEY = get_api_key("FMP_API_KEY")
+TRADIER_API_KEY = get_api_key("TRADIER_API_KEY")
+API_KEY = get_api_key("KRAKEN_API_KEY")
+PRIVATE_KEY = get_api_key("KRAKEN_PRIVATE_KEY")
+
+# Validar que todas las keys necesarias existan
+missing_keys = []
+if not FMP_API_KEY:
+    missing_keys.append("FMP_API_KEY")
+if not TRADIER_API_KEY:
+    missing_keys.append("TRADIER_API_KEY")
+if not API_KEY:
+    missing_keys.append("KRAKEN_API_KEY")
+if not PRIVATE_KEY:
+    missing_keys.append("KRAKEN_PRIVATE_KEY")
+
+if missing_keys:
+    st.error(f"""
+    ⚠️ **Error de Configuración: API Keys faltantes**
+    
+    Las siguientes API Keys no están configuradas:
+    **{', '.join(missing_keys)}**
+    
+    **Para desarrollo local:**
+    1. Crea un archivo `.env` en la raíz del proyecto
+    2. Agrega las keys:
+    ```
+    FMP_API_KEY=tu_key_aqui
+    TRADIER_API_KEY=tu_key_aqui
+    KRAKEN_API_KEY=tu_key_aqui
+    KRAKEN_PRIVATE_KEY=tu_key_aqui
+    ```
+    
+    **Para Streamlit Cloud:**
+    - Ve a Settings → Secrets en tu dashboard
+    - Agrega las keys en formato TOML
+    """)
+    st.stop()
+
+# ============================================================================
+# CONFIGURACIONES Y CONSTANTES
+# ============================================================================
+
+# Database locks
 db_lock = threading.Lock()
 AUTO_UPDATE_INTERVAL = 15
-db_lock = threading.Lock()
 DB_TIMEOUT = 20  # Segundos de espera para desbloqueo de base de datos
 DB_RETRIES = 5   # Número de reintentos para operaciones de base de datos
 DB_RETRY_DELAY = 2  # Segundos de espera entre reintentos
+
 # Configurar zona horaria del mercado
 MARKET_TIMEZONE = pytz.timezone("America/New_York")
 
@@ -55,11 +132,14 @@ def get_current_date():
 def get_current_datetime():
     return datetime.now(MARKET_TIMEZONE)
 
-
-
+# Configurar logging
 logging.getLogger("streamlit").setLevel(logging.ERROR)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# API Sessions and Configurations
+# ============================================================================
+# API SESSIONS AND CONFIGURATIONS
+# ============================================================================
 session_fmp = requests.Session()
 session_tradier = requests.Session()
 retry_strategy = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
@@ -68,38 +148,26 @@ session_fmp.mount("https://", adapter)
 session_tradier.mount("https://", adapter)
 num_workers = min(100, multiprocessing.cpu_count())
 
-# API Keys and Constants
-API_KEY = "kyFpw+5fbrFIMDuWJmtkbbbr/CgH/MS63wv7dRz3rndamK/XnjNOVkgP"
-PRIVATE_KEY = "7xbaBIp902rSBVdIvtfrUNbRHEHMkfMHPEf4rssz+ZwSwjUZFegjdyyYZzcE5DbBrUbtFdGRRGRjTuTnEblZWA=="
+# Configurar Kraken con las keys seguras
 kraken = krakenex.API(key=API_KEY, secret=PRIVATE_KEY)
 
-FMP_API_KEY = "bQ025fPNVrYcBN4KaExd1N3Xczyk44wM"
+# ============================================================================
+# API CONSTANTS
+# ============================================================================
 FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
-TRADIER_API_KEY = "Mys3Hsfg4oG5G6qi9PF7ZfInDDVf"
 TRADIER_BASE_URL = "https://api.tradier.com/v1"
 HEADERS_FMP = {"Accept": "application/json"}
 HEADERS_TRADIER = {"Authorization": f"Bearer {TRADIER_API_KEY}", "Accept": "application/json"}
 PASSWORDS_DB = "auth_data/passwords.db"
 CACHE_TTL = 300
-
-# Constantes
-PASSWORDS_DB = "auth_data/passwords.db"
-CACHE_TTL = 300
 MAX_RETRIES = 5
 INITIAL_DELAY = 1
-RISK_FREE_RATE = 0.045  # Definimos RISK_FREE_RATE aquí
+RISK_FREE_RATE = 0.045
 
-# Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Configuración inicial de página (DEBE SER LA PRIMERA LLAMADA DE STREAMLIT)
-st.set_page_config(
-    page_title="Pro Scanner",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
+# ============================================================================
+# A PARTIR DE AQUÍ CONTINÚA CON TUS FUNCIONES ORIGINALES
+# ============================================================================
+# --- Autenticación con SQLite ---
 # --- Autenticación con SQLite ---
 def initialize_passwords_db():
     os.makedirs("auth_data", exist_ok=True)
