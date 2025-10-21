@@ -4471,6 +4471,51 @@ def main():
                             momentum = calculate_momentum(prices, vol_historical)
                             rsi = calculate_rsi(prices)
                             
+                            # ========== NUEVAS MÉTRICAS PARA SWING TRADING ==========
+                            # Calcular SMAs
+                            sma_20 = np.mean(prices[-20:]) if len(prices) >= 20 else current_price
+                            sma_50 = np.mean(prices[-50:]) if len(prices) >= 50 else current_price
+                            price_above_sma20 = current_price > sma_20
+                            price_above_sma50 = current_price > sma_50
+                            
+                            # Calcular cambio porcentual del día
+                            price_change_pct = ((current_price - prices[-2]) / prices[-2] * 100) if len(prices) >= 2 else 0
+                            
+                            # Detectar patrones técnicos bullish
+                            pattern_detected = "None"
+                            pattern_score = 0
+                            
+                            # 1. Channel Up (Canal Alcista)
+                            if len(prices) >= 10:
+                                recent_lows = np.min(prices[-10:])
+                                recent_highs = np.max(prices[-10:])
+                                if current_price > sma_20 and (recent_highs - recent_lows) / recent_lows < 0.15:
+                                    pattern_detected = "Channel Up"
+                                    pattern_score = 30
+                            
+                            # 2. Horizontal S/R (Soporte/Resistencia)
+                            if resistance_level > 0 and support_level > 0:
+                                distance_to_resistance = (resistance_level - current_price) / current_price
+                                if 0 < distance_to_resistance < 0.05:
+                                    pattern_detected = "Near Resistance"
+                                    pattern_score = 25
+                            
+                            # 3. Breakout (Rompiendo resistencia)
+                            if len(prices) >= 5:
+                                max_5day = np.max(prices[-5:])
+                                if current_price >= max_5day * 0.98:
+                                    pattern_detected = "Breakout"
+                                    pattern_score = 40
+                            
+                            # 4. Wedge Up (Cuña Alcista)
+                            if len(prices) >= 15:
+                                slope_recent = (prices[-1] - prices[-5]) / 5
+                                slope_older = (prices[-5] - prices[-15]) / 10
+                                if slope_recent > 0 and slope_recent > slope_older * 1.2:
+                                    pattern_detected = "Wedge Up"
+                                    pattern_score = 35
+                            # ========== FIN NUEVAS MÉTRICAS ==========
+                            
                             # Puntaje de catalizadores
                             catalyst_score = 0
                             url = f"{FMP_BASE_URL}/earning_calendar"
@@ -4495,44 +4540,97 @@ def main():
                             except Exception as e:
                                 logger.error(f"FMP Macro error for {stock}: {str(e)}")
                             
-                            # Calcular FMS (Future Motion Score)
+                            # Calcular FMS (Future Motion Score) - MEJORADO
                             iv_hv_ratio = iv / vol_historical if vol_historical > 0 else 1.0
                             iv_weight = 40 + (iv_hv_ratio - 1) * 10 if iv_hv_ratio > 1 else 40
                             gwe_weight = 35 + abs(gwe) * 5 if abs(gwe) > 0.5 else 35
                             lmi_weight = 25 + (lmi - 1) * 5 if lmi > 1 else 25
                             skew_weight = 20 + abs(skew_dynamic) * 10 if abs(skew_dynamic) > 0.2 else 20
                             momentum_weight = 15 + abs(momentum) * 5 if abs(momentum) > 0.1 else 15
-                            fms = iv_hv_ratio * iv_weight + abs(gwe) * gwe_weight + lmi * lmi_weight + abs(skew_dynamic) * skew_weight + abs(momentum) * momentum_weight + catalyst_score
+                            pattern_weight = pattern_score * 2
                             
-                            # Determinar dirección con ajuste para Bearish
-                            direction_score = (gwe * 0.5) + (skew_dynamic * 0.3) + (momentum * 0.2)
-                            direction = "Up" if direction_score > 0.7 and (rsi < 35 or lmi > 2.5) else "Down" if direction_score < -0.3 and (rsi > 50 or lmi > 1.5) else "Neutral"
+                            fms = (iv_hv_ratio * iv_weight + 
+                                   abs(gwe) * gwe_weight + 
+                                   lmi * lmi_weight + 
+                                   abs(skew_dynamic) * skew_weight + 
+                                   abs(momentum) * momentum_weight + 
+                                   catalyst_score +
+                                   pattern_weight)
                             
-                            # Filtrar según tipo de escaneo
-                            if scan_type == "Bullish (Upward Momentum)" and (direction != "Up" or fms < 100):
-                                continue
-                            elif scan_type == "Bearish (Downward Momentum)" and (direction != "Down" or fms < 25):  # Ajustado de 50 a 25
+                            # ========== DETERMINAR DIRECCIÓN OPTIMIZADO PARA SWING ==========
+                            direction_score = (gwe * 0.4) + (skew_dynamic * 0.3) + (momentum * 0.2) + (pattern_score * 0.1)
+                            
+                            # Condiciones BULLISH para swing trading (más estrictas)
+                            bullish_conditions = (
+                                direction_score > 0.5 and
+                                price_above_sma20 and
+                                price_above_sma50 and
+                                40 <= rsi <= 70 and
+                                lmi >= 1.5 and
+                                price_change_pct >= 2.0
+                            )
+                            
+                            # Condiciones BEARISH
+                            bearish_conditions = (
+                                direction_score < -0.3 and
+                                rsi > 65 and
+                                lmi > 1.5
+                            )
+                            
+                            # Asignar dirección
+                            if bullish_conditions:
+                                direction = "Up"
+                            elif bearish_conditions:
+                                direction = "Down"
+                            else:
+                                direction = "Neutral"
+                            # ========== FIN DETERMINACIÓN DE DIRECCIÓN ==========
+                            
+                            # ========== FILTRAR SEGÚN TIPO DE ESCANEO ==========
+                            if scan_type == "Bullish (Upward Momentum)":
+                                # Requisitos MÁS ESTRICTOS para swing trading bullish
+                                if not (
+                                    direction == "Up" and
+                                    fms >= 80 and
+                                    price_above_sma20 and
+                                    price_above_sma50 and
+                                    40 <= rsi <= 70 and
+                                    lmi >= 1.5 and
+                                    price_change_pct >= 2.0 and
+                                    pattern_score >= 20
+                                ):
+                                    continue
+                            elif scan_type == "Bearish (Downward Momentum)" and (direction != "Down" or fms < 25):
                                 continue
                             elif scan_type == "Breakouts" and abs(direction_score) < 0.9:
                                 continue
                             elif scan_type == "Unusual Volume" and lmi < 2.0:
                                 continue
+                            # ========== FIN FILTRADO ==========
                             
-                            # Calcular GCF (Confidence Factor)
+                            # Calcular GCF (Confidence Factor) - MEJORADO
                             signal_strength = min(1.0, abs(direction_score) / 2.0) * 50
                             catalyst_boost = catalyst_score * 1.5
+                            sma_alignment = 20 if (price_above_sma20 and price_above_sma50) else 0
                             agreement = 30 if (gwe * skew_dynamic > 0 and gwe * momentum > 0) else 15
                             liquidity_boost = 20 if lmi > 2.0 and abs(rsi - 50) < 20 else 0
-                            gcf = min(100, signal_strength + catalyst_boost + agreement + liquidity_boost)
+                            pattern_boost = pattern_score * 0.5
+                            
+                            gcf = min(100, signal_strength + catalyst_boost + agreement + liquidity_boost + sma_alignment + pattern_boost)
                             
                             # Generar alertas
                             if gcf > 95 and fms > 150:
                                 alerts.append(f"⚠️ HIGH CONFIDENCE ALERT: {stock} | FMS: {fms:.1f} | Direction: {direction} | GCF: {gcf:.1f}%")
                             
-                            # Almacenar datos
+                            # ========== ALMACENAR DATOS CON NUEVAS COLUMNAS ==========
                             scan_data.append({
                                 "Ticker": stock,
                                 "Price": current_price,
+                                "Change%": price_change_pct,
+                                "SMA20": sma_20,
+                                "SMA50": sma_50,
+                                "Above_SMA": "✅" if (price_above_sma20 and price_above_sma50) else "❌",
+                                "Pattern": pattern_detected,
                                 "IV/HV": iv_hv_ratio,
                                 "GWE": gwe,
                                 "Skew": skew_dynamic,
@@ -4556,6 +4654,9 @@ def main():
                     df_scan = pd.DataFrame(scan_data).sort_values("FMS", ascending=False)[:max_results]
                     styled_df = df_scan.style.format({
                         "Price": "${:.2f}",
+                        "Change%": "{:.2f}%",
+                        "SMA20": "${:.2f}",
+                        "SMA50": "${:.2f}",
                         "IV/HV": "{:.2f}",
                         "GWE": "{:.2f}",
                         "Skew": "{:.2f}",
@@ -4577,7 +4678,7 @@ def main():
                     # Mostrar el mejor resultado solo si hay datos
                     if not df_scan.empty:
                         top_pick = df_scan.iloc[0]
-                        st.success(f"Top Pick: {top_pick['Ticker']} | FMS: {top_pick['FMS']:.1f} | Direction: {top_pick['Direction']} | GCF: {top_pick['GCF']:.1f}%")
+                        st.success(f"🎯 Top Pick: {top_pick['Ticker']} | Price: ${top_pick['Price']:.2f} | Change: {top_pick['Change%']:.2f}% | FMS: {top_pick['FMS']:.1f} | Pattern: {top_pick['Pattern']} | GCF: {top_pick['GCF']:.1f}%")
                         
                         # Crear gráfica
                         fig = go.Figure()
@@ -4610,16 +4711,27 @@ def main():
                             key="download_scan_tab2"
                         )
                         
-                        # Insights adicionales
-                        st.markdown("#### Extra Scan Insights")
+                        # Insights adicionales mejorados
+                        st.markdown("#### 📊 Extra Scan Insights")
                         num_stocks = len(scan_data)
                         extra_metrics["avg_iv"] = extra_metrics["avg_iv"] / num_stocks if num_stocks > 0 else 0
                         st.write(f"**Average Implied Volatility (IV):** {extra_metrics['avg_iv']:.2%}")
                         st.write(f"**Max Gamma Weighted Exposure (GWE):** {extra_metrics['max_gwe']:.2f}")
-                        st.write("**Key Levels (Top 5 Stocks by FMS):**")
+                        
+                        # Estadísticas de patrones detectados
+                        pattern_counts = df_scan["Pattern"].value_counts()
+                        st.write("**📈 Patterns Detected:**")
+                        for pattern, count in pattern_counts.items():
+                            st.write(f"  - {pattern}: {count} stocks")
+                        
+                        # Estadísticas de SMAs
+                        sma_compliant = df_scan["Above_SMA"].value_counts().get("✅", 0)
+                        st.write(f"**✅ Stocks Above SMA20 & SMA50:** {sma_compliant}/{len(df_scan)} ({sma_compliant/len(df_scan)*100:.1f}%)")
+                        
+                        st.write("**🎯 Key Levels (Top 5 Stocks by FMS):**")
                         top_5_levels = sorted(extra_metrics["key_levels"], key=lambda x: df_scan[df_scan["Ticker"] == x["stock"]]["FMS"].iloc[0] if x["stock"] in df_scan["Ticker"].values else 0, reverse=True)[:5]
                         for level in top_5_levels:
-                            st.write(f"- {level['stock']}: Support: ${level['support']:.2f}, Resistance: ${level['resistance']:.2f}")
+                            st.write(f"  - {level['stock']}: Support: ${level['support']:.2f}, Resistance: ${level['resistance']:.2f}")
                     else:
                         st.warning(f"No stocks met the criteria for '{scan_type}'. Try adjusting the scan type or check data availability.")
                 else:
@@ -4629,10 +4741,9 @@ def main():
                         for stock, reason in failed_stocks[:11]:
                             st.write(f"- {stock}: {reason}")
                     st.write("Stocks attempted:", stocks_to_scan[:25])
-                    
                 
                 # Pie de página
-                st.markdown(f"*Last Scan: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Powered by Ozy*")
+                st.markdown(f"*Last Scan: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Powered by Ozy 🚀 | Optimized for Swing Trading*")
     # Tab 3: News Scanner
     with tab3:
         st.subheader("News Scanner")
