@@ -555,29 +555,73 @@ def get_options_data(ticker: str, expiration_date: str) -> List[Dict]:
         response.raise_for_status()
         data = response.json()
         logger.debug(f"Tradier response for {ticker} {expiration_date}: {data}")
+        
+        # ✅ VALIDACIÓN ROBUSTA - Cambios críticos aquí
         if data is None or not isinstance(data, dict):
             logger.error(f"Invalid JSON response for {ticker}: {response.text}")
             return []
-        if 'options' not in data or 'option' not in data['options']:
-            logger.warning(f"No valid options data for {ticker} on {expiration_date}: {data}")
+        
+        # Verificar que 'options' existe y no es None
+        if 'options' not in data:
+            logger.warning(f"No 'options' key in response for {ticker} on {expiration_date}: {data}")
             return []
+        
+        options_container = data['options']
+        
+        # ✅ SOLUCIÓN AL ERROR: Validar que options_container no sea None antes de usar 'in'
+        if options_container is None:
+            logger.warning(f"'options' is None for {ticker} on {expiration_date}")
+            return []
+        
+        if not isinstance(options_container, dict):
+            logger.warning(f"'options' is not a dict for {ticker} on {expiration_date}: {type(options_container)}")
+            return []
+        
+        if 'option' not in options_container:
+            logger.warning(f"No 'option' key in options data for {ticker} on {expiration_date}: {options_container}")
+            return []
+        
+        option_list = options_container['option']
+        
+        # Validar que option_list sea una lista
+        if not isinstance(option_list, list):
+            logger.warning(f"'option' is not a list for {ticker} on {expiration_date}: {type(option_list)}")
+            return []
+        
+        if len(option_list) == 0:
+            logger.warning(f"Empty option list for {ticker} on {expiration_date}")
+            return []
+        
+        # Filtrar opciones válidas
         valid_options = []
-        for opt in data['options']['option']:
-            if (opt.get("bid") is not None and opt.get("ask") is not None and
-                isinstance(opt.get("bid"), (int, float)) and isinstance(opt.get("ask"), (int, float)) and
-                opt.get("bid") > 0 and opt.get("ask") > 0):
+        for opt in option_list:
+            if not isinstance(opt, dict):
+                logger.warning(f"Skipping non-dict option for {ticker}: {opt}")
+                continue
+                
+            bid = opt.get("bid")
+            ask = opt.get("ask")
+            
+            if (bid is not None and ask is not None and
+                isinstance(bid, (int, float)) and isinstance(ask, (int, float)) and
+                bid > 0 and ask > 0):
                 valid_options.append(opt)
             else:
                 logger.warning(f"Skipping option for {ticker} on {expiration_date}: Invalid bid/ask - {opt}")
+        
         logger.info(f"Fetched {len(valid_options)} valid option contracts for {ticker} on {expiration_date}")
         if valid_options:
             logger.debug(f"Sample contract: {valid_options[0]}")
         return valid_options
+        
     except requests.RequestException as e:
         logger.error(f"Network error fetching options for {ticker}: {str(e)} - Response: {getattr(e.response, 'text', 'No response')}")
         return []
     except ValueError as e:
-        logger.error(f"JSON parsing error for {ticker}: {str(e)} - Response: {response.text}")
+        logger.error(f"JSON parsing error for {ticker}: {str(e)} - Response: {response.text if 'response' in locals() else 'No response'}")
+        return []
+    except Exception as e:
+        logger.error(f"Unexpected error fetching options for {ticker}: {str(e)}")
         return []
 
 @st.cache_data(ttl=CACHE_TTL)
