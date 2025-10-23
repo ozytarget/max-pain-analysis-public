@@ -4162,8 +4162,8 @@ def main():
                         <strong>SEC Filing Definitions:</strong><br>
                         - <strong>Form 3:</strong> Filed by insiders to report initial ownership of securities when they become a director, officer, or beneficial owner of more than 10% of a company's stock.<br>
                         - <strong>Form 4:</strong> Used by insiders to report changes in ownership, such as buying or selling company stock, typically within two business days of the transaction.<br>
-                        - <strong>Form 10-Q:</strong> A quarterly financial report providing unaudited financial statements, management discussion, and analysis of the company's performance.<br>
-                        - <strong>Form 10-K:</strong> An annual report providing a comprehensive overview of the company's financial performance, including audited financial statements and risk factors.<br>
+                        - <strong>Form 10-Q:</strong> A quarterly financial report providing unaudited financial statements, management discussion, and analysis of the company’s performance.<br>
+                        - <strong>Form 10-K:</strong> An annual report providing a comprehensive overview of the company’s financial performance, including audited financial statements and risk factors.<br>
                         - <strong>DEF 14A:</strong> A proxy statement filed in connection with shareholder meetings, detailing proposals, executive compensation, and other governance matters.<br>
                         - <strong>Form 8-K:</strong> Filed to report significant events like mergers, acquisitions, executive changes, or other material developments.<br>
                         - <strong>Form S-1:</strong> A registration statement filed by companies planning to go public, detailing their business operations, financials, and risks.<br>
@@ -4282,6 +4282,10 @@ def main():
             # Function to fetch S-1 filings from SEC EDGAR as a fallback
             def fetch_s1_filings_from_edgar(from_date, to_date):
                 try:
+                    # Use sec-api.io or directly query EDGAR (simplified example)
+                    # Note: This requires an API key for sec-api.io or direct EDGAR scraping
+                    # For this example, I'll simulate a basic EDGAR query
+                    # In production, you'd use a library like sec-edgar-downloader or sec-api
                     url = "https://www.sec.gov/cgi-bin/browse-edgar"
                     params = {
                         "action": "getcurrent",
@@ -4296,6 +4300,7 @@ def main():
                     response = requests.get(url, params=params, headers=headers, timeout=10)
                     response.raise_for_status()
                     
+                    # Parse the XML response (simplified)
                     from xml.etree import ElementTree as ET
                     root = ET.fromstring(response.content)
                     filings = []
@@ -4310,7 +4315,7 @@ def main():
                             "filingDate": filing_date,
                             "formType": "S-1",
                             "link": link,
-                            "symbol": "N/A"
+                            "symbol": "N/A"  # EDGAR doesn't provide ticker; set to N/A
                         })
                     logger.info(f"Fetched {len(filings)} S-1 filings from SEC EDGAR")
                     return filings
@@ -4334,11 +4339,13 @@ def main():
                     st.warning("Date range exceeds 90 days. Please select a range within 90 days.")
                 else:
                     with st.spinner("Fetching recent Form S-1 filings (potential IPOs)..."):
+                        # First attempt with the selected date range
                         s1_filings = fetch_all_s1_filings(
                             s1_from_date.strftime("%Y-%m-%d"),
                             s1_to_date.strftime("%Y-%m-%d"),
                             extended=False
                         )
+                        # If no filings are found, try an extended range
                         if not s1_filings:
                             logger.info(f"No S-1 filings found in selected range. Attempting extended range.")
                             s1_filings = fetch_all_s1_filings(
@@ -4356,11 +4363,14 @@ def main():
                                 "link": "Link",
                                 "name": "Company Name"
                             })
+                            # Ensure required columns are present
                             required_columns = ["Company Name", "Ticker", "CIK", "Filing Date", "Form Type", "Link"]
                             for col in required_columns:
                                 if col not in s1_filings_df.columns:
                                     s1_filings_df[col] = "N/A"
+                            # Filter to only Form S-1 filings
                             s1_filings_df = s1_filings_df[s1_filings_df["Form Type"].str.contains("S-1", na=False)]
+                            # Filter to the user-selected date range
                             s1_filings_df["Filing Date"] = pd.to_datetime(s1_filings_df["Filing Date"])
                             s1_filings_df = s1_filings_df[
                                 (s1_filings_df["Filing Date"] >= pd.to_datetime(s1_from_date)) &
@@ -4368,7 +4378,9 @@ def main():
                             ]
                             if not s1_filings_df.empty:
                                 st.markdown("**Note:** Form S-1 filings indicate a company may be planning an Initial Public Offering (IPO). However, not all S-1 filings result in an immediate IPO.", unsafe_allow_html=True)
+                                # Render custom HTML table for S-1 filings
                                 st.markdown('<div class="custom-table"><table style="width: 100%; border-collapse: collapse;">', unsafe_allow_html=True)
+                                # Table header
                                 st.markdown("""
                                     <tr>
                                         <th>Company Name</th>
@@ -4379,6 +4391,7 @@ def main():
                                         <th>Link</th>
                                     </tr>
                                 """, unsafe_allow_html=True)
+                                # Table rows
                                 for _, row in s1_filings_df.iterrows():
                                     link_text = f"View S-1 Filing for {row['Company Name']}" if pd.notnull(row["Link"]) else "N/A"
                                     link_html = f'<a href="{row["Link"]}" target="_blank" rel="noopener noreferrer">{link_text}</a>' if pd.notnull(row["Link"]) else "N/A"
@@ -4398,239 +4411,10 @@ def main():
                                 st.warning(f"No Form S-1 filings found in the selected date range.")
                         else:
                             st.warning(f"No IPOs from {s1_from_date} to {s1_to_date}.")
+                           
             
-            # ============================================
-            # GRÁFICA SANKEY - FLUJO FINANCIERO
-    # ==================== FINANCIAL FLOW SANKEY CHART ====================
-    st.markdown("---")
-    st.markdown("### 💰 Financial Flow Analysis")
-    
-    # Info expander
-    with st.expander("ℹ️ How to read this chart?"):
-        st.markdown("""
-        **Sankey Diagram** shows the flow of money through the company:
-        - 🟢 **Green flows**: Money retained (profits)
-        - 🔴 **Red flows**: Money spent (costs, expenses)
-        - **Width**: Proportional to amount in billions USD
-        
-        **Flow Path**:
-        1. **Revenue** → Total income from sales
-        2. **Cost of Revenue** → Direct production costs (leaves as expense)
-        3. **Gross Profit** → What remains after production costs
-        4. **Operating Expenses** → R&D, Sales, Marketing, Admin
-        5. **Operating Income** → Profit from core business operations
-        6. **Taxes** → Government taxes paid
-        7. **Net Income** → Final profit for shareholders
-        """)
-    
-    try:
-        # Obtener datos financieros con mejor manejo
-        stock_sankey = yf.Ticker(ticker)
-        
-        # Intentar múltiples métodos para obtener datos
-        income_stmt = None
-        data_source = ""
-        
-        # Método 1: income_stmt (más confiable)
-        try:
-            income_stmt = stock_sankey.income_stmt
-            if income_stmt is not None and not income_stmt.empty:
-                data_source = "income_stmt"
-        except:
-            pass
-        
-        # Método 2: financials (fallback)
-        if income_stmt is None or income_stmt.empty:
-            try:
-                income_stmt = stock_sankey.financials
-                if income_stmt is not None and not income_stmt.empty:
-                    data_source = "financials"
-            except:
-                pass
-        
-        # Método 3: quarterly_financials (último recurso)
-        if income_stmt is None or income_stmt.empty:
-            try:
-                income_stmt = stock_sankey.quarterly_financials
-                if income_stmt is not None and not income_stmt.empty:
-                    data_source = "quarterly_financials"
-            except:
-                pass
-        
-        # Verificar si obtuvimos datos
-        if income_stmt is not None and not income_stmt.empty:
-            # Debugging info (opcional - puedes comentar después)
-            st.caption(f"✓ Data source: `{data_source}` | Columns: {len(income_stmt.columns)} | Period: {income_stmt.columns[0].strftime('%Y-%m-%d') if hasattr(income_stmt.columns[0], 'strftime') else income_stmt.columns[0]}")
-            
-            # Tomar la columna más reciente (primera columna)
-            latest_data = income_stmt.iloc[:, 0]
-            
-            # Mapeo de nombres de campos (yfinance usa diferentes nombres)
-            field_mapping = {
-                'Total Revenue': ['Total Revenue', 'TotalRevenue', 'Revenue'],
-                'Cost Of Revenue': ['Cost Of Revenue', 'CostOfRevenue', 'Cost of Goods Sold', 'COGS'],
-                'Gross Profit': ['Gross Profit', 'GrossProfit'],
-                'Operating Expense': ['Operating Expense', 'OperatingExpense', 'Total Operating Expenses'],
-                'Operating Income': ['Operating Income', 'OperatingIncome', 'EBIT'],
-                'Pretax Income': ['Pretax Income', 'PretaxIncome', 'Income Before Tax', 'EBT'],
-                'Tax Provision': ['Tax Provision', 'TaxProvision', 'Income Tax Expense'],
-                'Net Income': ['Net Income', 'NetIncome', 'Net Income Common Stockholders']
-            }
-            
-            # Función para buscar campo con múltiples nombres posibles
-            def find_field(data, possible_names):
-                for name in possible_names:
-                    if name in data.index:
-                        return data[name]
-                return None
-            
-            # Extraer métricas con manejo robusto
-            total_revenue = find_field(latest_data, field_mapping['Total Revenue'])
-            cost_of_revenue = find_field(latest_data, field_mapping['Cost Of Revenue'])
-            gross_profit = find_field(latest_data, field_mapping['Gross Profit'])
-            operating_expense = find_field(latest_data, field_mapping['Operating Expense'])
-            operating_income = find_field(latest_data, field_mapping['Operating Income'])
-            pretax_income = find_field(latest_data, field_mapping['Pretax Income'])
-            tax_provision = find_field(latest_data, field_mapping['Tax Provision'])
-            net_income = find_field(latest_data, field_mapping['Net Income'])
-            
-            # Verificar que tenemos al menos los datos básicos
-            if total_revenue is None or pd.isna(total_revenue):
-                st.warning(f"⚠️ Revenue data not found for {ticker}. Available fields: {', '.join(latest_data.index[:10].tolist())}")
-            else:
-                # Convertir a billones (si los datos están en unidades)
-                def to_billions(value):
-                    if value is None or pd.isna(value):
-                        return 0
-                    return abs(float(value)) / 1e9
-                
-                revenue_b = to_billions(total_revenue)
-                cost_b = to_billions(cost_of_revenue)
-                gross_profit_b = to_billions(gross_profit) if gross_profit is not None else (revenue_b - cost_b)
-                opex_b = to_billions(operating_expense)
-                op_income_b = to_billions(operating_income) if operating_income is not None else (gross_profit_b - opex_b)
-                pretax_b = to_billions(pretax_income) if pretax_income is not None else op_income_b
-                tax_b = to_billions(tax_provision)
-                net_income_b = to_billions(net_income) if net_income is not None else (pretax_b - tax_b)
-                
-                # Validar que los números tienen sentido
-                if revenue_b > 0:
-                    # Crear Sankey diagram
-                    fig_sankey = go.Figure(data=[go.Sankey(
-                        node=dict(
-                            pad=15,
-                            thickness=20,
-                            line=dict(color="black", width=0.5),
-                            label=[
-                                "Revenue",
-                                "Cost of Revenue", 
-                                "Gross Profit",
-                                "Operating Expenses",
-                                "Operating Income",
-                                "Income Tax",
-                                "Net Income"
-                            ],
-                            color=[
-                                "#2ecc71",  # Revenue - green
-                                "#e74c3c",  # Cost - red
-                                "#27ae60",  # Gross profit - dark green
-                                "#e67e22",  # OpEx - orange
-                                "#16a085",  # Op income - teal
-                                "#c0392b",  # Tax - dark red
-                                "#27ae60"   # Net income - dark green
-                            ]
-                        ),
-                        link=dict(
-                            source=[0, 0, 2, 2, 4, 4],  # Revenue, Revenue, Gross, Gross, OpIncome, OpIncome
-                            target=[1, 2, 3, 4, 5, 6],  # Cost, Gross, OpEx, OpIncome, Tax, NetIncome
-                            value=[
-                                cost_b,
-                                gross_profit_b,
-                                opex_b,
-                                op_income_b,
-                                tax_b,
-                                net_income_b
-                            ],
-                            color=[
-                                "rgba(231, 76, 60, 0.4)",   # Cost - red transparent
-                                "rgba(46, 204, 113, 0.4)",  # Gross - green transparent
-                                "rgba(230, 126, 34, 0.4)",  # OpEx - orange transparent
-                                "rgba(46, 204, 113, 0.4)",  # OpIncome - green transparent
-                                "rgba(192, 57, 43, 0.4)",   # Tax - dark red transparent
-                                "rgba(39, 174, 96, 0.6)"    # NetIncome - dark green transparent
-                            ]
-                        )
-                    )])
-                    
-                    fig_sankey.update_layout(
-                        title=f"{ticker} Financial Flow (TTM, Billions USD)",
-                        font=dict(size=12, color='white'),
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        height=400
-                    )
-                    
-                    st.plotly_chart(fig_sankey, use_container_width=True)
-                    
-                    # Métricas clave
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Revenue", f"${revenue_b:.2f}B")
-                    with col2:
-                        gross_margin = (gross_profit_b / revenue_b * 100) if revenue_b > 0 else 0
-                        st.metric("Gross Margin", f"{gross_margin:.1f}%")
-                    with col3:
-                        op_margin = (op_income_b / revenue_b * 100) if revenue_b > 0 else 0
-                        st.metric("Operating Margin", f"{op_margin:.1f}%")
-                    with col4:
-                        net_margin = (net_income_b / revenue_b * 100) if revenue_b > 0 else 0
-                        st.metric("Net Margin", f"{net_margin:.1f}%")
-                else:
-                    st.warning(f"⚠️ Invalid revenue data for {ticker} (${revenue_b:.2f}B)")
-        
-        else:
-            st.error(f"""
-            **No financial data available for {ticker}**
-            
-            **Possible reasons**:
-            - yfinance API is temporarily unavailable
-            - Ticker symbol is incorrect
-            - Company doesn't report to SEC (non-US company)
-            - Data hasn't been updated yet
-            
-            **Troubleshooting**:
-            1. Try a different ticker (e.g., MSFT, GOOGL, TSLA)
-            2. Check if ticker is correct on [Yahoo Finance](https://finance.yahoo.com/quote/{ticker})
-            3. Wait a few minutes and refresh the page
-            """)
-            
-            # Mostrar información de debugging
-            with st.expander("🔧 Debug Information"):
-                st.code(f"""
-Ticker: {ticker}
-income_stmt type: {type(income_stmt)}
-income_stmt is None: {income_stmt is None}
-income_stmt empty: {income_stmt.empty if income_stmt is not None else 'N/A'}
-
-Available stock info keys:
-{list(stock_sankey.info.keys())[:20] if hasattr(stock_sankey, 'info') and stock_sankey.info else 'No info available'}
-                """)
-    
-    except Exception as e:
-        st.error(f"**Error loading financial data**: {str(e)}")
-        with st.expander("🔧 Technical Details"):
-            st.code(f"""
-Error Type: {type(e).__name__}
-Error Message: {str(e)}
-
-Ticker: {ticker}
-yfinance version: {yf.__version__ if hasattr(yf, '__version__') else 'unknown'}
-            """)
-        st.info("💡 **Tip**: Try using a major US ticker like AAPL, MSFT, or GOOGL first to test.")
-
-            
-            
-        st.markdown("*Developed by Ozy | © 2025*")
+            st.markdown("---")
+            st.markdown("*Developed by Ozy | © 2025*")
 
     with tab2:
         st.subheader("Market Scanner Pro")
