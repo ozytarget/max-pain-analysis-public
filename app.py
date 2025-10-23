@@ -4232,11 +4232,7 @@ def main():
 
 
 
-
-
-
-            # ==============================================
-    # === GAMMA EXPOSURE TARGETS CHART ===
+        # === GAMMA EXPOSURE TARGETS CHART ===
     st.markdown("---")
     st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
     
@@ -4245,24 +4241,20 @@ def main():
         calls_gamma = []
         puts_gamma = []
         
-        # DEBUG: Mostrar estructura de una opción
-        if options_data and len(options_data) > 0:
-            st.write("**Debug - Estructura de opción:**", options_data[0])
-        
         for opt in options_data:
             greeks = opt.get("greeks", {})
             gamma = greeks.get("gamma", 0) if greeks else 0
             strike = opt.get("strike", 0)
-            expiration = opt.get("expiration", "")
+            expiration_opt = opt.get("expiration", expiration_date)
             oi = opt.get("openInterest", 0)
             option_type = opt.get("option_type", "").lower()
             
-            # Filtrar por gamma > 0.001 (ajustar según lo que veas en debug)
-            if gamma > 0.001:
+            # Filtrar por gamma > 0.001 (ajustar según necesites)
+            if gamma > 0.001 and strike > 0:
                 data_point = {
                     "strike": strike,
                     "gamma": gamma,
-                    "expiration": expiration,
+                    "expiration": expiration_opt,
                     "open_interest": oi
                 }
                 
@@ -4271,36 +4263,108 @@ def main():
                 elif option_type == "put":
                     puts_gamma.append(data_point)
         
-        # Ordenar por gamma (mayor primero)
-        calls_gamma = sorted(calls_gamma, key=lambda x: x["gamma"], reverse=True)[:15]
-        puts_gamma = sorted(puts_gamma, key=lambda x: x["gamma"], reverse=True)[:15]
-        
-        st.write(f"**Encontradas:** {len(calls_gamma)} CALLS y {len(puts_gamma)} PUTS con gamma > 0.001")
+        # Ordenar por gamma (mayor primero) y tomar top 20
+        calls_gamma = sorted(calls_gamma, key=lambda x: x["gamma"], reverse=True)[:20]
+        puts_gamma = sorted(puts_gamma, key=lambda x: x["gamma"], reverse=True)[:20]
         
         if not calls_gamma and not puts_gamma:
-            st.warning("No se encontraron opciones con gamma significativo. Intenta con otra fecha de expiración.")
+            st.warning(f"No se encontraron opciones con gamma > 0.001 para {ticker} el {expiration_date}. Intenta con otra fecha de expiración.")
         else:
             # Crear figura
             fig_gamma = go.Figure()
             
             # Línea del precio actual
+            max_index = len(calls_gamma) + len(puts_gamma) if (calls_gamma or puts_gamma) else 1
             fig_gamma.add_trace(go.Scatter(
-                x=[0, len(calls_gamma) + len(puts_gamma)],
+                x=[0, max_index],
                 y=[current_price, current_price],
                 mode='lines',
                 line=dict(color='red', dash='dash', width=2),
                 name=f'Current Price: ${current_price:.2f}'
             ))
             
-            # Burbujas
-
-
-
-
+            # Burbujas de CALLS (verde)
+            if calls_gamma:
+                fig_gamma.add_trace(go.Scatter(
+                    x=list(range(len(calls_gamma))),
+                    y=[c["strike"] for c in calls_gamma],
+                    mode='markers+text',
+                    marker=dict(
+                        size=[min(c["gamma"] * 10000, 60) for c in calls_gamma],
+                        color='lightgreen',
+                        opacity=0.7,
+                        line=dict(color='darkgreen', width=2)
+                    ),
+                    text=[f"${c['strike']:.0f}" for c in calls_gamma],
+                    textposition="middle center",
+                    textfont=dict(size=9, color='black', family='Arial Black'),
+                    name='CALL Strikes',
+                    hovertemplate='<b>CALL Strike:</b> $%{y:.2f}<br>' +
+                                  '<b>Gamma:</b> %{customdata[0]:.4f}<br>' +
+                                  '<b>Expiration:</b> %{customdata[1]}<br>' +
+                                  '<b>OI:</b> %{customdata[2]:,.0f}<extra></extra>',
+                    customdata=[[c["gamma"], c["expiration"], c["open_interest"]] for c in calls_gamma]
+                ))
             
-                           
+            # Burbujas de PUTS (rojo)
+            if puts_gamma:
+                offset = len(calls_gamma)
+                fig_gamma.add_trace(go.Scatter(
+                    x=list(range(offset, offset + len(puts_gamma))),
+                    y=[p["strike"] for p in puts_gamma],
+                    mode='markers+text',
+                    marker=dict(
+                        size=[min(p["gamma"] * 10000, 60) for p in puts_gamma],
+                        color='lightcoral',
+                        opacity=0.7,
+                        line=dict(color='darkred', width=2)
+                    ),
+                    text=[f"${p['strike']:.0f}" for p in puts_gamma],
+                    textposition="middle center",
+                    textfont=dict(size=9, color='black', family='Arial Black'),
+                    name='PUT Strikes',
+                    hovertemplate='<b>PUT Strike:</b> $%{y:.2f}<br>' +
+                                  '<b>Gamma:</b> %{customdata[0]:.4f}<br>' +
+                                  '<b>Expiration:</b> %{customdata[1]}<br>' +
+                                  '<b>OI:</b> %{customdata[2]:,.0f}<extra></extra>',
+                    customdata=[[p["gamma"], p["expiration"], p["open_interest"]] for p in puts_gamma]
+                ))
             
+            # Layout
+            fig_gamma.update_layout(
+                title=f"Gamma Exposure Targets (Top 20 by Gamma) - {ticker} | Exp: {expiration_date}",
+                xaxis_title="Strike Index",
+                yaxis_title="Strike Price ($)",
+                template="plotly_dark",
+                height=550,
+                showlegend=True,
+                hovermode='closest',
+                legend=dict(x=0.01, y=0.99)
+            )
             
+            st.plotly_chart(fig_gamma, use_container_width=True)
+            
+            # Métricas
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total_calls = len(calls_gamma)
+            total_puts = len(puts_gamma)
+            avg_call_strike = sum(c["strike"] for c in calls_gamma) / total_calls if total_calls > 0 else 0
+            avg_put_strike = sum(p["strike"] for p in puts_gamma) / total_puts if total_puts > 0 else 0
+            
+            with col1:
+                st.metric("Total CALL Strikes", total_calls)
+            with col2:
+                st.metric("Avg CALL Strike", f"${avg_call_strike:.2f}")
+            with col3:
+                st.metric("Total PUT Strikes", total_puts)
+            with col4:
+                st.metric("Avg PUT Strike", f"${avg_put_strike:.2f}")
+                
+    except Exception as e:
+        st.error(f"Error loading Gamma Exposure chart: {e}")
+        import traceback
+        st.write("**Traceback:**", traceback.format_exc())
         st.markdown("*Developed by Ozy | © 2025*")
 
     with tab2:
