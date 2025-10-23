@@ -4401,224 +4401,228 @@ def main():
             
             # ============================================
             # GRÁFICA SANKEY - FLUJO FINANCIERO
-            # ============================================
-            st.markdown(f'<div class="sub-section">💰 {ticker} Financial Flow Analysis</div>', unsafe_allow_html=True)
+    # ==================== FINANCIAL FLOW SANKEY CHART ====================
+    st.markdown("---")
+    st.markdown("### 💰 Financial Flow Analysis")
+    
+    # Info expander
+    with st.expander("ℹ️ How to read this chart?"):
+        st.markdown("""
+        **Sankey Diagram** shows the flow of money through the company:
+        - 🟢 **Green flows**: Money retained (profits)
+        - 🔴 **Red flows**: Money spent (costs, expenses)
+        - **Width**: Proportional to amount in billions USD
+        
+        **Flow Path**:
+        1. **Revenue** → Total income from sales
+        2. **Cost of Revenue** → Direct production costs (leaves as expense)
+        3. **Gross Profit** → What remains after production costs
+        4. **Operating Expenses** → R&D, Sales, Marketing, Admin
+        5. **Operating Income** → Profit from core business operations
+        6. **Taxes** → Government taxes paid
+        7. **Net Income** → Final profit for shareholders
+        """)
+    
+    try:
+        # Obtener datos financieros con mejor manejo
+        stock_sankey = yf.Ticker(ticker)
+        
+        # Intentar múltiples métodos para obtener datos
+        income_stmt = None
+        data_source = ""
+        
+        # Método 1: income_stmt (más confiable)
+        try:
+            income_stmt = stock_sankey.income_stmt
+            if income_stmt is not None and not income_stmt.empty:
+                data_source = "income_stmt"
+        except:
+            pass
+        
+        # Método 2: financials (fallback)
+        if income_stmt is None or income_stmt.empty:
+            try:
+                income_stmt = stock_sankey.financials
+                if income_stmt is not None and not income_stmt.empty:
+                    data_source = "financials"
+            except:
+                pass
+        
+        # Método 3: quarterly_financials (último recurso)
+        if income_stmt is None or income_stmt.empty:
+            try:
+                income_stmt = stock_sankey.quarterly_financials
+                if income_stmt is not None and not income_stmt.empty:
+                    data_source = "quarterly_financials"
+            except:
+                pass
+        
+        # Verificar si obtuvimos datos
+        if income_stmt is not None and not income_stmt.empty:
+            # Debugging info (opcional - puedes comentar después)
+            st.caption(f"✓ Data source: `{data_source}` | Columns: {len(income_stmt.columns)} | Period: {income_stmt.columns[0].strftime('%Y-%m-%d') if hasattr(income_stmt.columns[0], 'strftime') else income_stmt.columns[0]}")
             
-            st.markdown("""
-                <style>
-                .tooltip-sankey {
-                    position: relative;
-                    display: inline-block;
-                    cursor: help;
-                    color: #39FF14;
-                    font-size: 14px;
-                    margin-bottom: 10px;
-                }
-                .tooltip-sankey .tooltiptext-sankey {
-                    visibility: hidden;
-                    width: 350px;
-                    background-color: #2D2D2D;
-                    color: #E0E0E0;
-                    text-align: left;
-                    border-radius: 5px;
-                    padding: 10px;
-                    position: absolute;
-                    z-index: 1;
-                    bottom: 125%;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    font-size: 12px;
-                    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-                    border: 1px solid #39FF14;
-                }
-                .tooltip-sankey:hover .tooltiptext-sankey {
-                    visibility: visible;
-                }
-                </style>
-                <div class="tooltip-sankey">
-                    ℹ️ How to read this chart?
-                    <span class="tooltiptext-sankey">
-                        <strong>Sankey Diagram:</strong><br>
-                        Shows the flow of money through the company:<br>
-                        • <strong>Green flows</strong>: Money retained (profit)<br>
-                        • <strong>Red flows</strong>: Money spent (costs/expenses)<br>
-                        • <strong>Width</strong>: Proportional to amount<br>
-                        • Hover over nodes/links for exact values
-                    </span>
-                </div>
-            """, unsafe_allow_html=True)
+            # Tomar la columna más reciente (primera columna)
+            latest_data = income_stmt.iloc[:, 0]
             
-            with st.spinner(f"Loading {ticker} financial flow..."):
-                try:
-                    import yfinance as yf
-                    
-                    stock_sankey = yf.Ticker(ticker)
-                    income_stmt = stock_sankey.financials
-                    
-                    if not income_stmt.empty:
-                        latest = income_stmt.iloc[:, 0]
-                        
-                        total_revenue = latest.get('Total Revenue', 0) / 1e9
-                        cost_of_revenue = latest.get('Cost Of Revenue', 0) / 1e9
-                        gross_profit = latest.get('Gross Profit', 0) / 1e9
-                        operating_expenses = latest.get('Operating Expense', 0) / 1e9
-                        rd_expenses = latest.get('Research And Development', 0) / 1e9
-                        sga_expenses = latest.get('Selling General And Administration', 0) / 1e9
-                        operating_income = latest.get('Operating Income', 0) / 1e9
-                        other_income = latest.get('Other Income Expense', 0) / 1e9
-                        income_before_tax = latest.get('Income Before Tax', 0) / 1e9
-                        income_tax = latest.get('Tax Provision', 0) / 1e9
-                        net_income = latest.get('Net Income', 0) / 1e9
-                        
-                        labels = [
-                            "Total Revenue", "Cost of Revenue", "Gross Profit",
-                            "Operating Expenses", "R&D Expenses", "SG&A Expenses",
-                            "Operating Income", "Other Income", "Income Before Tax",
-                            "Income Tax", "Net Income"
-                        ]
-                        
-                        node_colors = [
-                            "#90CAF9", "#EF5350", "#66BB6A", "#EF5350",
-                            "#FF7043", "#FF7043", "#66BB6A", "#66BB6A",
-                            "#66BB6A", "#EF5350", "#4CAF50"
-                        ]
-                        
-                        sources = []
-                        targets = []
-                        values = []
-                        link_colors = []
-                        
-                        sources.append(0)
-                        targets.append(1)
-                        values.append(abs(cost_of_revenue))
-                        link_colors.append("rgba(239, 83, 80, 0.4)")
-                        
-                        sources.append(0)
-                        targets.append(2)
-                        values.append(abs(gross_profit))
-                        link_colors.append("rgba(102, 187, 106, 0.4)")
-                        
-                        sources.append(2)
-                        targets.append(3)
-                        values.append(abs(operating_expenses))
-                        link_colors.append("rgba(239, 83, 80, 0.4)")
-                        
-                        if rd_expenses > 0:
-                            sources.append(3)
-                            targets.append(4)
-                            values.append(abs(rd_expenses))
-                            link_colors.append("rgba(255, 112, 67, 0.4)")
-                        
-                        if sga_expenses > 0:
-                            sources.append(3)
-                            targets.append(5)
-                            values.append(abs(sga_expenses))
-                            link_colors.append("rgba(255, 112, 67, 0.4)")
-                        
-                        sources.append(2)
-                        targets.append(6)
-                        values.append(abs(operating_income))
-                        link_colors.append("rgba(102, 187, 106, 0.4)")
-                        
-                        if other_income != 0:
-                            sources.append(7)
-                            targets.append(8)
-                            values.append(abs(other_income))
-                            link_colors.append("rgba(102, 187, 106, 0.4)")
-                        
-                        sources.append(6)
-                        targets.append(8)
-                        values.append(abs(operating_income))
-                        link_colors.append("rgba(102, 187, 106, 0.4)")
-                        
-                        sources.append(8)
-                        targets.append(9)
-                        values.append(abs(income_tax))
-                        link_colors.append("rgba(239, 83, 80, 0.4)")
-                        
-                        sources.append(8)
-                        targets.append(10)
-                        values.append(abs(net_income))
-                        link_colors.append("rgba(76, 175, 80, 0.6)")
-                        
-                        fig_sankey = go.Figure(data=[go.Sankey(
-                            node=dict(
-                                pad=15,
-                                thickness=20,
-                                line=dict(color="black", width=0.5),
-                                label=labels,
-                                color=node_colors,
-                                customdata=[f"${v:.2f}B" for v in [
-                                    total_revenue, cost_of_revenue, gross_profit,
-                                    operating_expenses, rd_expenses, sga_expenses,
-                                    operating_income, other_income, income_before_tax,
-                                    income_tax, net_income
-                                ]],
-                                hovertemplate='<b>%{label}</b><br>Amount: %{customdata}<extra></extra>'
-                            ),
-                            link=dict(
-                                source=sources,
-                                target=targets,
-                                value=values,
-                                color=link_colors,
-                                hovertemplate='%{source.label} → %{target.label}<br>$%{value:.2f}B<extra></extra>'
-                            )
-                        )])
-                        
-                        info_sankey = stock_sankey.info
-                        company_name = info_sankey.get('longName', ticker)
-                        
-                        fig_sankey.update_layout(
-                            title=f"{company_name} - Financial Flow (Sankey Diagram)",
-                            font=dict(size=12, color='white'),
-                            plot_bgcolor='#1e1e1e',
-                            paper_bgcolor='#1e1e1e',
-                            height=600,
-                            margin=dict(l=20, r=20, t=60, b=20)
-                        )
-                        
-                        st.plotly_chart(fig_sankey, use_container_width=True)
-                        
-                        col1, col2, col3, col4 = st.columns(4)
-                        
-                        with col1:
-                            st.metric("Total Revenue", f"${total_revenue:.2f}B")
-                        
-                        with col2:
-                            gross_margin = (gross_profit / total_revenue) * 100 if total_revenue > 0 else 0
-                            st.metric("Gross Margin", f"{gross_margin:.1f}%")
-                        
-                        with col3:
-                            operating_margin = (operating_income / total_revenue) * 100 if total_revenue > 0 else 0
-                            st.metric("Operating Margin", f"{operating_margin:.1f}%")
-                        
-                        with col4:
-                            net_margin = (net_income / total_revenue) * 100 if total_revenue > 0 else 0
-                            st.metric("Net Margin", f"{net_margin:.1f}%")
-                        
-                        financial_data_df = pd.DataFrame({
-                            'Metric': labels,
-                            'Amount (Billions)': [
-                                total_revenue, cost_of_revenue, gross_profit,
-                                operating_expenses, rd_expenses, sga_expenses,
-                                operating_income, other_income, income_before_tax,
-                                income_tax, net_income
-                            ]
-                        })
-                        financial_csv = financial_data_df.to_csv(index=False)
-                        st.download_button(
-                            label=f"📥 Download {ticker} Financial Data",
-                            data=financial_csv,
-                            file_name=f"{ticker}_financial_flow_{datetime.now().strftime('%Y%m%d')}.csv",
-                            mime="text/csv",
-                            key="download_financial_sankey"
-                        )
-                    else:
-                        st.warning(f"No financial data available for {ticker}")
+            # Mapeo de nombres de campos (yfinance usa diferentes nombres)
+            field_mapping = {
+                'Total Revenue': ['Total Revenue', 'TotalRevenue', 'Revenue'],
+                'Cost Of Revenue': ['Cost Of Revenue', 'CostOfRevenue', 'Cost of Goods Sold', 'COGS'],
+                'Gross Profit': ['Gross Profit', 'GrossProfit'],
+                'Operating Expense': ['Operating Expense', 'OperatingExpense', 'Total Operating Expenses'],
+                'Operating Income': ['Operating Income', 'OperatingIncome', 'EBIT'],
+                'Pretax Income': ['Pretax Income', 'PretaxIncome', 'Income Before Tax', 'EBT'],
+                'Tax Provision': ['Tax Provision', 'TaxProvision', 'Income Tax Expense'],
+                'Net Income': ['Net Income', 'NetIncome', 'Net Income Common Stockholders']
+            }
+            
+            # Función para buscar campo con múltiples nombres posibles
+            def find_field(data, possible_names):
+                for name in possible_names:
+                    if name in data.index:
+                        return data[name]
+                return None
+            
+            # Extraer métricas con manejo robusto
+            total_revenue = find_field(latest_data, field_mapping['Total Revenue'])
+            cost_of_revenue = find_field(latest_data, field_mapping['Cost Of Revenue'])
+            gross_profit = find_field(latest_data, field_mapping['Gross Profit'])
+            operating_expense = find_field(latest_data, field_mapping['Operating Expense'])
+            operating_income = find_field(latest_data, field_mapping['Operating Income'])
+            pretax_income = find_field(latest_data, field_mapping['Pretax Income'])
+            tax_provision = find_field(latest_data, field_mapping['Tax Provision'])
+            net_income = find_field(latest_data, field_mapping['Net Income'])
+            
+            # Verificar que tenemos al menos los datos básicos
+            if total_revenue is None or pd.isna(total_revenue):
+                st.warning(f"⚠️ Revenue data not found for {ticker}. Available fields: {', '.join(latest_data.index[:10].tolist())}")
+            else:
+                # Convertir a billones (si los datos están en unidades)
+                def to_billions(value):
+                    if value is None or pd.isna(value):
+                        return 0
+                    return abs(float(value)) / 1e9
                 
-                except Exception as e:
-                    st.error(f"Error loading financial data: {str(e)}")
-                    logger.error(f"Sankey chart error for {ticker}: {e}")
+                revenue_b = to_billions(total_revenue)
+                cost_b = to_billions(cost_of_revenue)
+                gross_profit_b = to_billions(gross_profit) if gross_profit is not None else (revenue_b - cost_b)
+                opex_b = to_billions(operating_expense)
+                op_income_b = to_billions(operating_income) if operating_income is not None else (gross_profit_b - opex_b)
+                pretax_b = to_billions(pretax_income) if pretax_income is not None else op_income_b
+                tax_b = to_billions(tax_provision)
+                net_income_b = to_billions(net_income) if net_income is not None else (pretax_b - tax_b)
+                
+                # Validar que los números tienen sentido
+                if revenue_b > 0:
+                    # Crear Sankey diagram
+                    fig_sankey = go.Figure(data=[go.Sankey(
+                        node=dict(
+                            pad=15,
+                            thickness=20,
+                            line=dict(color="black", width=0.5),
+                            label=[
+                                "Revenue",
+                                "Cost of Revenue", 
+                                "Gross Profit",
+                                "Operating Expenses",
+                                "Operating Income",
+                                "Income Tax",
+                                "Net Income"
+                            ],
+                            color=[
+                                "#2ecc71",  # Revenue - green
+                                "#e74c3c",  # Cost - red
+                                "#27ae60",  # Gross profit - dark green
+                                "#e67e22",  # OpEx - orange
+                                "#16a085",  # Op income - teal
+                                "#c0392b",  # Tax - dark red
+                                "#27ae60"   # Net income - dark green
+                            ]
+                        ),
+                        link=dict(
+                            source=[0, 0, 2, 2, 4, 4],  # Revenue, Revenue, Gross, Gross, OpIncome, OpIncome
+                            target=[1, 2, 3, 4, 5, 6],  # Cost, Gross, OpEx, OpIncome, Tax, NetIncome
+                            value=[
+                                cost_b,
+                                gross_profit_b,
+                                opex_b,
+                                op_income_b,
+                                tax_b,
+                                net_income_b
+                            ],
+                            color=[
+                                "rgba(231, 76, 60, 0.4)",   # Cost - red transparent
+                                "rgba(46, 204, 113, 0.4)",  # Gross - green transparent
+                                "rgba(230, 126, 34, 0.4)",  # OpEx - orange transparent
+                                "rgba(46, 204, 113, 0.4)",  # OpIncome - green transparent
+                                "rgba(192, 57, 43, 0.4)",   # Tax - dark red transparent
+                                "rgba(39, 174, 96, 0.6)"    # NetIncome - dark green transparent
+                            ]
+                        )
+                    )])
+                    
+                    fig_sankey.update_layout(
+                        title=f"{ticker} Financial Flow (TTM, Billions USD)",
+                        font=dict(size=12, color='white'),
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        height=400
+                    )
+                    
+                    st.plotly_chart(fig_sankey, use_container_width=True)
+                    
+                    # Métricas clave
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Revenue", f"${revenue_b:.2f}B")
+                    with col2:
+                        gross_margin = (gross_profit_b / revenue_b * 100) if revenue_b > 0 else 0
+                        st.metric("Gross Margin", f"{gross_margin:.1f}%")
+                    with col3:
+                        op_margin = (op_income_b / revenue_b * 100) if revenue_b > 0 else 0
+                        st.metric("Operating Margin", f"{op_margin:.1f}%")
+                    with col4:
+                        net_margin = (net_income_b / revenue_b * 100) if revenue_b > 0 else 0
+                        st.metric("Net Margin", f"{net_margin:.1f}%")
+                else:
+                    st.warning(f"⚠️ Invalid revenue data for {ticker} (${revenue_b:.2f}B)")
+        
+        else:
+            st.error(f"""
+            **No financial data available for {ticker}**
+            
+            **Possible reasons**:
+            - yfinance API is temporarily unavailable
+            - Ticker symbol is incorrect
+            - Company doesn't report to SEC (non-US company)
+            - Data hasn't been updated yet
+            
+            **Troubleshooting**:
+            1. Try a different ticker (e.g., MSFT, GOOGL, TSLA)
+            2. Check if ticker is correct on [Yahoo Finance](https://finance.yahoo.com/quote/{ticker})
+            3. Wait a few minutes and refresh the page
+            """)
+            
+            # Mostrar información de debugging
+            with st.expander("🔧 Debug Information"):
+                st.code(f"""
+Ticker: {ticker}
+income_stmt type: {type(income_stmt)}
+income_stmt is None: {income_stmt is None}
+income_stmt empty: {income_stmt.empty if income_stmt is not None else 'N/A'}
+
+Available stock info keys:
+{list(stock_sankey.info.keys())[:20] if hasattr(stock_sankey, 'info') and stock_sankey.info else 'No info available'}
+                """)
+    
+    except Exception as e:
+        st.error(f"**Error loading financial data**: {str(e)}")
+        with st.expander("🔧 Technical Details"):
+            st.code(f"""
+Error Type: {type(e).__name__}
+Error Message: {str(e)}
+
             
             st.markdown("---")
             st.markdown("*Developed by Ozy | © 2025*")
