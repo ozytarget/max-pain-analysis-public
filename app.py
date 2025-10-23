@@ -4231,244 +4231,79 @@ def main():
         st.error(f"Error loading Price Target chart: {str(e)}")
 
 
-    
-            # === GAMMA EXPOSURE TARGETS CHART - PRO VERSION ===
-    
+    # === DEBUG: GAMMA EXPOSURE DATA ===
     st.markdown("---")
-    st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
+    st.subheader(f"🔍 DEBUG - Estructura de Datos de Opciones - {ticker}")
     
     try:
-        # Procesar options_data y calcular Gamma Exposure por strike
-        gamma_exposure_by_strike = {}
+        st.write(f"**Total opciones cargadas:** {len(options_data)}")
+        st.write(f"**Fecha de expiración seleccionada:** {expiration_date}")
+        st.write(f"**Precio actual:** ${current_price:.2f}")
+        
+        # Mostrar estructura de las primeras 3 opciones
+        st.write("### 📋 Primeras 3 opciones (estructura completa):")
+        for i, opt in enumerate(options_data[:3]):
+            st.json(opt)
+        
+        # Analizar qué campos tienen valores
+        st.write("### 🔎 Análisis de campos disponibles:")
+        
+        calls_with_gamma = 0
+        puts_with_gamma = 0
+        calls_without_gamma = 0
+        puts_without_gamma = 0
+        
+        sample_call_with_gamma = None
+        sample_put_with_gamma = None
         
         for opt in options_data:
-            greeks = opt.get("greeks", {})
-            gamma = greeks.get("gamma", 0) if greeks else 0
-            strike = opt.get("strike", 0)
-            oi = opt.get("openInterest", 0)
             option_type = opt.get("option_type", "").lower()
+            greeks = opt.get("greeks")
             
-            if strike > 0 and gamma != 0 and oi > 0:
-                # Calcular Gamma Exposure = Gamma × OI × 100 × Spot Price
-                gamma_exposure = abs(gamma * oi * 100 * current_price)
-                
-                if strike not in gamma_exposure_by_strike:
-                    gamma_exposure_by_strike[strike] = {
-                        "call_gamma_ex": 0,
-                        "put_gamma_ex": 0,
-                        "call_oi": 0,
-                        "put_oi": 0,
-                        "call_gamma": 0,
-                        "put_gamma": 0
-                    }
-                
-                if option_type == "call":
-                    gamma_exposure_by_strike[strike]["call_gamma_ex"] += gamma_exposure
-                    gamma_exposure_by_strike[strike]["call_oi"] += oi
-                    gamma_exposure_by_strike[strike]["call_gamma"] += gamma
-                elif option_type == "put":
-                    gamma_exposure_by_strike[strike]["put_gamma_ex"] += gamma_exposure
-                    gamma_exposure_by_strike[strike]["put_oi"] += oi
-                    gamma_exposure_by_strike[strike]["put_gamma"] += gamma
+            if option_type == "call":
+                if greeks and greeks.get("gamma"):
+                    calls_with_gamma += 1
+                    if not sample_call_with_gamma:
+                        sample_call_with_gamma = opt
+                else:
+                    calls_without_gamma += 1
+            elif option_type == "put":
+                if greeks and greeks.get("gamma"):
+                    puts_with_gamma += 1
+                    if not sample_put_with_gamma:
+                        sample_put_with_gamma = opt
+                else:
+                    puts_without_gamma += 1
         
-        if not gamma_exposure_by_strike:
-            st.warning(f"No se encontraron datos de gamma exposure para {ticker} el {expiration_date}.")
-        else:
-            # Convertir a listas y filtrar por gamma exposure mínimo
-            strikes_data = []
-            for strike, data in gamma_exposure_by_strike.items():
-                total_gamma_ex = data["call_gamma_ex"] + data["put_gamma_ex"]
-                net_gamma_ex = data["call_gamma_ex"] - data["put_gamma_ex"]
-                
-                if total_gamma_ex > 100000:  # Filtro: gamma exposure > 100K
-                    strikes_data.append({
-                        "strike": strike,
-                        "call_gamma_ex": data["call_gamma_ex"],
-                        "put_gamma_ex": data["put_gamma_ex"],
-                        "total_gamma_ex": total_gamma_ex,
-                        "net_gamma_ex": net_gamma_ex,
-                        "call_oi": data["call_oi"],
-                        "put_oi": data["put_oi"],
-                        "dominance": "CALL" if data["call_gamma_ex"] > data["put_gamma_ex"] else "PUT"
-                    })
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("CALLS con gamma", calls_with_gamma)
+            st.metric("CALLS sin gamma", calls_without_gamma)
+        with col2:
+            st.metric("PUTS con gamma", puts_with_gamma)
+            st.metric("PUTS sin gamma", puts_without_gamma)
+        
+        # Mostrar ejemplos con gamma
+        if sample_call_with_gamma:
+            st.write("### ✅ Ejemplo de CALL con gamma:")
+            st.json(sample_call_with_gamma)
+        
+        if sample_put_with_gamma:
+            st.write("### ✅ Ejemplo de PUT con gamma:")
+            st.json(sample_put_with_gamma)
+        
+        # Verificar campos alternativos
+        st.write("### 🔑 Campos disponibles en las opciones:")
+        if options_data:
+            all_keys = set()
+            for opt in options_data[:10]:
+                all_keys.update(opt.keys())
+            st.write(sorted(list(all_keys)))
             
-            # Ordenar por strike
-            strikes_data = sorted(strikes_data, key=lambda x: x["strike"])
-            
-            if not strikes_data:
-                st.warning("No hay strikes con gamma exposure significativo (>100K).")
-            else:
-                # Crear figura
-                fig_gamma = go.Figure()
-                
-                # Separar CALL-dominant vs PUT-dominant
-                call_dominant = [s for s in strikes_data if s["dominance"] == "CALL"]
-                put_dominant = [s for s in strikes_data if s["dominance"] == "PUT"]
-                
-                # Burbujas CALL-dominant (verde)
-                if call_dominant:
-                    fig_gamma.add_trace(go.Scatter(
-                        x=[s["strike"] for s in call_dominant],
-                        y=[s["total_gamma_ex"] / 1e6 for s in call_dominant],  # En millones
-                        mode='markers+text',
-                        marker=dict(
-                            size=[min(max(s["total_gamma_ex"] / 50000, 15), 80) for s in call_dominant],
-                            color='#00ff00',
-                            opacity=0.75,
-                            line=dict(color='#006400', width=2.5),
-                            symbol='circle'
-                        ),
-                        text=[f"${s['strike']:.0f}" for s in call_dominant],
-                        textposition="middle center",
-                        textfont=dict(size=10, color='black', family='Arial Black'),
-                        name='CALL Dominant',
-                        hovertemplate='<b>Strike:</b> $%{x:.2f}<br>' +
-                                      '<b>Total Gamma Ex:</b> $%{y:.2f}M<br>' +
-                                      '<b>CALL Gamma Ex:</b> $%{customdata[0]:.2f}M<br>' +
-                                      '<b>PUT Gamma Ex:</b> $%{customdata[1]:.2f}M<br>' +
-                                      '<b>Net Gamma Ex:</b> $%{customdata[2]:.2f}M<br>' +
-                                      '<b>CALL OI:</b> %{customdata[3]:,.0f}<br>' +
-                                      '<b>PUT OI:</b> %{customdata[4]:,.0f}<extra></extra>',
-                        customdata=[[s["call_gamma_ex"]/1e6, s["put_gamma_ex"]/1e6, 
-                                   s["net_gamma_ex"]/1e6, s["call_oi"], s["put_oi"]] 
-                                  for s in call_dominant]
-                    ))
-                
-                # Burbujas PUT-dominant (rojo)
-                if put_dominant:
-                    fig_gamma.add_trace(go.Scatter(
-                        x=[s["strike"] for s in put_dominant],
-                        y=[s["total_gamma_ex"] / 1e6 for s in put_dominant],  # En millones
-                        mode='markers+text',
-                        marker=dict(
-                            size=[min(max(s["total_gamma_ex"] / 50000, 15), 80) for s in put_dominant],
-                            color='#ff6b6b',
-                            opacity=0.75,
-                            line=dict(color='#8b0000', width=2.5),
-                            symbol='circle'
-                        ),
-                        text=[f"${s['strike']:.0f}" for s in put_dominant],
-                        textposition="middle center",
-                        textfont=dict(size=10, color='black', family='Arial Black'),
-                        name='PUT Dominant',
-                        hovertemplate='<b>Strike:</b> $%{x:.2f}<br>' +
-                                      '<b>Total Gamma Ex:</b> $%{y:.2f}M<br>' +
-                                      '<b>CALL Gamma Ex:</b> $%{customdata[0]:.2f}M<br>' +
-                                      '<b>PUT Gamma Ex:</b> $%{customdata[1]:.2f}M<br>' +
-                                      '<b>Net Gamma Ex:</b> $%{customdata[2]:.2f}M<br>' +
-                                      '<b>CALL OI:</b> %{customdata[3]:,.0f}<br>' +
-                                      '<b>PUT OI:</b> %{customdata[4]:,.0f}<extra></extra>',
-                        customdata=[[s["call_gamma_ex"]/1e6, s["put_gamma_ex"]/1e6, 
-                                   s["net_gamma_ex"]/1e6, s["call_oi"], s["put_oi"]] 
-                                  for s in put_dominant]
-                    ))
-                
-                # Línea vertical del precio actual
-                fig_gamma.add_vline(
-                    x=current_price,
-                    line_dash="dash",
-                    line_color="#ff0000",
-                    line_width=3,
-                    annotation_text=f"Current: ${current_price:.2f}",
-                    annotation_position="top",
-                    annotation_font_size=12,
-                    annotation_font_color="#ff0000"
-                )
-                
-                # Zona de strikes ITM/OTM
-                if strikes_data:
-                    min_strike = min(s["strike"] for s in strikes_data)
-                    max_strike = max(s["strike"] for s in strikes_data)
-                    
-                    # Zona ITM para CALLS (precio actual hacia abajo)
-                    fig_gamma.add_vrect(
-                        x0=min_strike, x1=current_price,
-                        fillcolor="green", opacity=0.08,
-                        layer="below", line_width=0,
-                        annotation_text="CALLS ITM / PUTS OTM",
-                        annotation_position="top left",
-                        annotation_font_size=10
-                    )
-                    
-                    # Zona OTM para CALLS (precio actual hacia arriba)
-                    fig_gamma.add_vrect(
-                        x0=current_price, x1=max_strike,
-                        fillcolor="red", opacity=0.08,
-                        layer="below", line_width=0,
-                        annotation_text="CALLS OTM / PUTS ITM",
-                        annotation_position="top right",
-                        annotation_font_size=10
-                    )
-                
-                # Layout
-                fig_gamma.update_layout(
-                    title=f"Gamma Exposure Targets - {ticker} | Exp: {expiration_date}",
-                    xaxis_title="Strike Price ($)",
-                    yaxis_title="Total Gamma Exposure ($ Millions)",
-                    template="plotly_dark",
-                    height=600,
-                    showlegend=True,
-                    hovermode='closest',
-                    legend=dict(
-                        x=0.01, y=0.99,
-                        bgcolor='rgba(0,0,0,0.5)',
-                        bordercolor='white',
-                        borderwidth=1
-                    ),
-                    xaxis=dict(
-                        showgrid=True,
-                        gridwidth=1,
-                        gridcolor='rgba(128,128,128,0.2)'
-                    ),
-                    yaxis=dict(
-                        showgrid=True,
-                        gridwidth=1,
-                        gridcolor='rgba(128,128,128,0.2)'
-                    )
-                )
-                
-                st.plotly_chart(fig_gamma, use_container_width=True)
-                
-                # Métricas avanzadas
-                col1, col2, col3, col4 = st.columns(4)
-                
-                total_call_ex = sum(s["call_gamma_ex"] for s in strikes_data) / 1e6
-                total_put_ex = sum(s["put_gamma_ex"] for s in strikes_data) / 1e6
-                net_gamma_ex = total_call_ex - total_put_ex
-                total_strikes = len(strikes_data)
-                
-                with col1:
-                    st.metric("Total Strikes", total_strikes)
-                with col2:
-                    st.metric("CALL Gamma Ex", f"${total_call_ex:.2f}M", 
-                             delta=f"{(total_call_ex / (total_call_ex + total_put_ex) * 100):.1f}%" if total_put_ex > 0 else None)
-                with col3:
-                    st.metric("PUT Gamma Ex", f"${total_put_ex:.2f}M",
-                             delta=f"{(total_put_ex / (total_call_ex + total_put_ex) * 100):.1f}%" if total_call_ex > 0 else None)
-                with col4:
-                    st.metric("Net Gamma Ex", f"${net_gamma_ex:.2f}M",
-                             delta="Bullish" if net_gamma_ex > 0 else "Bearish")
-                
-                # Top 5 strikes por gamma exposure
-                st.markdown("### 🔥 Top 5 Strikes by Total Gamma Exposure")
-                top_5 = sorted(strikes_data, key=lambda x: x["total_gamma_ex"], reverse=True)[:5]
-                
-                top_df = pd.DataFrame([{
-                    "Strike": f"${s['strike']:.2f}",
-                    "Total Gamma Ex": f"${s['total_gamma_ex']/1e6:.2f}M",
-                    "CALL Gamma Ex": f"${s['call_gamma_ex']/1e6:.2f}M",
-                    "PUT Gamma Ex": f"${s['put_gamma_ex']/1e6:.2f}M",
-                    "Dominance": s['dominance'],
-                    "Net Gamma Ex": f"${s['net_gamma_ex']/1e6:.2f}M"
-                } for s in top_5])
-                
-                st.dataframe(top_df, use_container_width=True)
-                
     except Exception as e:
-        st.error(f"Error loading Gamma Exposure chart: {e}")
+        st.error(f"Error en diagnóstico: {e}")
         import traceback
-        st.write("**Traceback:**", traceback.format_exc())
-
+        st.write(traceback.format_exc())
         
         st.markdown("*Developed by Ozy | © 2025*")
 
