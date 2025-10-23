@@ -4623,6 +4623,11 @@ Available stock info keys:
 Error Type: {type(e).__name__}
 Error Message: {str(e)}
 
+Ticker: {ticker}
+yfinance version: {yf.__version__ if hasattr(yf, '__version__') else 'unknown'}
+            """)
+        st.info("💡 **Tip**: Try using a major US ticker like AAPL, MSFT, or GOOGL first to test.")
+
             
             st.markdown("---")
             st.markdown("*Developed by Ozy | © 2025*")
