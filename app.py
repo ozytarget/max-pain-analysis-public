@@ -4122,7 +4122,7 @@ def main():
     # PRICE TARGET CHART CON BURBUJAS
     # ==============================================
     try:
-        st.markdown("---")
+        
         st.subheader(f"🎯 Price Targets - {ticker}")
         
         # Fetch historical prices (últimos 6 meses)
@@ -4233,7 +4233,7 @@ def main():
             # ==============================================
     # GAMMA EXPOSURE TARGETS CHART
     # ==============================================
-    st.markdown("---")
+    
     st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
     
     try:
