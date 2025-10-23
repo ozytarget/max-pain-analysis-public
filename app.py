@@ -4119,6 +4119,7 @@ def main():
 
 
     # ==============================================
+    # ==============================================
     # PRICE TARGET CHART CON BURBUJAS
     # ==============================================
     try:
@@ -4141,13 +4142,13 @@ def main():
                 # Procesar datos históricos (últimos 180 días)
                 historical = hist_data['historical'][:180]
                 hist_df = pd.DataFrame(historical)
-                hist_df['date'] = pd.to_datetime(hist_df['date'])
+                hist_df['date'] = pd.to_datetime(hist_df['date']).dt.tz_localize(None)
                 hist_df = hist_df.sort_values('date')
                 
                 # Procesar targets (últimos 12 meses)
                 targets_df = pd.DataFrame(targets_data)
-                targets_df['publishedDate'] = pd.to_datetime(targets_df['publishedDate'])
-                one_year_ago = pd.Timestamp.now() - pd.Timedelta(days=365)
+                targets_df['publishedDate'] = pd.to_datetime(targets_df['publishedDate']).dt.tz_localize(None)
+                one_year_ago = pd.Timestamp.now().tz_localize(None) - pd.Timedelta(days=365)
                 targets_df = targets_df[targets_df['publishedDate'] >= one_year_ago]
                 
                 # Crear figura
