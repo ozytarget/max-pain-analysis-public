@@ -4241,19 +4241,24 @@ def main():
     st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
     
     try:
-        # Procesar options_data para extraer calls/puts con gamma > 500K
+        # Procesar options_data para extraer calls/puts con gamma significativo
         calls_gamma = []
         puts_gamma = []
         
+        # DEBUG: Mostrar estructura de una opción
+        if options_data and len(options_data) > 0:
+            st.write("**Debug - Estructura de opción:**", options_data[0])
+        
         for opt in options_data:
-            gamma = opt.get("greeks", {}).get("gamma", 0)
+            greeks = opt.get("greeks", {})
+            gamma = greeks.get("gamma", 0) if greeks else 0
             strike = opt.get("strike", 0)
             expiration = opt.get("expiration", "")
             oi = opt.get("openInterest", 0)
             option_type = opt.get("option_type", "").lower()
             
-            # Filtrar por gamma > 500K
-            if gamma > 500000:
+            # Filtrar por gamma > 0.001 (ajustar según lo que veas en debug)
+            if gamma > 0.001:
                 data_point = {
                     "strike": strike,
                     "gamma": gamma,
@@ -4266,97 +4271,28 @@ def main():
                 elif option_type == "put":
                     puts_gamma.append(data_point)
         
-        # Crear figura
-        fig_gamma = go.Figure()
+        # Ordenar por gamma (mayor primero)
+        calls_gamma = sorted(calls_gamma, key=lambda x: x["gamma"], reverse=True)[:15]
+        puts_gamma = sorted(puts_gamma, key=lambda x: x["gamma"], reverse=True)[:15]
         
-        # Línea del precio actual
-        fig_gamma.add_trace(go.Scatter(
-            x=[0, len(calls_gamma) + len(puts_gamma)],
-            y=[current_price, current_price],
-            mode='lines',
-            line=dict(color='red', dash='dash', width=2),
-            name=f'Current Price: ${current_price:.2f}'
-        ))
+        st.write(f"**Encontradas:** {len(calls_gamma)} CALLS y {len(puts_gamma)} PUTS con gamma > 0.001")
         
-        # Burbujas de CALLS (verde)
-        if calls_gamma:
-            fig_gamma.add_trace(go.Scatter(
-                x=list(range(len(calls_gamma))),
-                y=[c["strike"] for c in calls_gamma],
-                mode='markers+text',
-                marker=dict(
-                    size=[min(c["gamma"]/50000, 60) for c in calls_gamma],
-                    color='lightgreen',
-                    opacity=0.7,
-                    line=dict(color='darkgreen', width=2)
-                ),
-                text=[f"${c['strike']:.0f}" for c in calls_gamma],
-                textposition="middle center",
-                textfont=dict(size=10, color='black'),
-                name='CALL Strikes',
-                hovertemplate='<b>CALL Strike:</b> $%{y:.2f}<br>' +
-                              '<b>Gamma:</b> %{marker.size:.0f}K<br>' +
-                              '<b>Expiration:</b> %{customdata[0]}<br>' +
-                              '<b>OI:</b> %{customdata[1]:,.0f}<extra></extra>',
-                customdata=[[c["expiration"], c["open_interest"]] for c in calls_gamma]
-            ))
-        
-        # Burbujas de PUTS (rojo)
-        if puts_gamma:
-            offset = len(calls_gamma)
-            fig_gamma.add_trace(go.Scatter(
-                x=list(range(offset, offset + len(puts_gamma))),
-                y=[p["strike"] for p in puts_gamma],
-                mode='markers+text',
-                marker=dict(
-                    size=[min(p["gamma"]/50000, 60) for p in puts_gamma],
-                    color='lightcoral',
-                    opacity=0.7,
-                    line=dict(color='darkred', width=2)
-                ),
-                text=[f"${p['strike']:.0f}" for p in puts_gamma],
-                textposition="middle center",
-                textfont=dict(size=10, color='black'),
-                name='PUT Strikes',
-                hovertemplate='<b>PUT Strike:</b> $%{y:.2f}<br>' +
-                              '<b>Gamma:</b> %{marker.size:.0f}K<br>' +
-                              '<b>Expiration:</b> %{customdata[0]}<br>' +
-                              '<b>OI:</b> %{customdata[1]:,.0f}<extra></extra>',
-                customdata=[[p["expiration"], p["open_interest"]] for p in puts_gamma]
-            ))
-        
-        # Layout
-        fig_gamma.update_layout(
-            title=f"Gamma Exposure Targets (Gamma > 500K) - {ticker}",
-            xaxis_title="Strike Index",
-            yaxis_title="Strike Price ($)",
-            template="plotly_dark",
-            height=500,
-            showlegend=True,
-            hovermode='closest'
-        )
-        
-        st.plotly_chart(fig_gamma, use_container_width=True)
-        
-        # Métricas
-        col1, col2, col3, col4 = st.columns(4)
-        
-        total_calls = len(calls_gamma)
-        total_puts = len(puts_gamma)
-        avg_call_strike = sum(c["strike"] for c in calls_gamma) / total_calls if total_calls > 0 else 0
-        avg_put_strike = sum(p["strike"] for p in puts_gamma) / total_puts if total_puts > 0 else 0
-        
-        with col1:
-            st.metric("Total CALL Strikes", total_calls)
-        with col2:
-            st.metric("Avg CALL Strike", f"${avg_call_strike:.2f}")
-        with col3:
-            st.metric("Total PUT Strikes", total_puts)
-        with col4:
-            st.metric("Avg PUT Strike", f"${avg_put_strike:.2f}")
+        if not calls_gamma and not puts_gamma:
+            st.warning("No se encontraron opciones con gamma significativo. Intenta con otra fecha de expiración.")
+        else:
+            # Crear figura
+            fig_gamma = go.Figure()
             
-    except Exception as e:
-        st.error(f"Error loading Gamma Exposure chart: {e}")
+            # Línea del precio actual
+            fig_gamma.add_trace(go.Scatter(
+                x=[0, len(calls_gamma) + len(puts_gamma)],
+                y=[current_price, current_price],
+                mode='lines',
+                line=dict(color='red', dash='dash', width=2),
+                name=f'Current Price: ${current_price:.2f}'
+            ))
+            
+            # Burbujas
 
 
 
