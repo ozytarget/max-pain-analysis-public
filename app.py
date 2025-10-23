@@ -4236,176 +4236,127 @@ def main():
 
 
             # ==============================================
-    # GAMMA EXPOSURE TARGETS CHART CON BURBUJAS
-    # ==============================================
-    try:
-        st.markdown("---")
-        st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
-        
-        # Fetch historical prices (últimos 6 meses)
-        hist_url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?apikey={FMP_API_KEY}"
-        hist_response = requests.get(hist_url, timeout=10)
-        
-        if hist_response.status_code == 200:
-            hist_data = hist_response.json()
-            
-            if hist_data and 'historical' in hist_data:
-                # Procesar datos históricos (últimos 180 días)
-                historical = hist_data['historical'][:180]
-                hist_df = pd.DataFrame(historical)
-                hist_df['date'] = pd.to_datetime(hist_df['date']).dt.tz_localize(None)
-                hist_df = hist_df.sort_values('date')
-                
-                # Filtrar strikes con gamma > 500K
-                gamma_targets = []
-                
-                if not df_calls.empty:
-                    high_gamma_calls = df_calls[df_calls['gamma'] > 500000].copy()
-                    for _, row in high_gamma_calls.iterrows():
-                        gamma_targets.append({
-                            'strike': row['strike'],
-                            'gamma': row['gamma'],
-                            'type': 'CALL',
-                            'expiration': row['expiration'],
-                            'oi': row.get('openInterest', 0)
-                        })
-                
-                if not df_puts.empty:
-                    high_gamma_puts = df_puts[df_puts['gamma'] > 500000].copy()
-                    for _, row in high_gamma_puts.iterrows():
-                        gamma_targets.append({
-                            'strike': row['strike'],
-                            'gamma': row['gamma'],
-                            'type': 'PUT',
-                            'expiration': row['expiration'],
-                            'oi': row.get('openInterest', 0)
-                        })
-                
-                # Crear figura
-                fig_gamma = go.Figure()
-                
-                # Línea azul: Precios históricos
-                fig_gamma.add_trace(go.Scatter(
-                    x=hist_df['date'],
-                    y=hist_df['close'],
-                    mode='lines',
-                    name='Historical Price',
-                    line=dict(color='#1f77b4', width=2),
-                    hovertemplate='<b>Date:</b> %{x|%Y-%m-%d}<br><b>Close:</b> $%{y:.2f}<extra></extra>'
-                ))
-                
-                # Burbujas de Gamma Targets
-                if gamma_targets:
-                    gamma_df = pd.DataFrame(gamma_targets)
-                    
-                    # Separar CALLS y PUTS
-                    calls_df = gamma_df[gamma_df['type'] == 'CALL']
-                    puts_df = gamma_df[gamma_df['type'] == 'PUT']
-                    
-                    # Burbujas verdes: CALLS con gamma > 500K
-                    if not calls_df.empty:
-                        current_date = pd.Timestamp.now().tz_localize(None)
-                        
-                        fig_gamma.add_trace(go.Scatter(
-                            x=[current_date] * len(calls_df),
-                            y=calls_df['strike'],
-                            mode='markers',
-                            name='High Gamma CALLS',
-                            marker=dict(
-                                size=calls_df['gamma'] / 50000,
-                                color='#00ff00',
-                                line=dict(width=2, color='white'),
-                                opacity=0.7,
-                                sizemode='diameter',
-                                sizemin=8
-                            ),
-                            text=[f"CALL ${s:.2f}<br>Gamma: {g:,.0f}<br>Exp: {e}<br>OI: {oi:,.0f}" 
-                                  for s, g, e, oi in zip(calls_df['strike'], calls_df['gamma'], 
-                                                         calls_df['expiration'], calls_df['oi'])],
-                            hovertemplate='%{text}<extra></extra>'
-                        ))
-                    
-                    # Burbujas rojas: PUTS con gamma > 500K
-                    if not puts_df.empty:
-                        current_date = pd.Timestamp.now().tz_localize(None)
-                        
-                        fig_gamma.add_trace(go.Scatter(
-                            x=[current_date] * len(puts_df),
-                            y=puts_df['strike'],
-                            mode='markers',
-                            name='High Gamma PUTS',
-                            marker=dict(
-                                size=puts_df['gamma'] / 50000,
-                                color='#ff4444',
-                                line=dict(width=2, color='white'),
-                                opacity=0.7,
-                                sizemode='diameter',
-                                sizemin=8
-                            ),
-                            text=[f"PUT ${s:.2f}<br>Gamma: {g:,.0f}<br>Exp: {e}<br>OI: {oi:,.0f}" 
-                                  for s, g, e, oi in zip(puts_df['strike'], puts_df['gamma'], 
-                                                         puts_df['expiration'], puts_df['oi'])],
-                            hovertemplate='%{text}<extra></extra>'
-                        ))
-                
-                # Línea punteada: Precio actual
-                fig_gamma.add_hline(
-                    y=current_price,
-                    line_dash="dash",
-                    line_color="yellow",
-                    annotation_text=f"Current: ${current_price:.2f}",
-                    annotation_position="right"
-                )
-                
-                # Layout
-                fig_gamma.update_layout(
-                    title=f"{ticker} - Price History vs High Gamma Exposure Strikes (>500K)",
-                    xaxis_title="Date",
-                    yaxis_title="Price ($)",
-                    hovermode='closest',
-                    template='plotly_dark',
-                    height=500,
-                    showlegend=True,
-                    legend=dict(x=0.01, y=0.99)
-                )
-                
-                st.plotly_chart(fig_gamma, use_container_width=True)
-                
-                # Métricas de Gamma Exposure
-                if gamma_targets:
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    total_calls_gamma = sum([t['gamma'] for t in gamma_targets if t['type'] == 'CALL'])
-                    total_puts_gamma = sum([t['gamma'] for t in gamma_targets if t['type'] == 'PUT'])
-                    num_call_strikes = len([t for t in gamma_targets if t['type'] == 'CALL'])
-                    num_put_strikes = len([t for t in gamma_targets if t['type'] == 'PUT'])
-                    
-                    with col1:
-                        st.metric("Total CALL Gamma", f"{total_calls_gamma/1e6:.2f}M")
-                    with col2:
-                        st.metric("Total PUT Gamma", f"{total_puts_gamma/1e6:.2f}M")
-                    with col3:
-                        st.metric("CALL Strikes >500K", num_call_strikes)
-                    with col4:
-                        st.metric("PUT Strikes >500K", num_put_strikes)
-                    
-                    # Tabla de top strikes
-                    st.markdown("**🎯 Top Gamma Exposure Strikes:**")
-                    gamma_summary = pd.DataFrame(gamma_targets)
-                    gamma_summary = gamma_summary.sort_values('gamma', ascending=False).head(10)
-                    gamma_summary['gamma'] = gamma_summary['gamma'].apply(lambda x: f"{x:,.0f}")
-                    gamma_summary['oi'] = gamma_summary['oi'].apply(lambda x: f"{x:,.0f}")
-                    st.dataframe(gamma_summary[['type', 'strike', 'gamma', 'expiration', 'oi']], 
-                                use_container_width=True, hide_index=True)
-                else:
-                    st.info("No strikes with Gamma > 500K found for current options chain.")
-            else:
-                st.warning(f"No historical data available from FMP API for {ticker}.")
-        else:
-            st.error(f"API Error - Historical prices: {hist_response.status_code}")
+    # === GAMMA EXPOSURE TARGETS CHART ===
+    st.markdown("---")
+    st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
     
+    try:
+        # Procesar options_data para extraer calls/puts con gamma > 500K
+        calls_gamma = []
+        puts_gamma = []
+        
+        for opt in options_data:
+            gamma = opt.get("greeks", {}).get("gamma", 0)
+            strike = opt.get("strike", 0)
+            expiration = opt.get("expiration", "")
+            oi = opt.get("openInterest", 0)
+            option_type = opt.get("option_type", "").lower()
+            
+            # Filtrar por gamma > 500K
+            if gamma > 500000:
+                data_point = {
+                    "strike": strike,
+                    "gamma": gamma,
+                    "expiration": expiration,
+                    "open_interest": oi
+                }
+                
+                if option_type == "call":
+                    calls_gamma.append(data_point)
+                elif option_type == "put":
+                    puts_gamma.append(data_point)
+        
+        # Crear figura
+        fig_gamma = go.Figure()
+        
+        # Línea del precio actual
+        fig_gamma.add_trace(go.Scatter(
+            x=[0, len(calls_gamma) + len(puts_gamma)],
+            y=[current_price, current_price],
+            mode='lines',
+            line=dict(color='red', dash='dash', width=2),
+            name=f'Current Price: ${current_price:.2f}'
+        ))
+        
+        # Burbujas de CALLS (verde)
+        if calls_gamma:
+            fig_gamma.add_trace(go.Scatter(
+                x=list(range(len(calls_gamma))),
+                y=[c["strike"] for c in calls_gamma],
+                mode='markers+text',
+                marker=dict(
+                    size=[min(c["gamma"]/50000, 60) for c in calls_gamma],
+                    color='lightgreen',
+                    opacity=0.7,
+                    line=dict(color='darkgreen', width=2)
+                ),
+                text=[f"${c['strike']:.0f}" for c in calls_gamma],
+                textposition="middle center",
+                textfont=dict(size=10, color='black'),
+                name='CALL Strikes',
+                hovertemplate='<b>CALL Strike:</b> $%{y:.2f}<br>' +
+                              '<b>Gamma:</b> %{marker.size:.0f}K<br>' +
+                              '<b>Expiration:</b> %{customdata[0]}<br>' +
+                              '<b>OI:</b> %{customdata[1]:,.0f}<extra></extra>',
+                customdata=[[c["expiration"], c["open_interest"]] for c in calls_gamma]
+            ))
+        
+        # Burbujas de PUTS (rojo)
+        if puts_gamma:
+            offset = len(calls_gamma)
+            fig_gamma.add_trace(go.Scatter(
+                x=list(range(offset, offset + len(puts_gamma))),
+                y=[p["strike"] for p in puts_gamma],
+                mode='markers+text',
+                marker=dict(
+                    size=[min(p["gamma"]/50000, 60) for p in puts_gamma],
+                    color='lightcoral',
+                    opacity=0.7,
+                    line=dict(color='darkred', width=2)
+                ),
+                text=[f"${p['strike']:.0f}" for p in puts_gamma],
+                textposition="middle center",
+                textfont=dict(size=10, color='black'),
+                name='PUT Strikes',
+                hovertemplate='<b>PUT Strike:</b> $%{y:.2f}<br>' +
+                              '<b>Gamma:</b> %{marker.size:.0f}K<br>' +
+                              '<b>Expiration:</b> %{customdata[0]}<br>' +
+                              '<b>OI:</b> %{customdata[1]:,.0f}<extra></extra>',
+                customdata=[[p["expiration"], p["open_interest"]] for p in puts_gamma]
+            ))
+        
+        # Layout
+        fig_gamma.update_layout(
+            title=f"Gamma Exposure Targets (Gamma > 500K) - {ticker}",
+            xaxis_title="Strike Index",
+            yaxis_title="Strike Price ($)",
+            template="plotly_dark",
+            height=500,
+            showlegend=True,
+            hovermode='closest'
+        )
+        
+        st.plotly_chart(fig_gamma, use_container_width=True)
+        
+        # Métricas
+        col1, col2, col3, col4 = st.columns(4)
+        
+        total_calls = len(calls_gamma)
+        total_puts = len(puts_gamma)
+        avg_call_strike = sum(c["strike"] for c in calls_gamma) / total_calls if total_calls > 0 else 0
+        avg_put_strike = sum(p["strike"] for p in puts_gamma) / total_puts if total_puts > 0 else 0
+        
+        with col1:
+            st.metric("Total CALL Strikes", total_calls)
+        with col2:
+            st.metric("Avg CALL Strike", f"${avg_call_strike:.2f}")
+        with col3:
+            st.metric("Total PUT Strikes", total_puts)
+        with col4:
+            st.metric("Avg PUT Strike", f"${avg_put_strike:.2f}")
+            
     except Exception as e:
-        st.error(f"Error loading Gamma Exposure chart: {str(e)}")
+        st.error(f"Error loading Gamma Exposure chart: {e}")
 
 
 
