@@ -4118,144 +4118,116 @@ def main():
             st.plotly_chart(fig_options, use_container_width=True)
 
 
-                        # ==================== PRICE TARGET CHART ====================
-            st.markdown("---")
-            st.markdown("### 🎯 Price Target Analysis")
+    # ==============================================
+    # PRICE TARGET CHART CON BURBUJAS
+    # ==============================================
+    try:
+        st.markdown("---")
+        st.subheader(f"🎯 Price Targets - {ticker}")
+        
+        # Fetch historical prices (últimos 6 meses)
+        hist_url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?apikey={FMP_API_KEY}"
+        hist_response = requests.get(hist_url, timeout=10)
+        
+        # Fetch price targets
+        targets_url = f"https://financialmodelingprep.com/api/v4/price-target?symbol={ticker}&apikey={FMP_API_KEY}"
+        targets_response = requests.get(targets_url, timeout=10)
+        
+        if hist_response.status_code == 200 and targets_response.status_code == 200:
+            hist_data = hist_response.json()
+            targets_data = targets_response.json()
             
-            with st.expander("ℹ️ How to read this chart?"):
-                st.markdown("""
-                **Price Target Chart** compares current stock price with analyst targets:
-                - 🔵 **Blue line**: Historical close price
-                - 🟠 **Orange bubbles**: Analyst price targets over time
-                - **Dashed line**: Current price level for reference
-                - **Bubble size**: Represents confidence or number of analysts (if available)
+            if hist_data and 'historical' in hist_data and targets_data:
+                # Procesar datos históricos (últimos 180 días)
+                historical = hist_data['historical'][:180]
+                hist_df = pd.DataFrame(historical)
+                hist_df['date'] = pd.to_datetime(hist_df['date'])
+                hist_df = hist_df.sort_values('date')
                 
-                **Interpretation**:
-                - Targets **above** current price → Bullish outlook
-                - Targets **below** current price → Bearish outlook
-                - Cluster of targets → Strong analyst consensus
-                """)
-            
-            try:
-                # Obtener price targets de FMP
-                fmp_key = st.secrets["FMP_API_KEY"]
+                # Procesar targets (últimos 12 meses)
+                targets_df = pd.DataFrame(targets_data)
+                targets_df['publishedDate'] = pd.to_datetime(targets_df['publishedDate'])
+                one_year_ago = pd.Timestamp.now() - pd.Timedelta(days=365)
+                targets_df = targets_df[targets_df['publishedDate'] >= one_year_ago]
                 
-                # 1. Obtener histórico de precio (1 año)
-                end_date = datetime.today()
-                start_date = end_date - timedelta(days=365)
+                # Crear figura
+                fig_targets = go.Figure()
                 
-                hist_url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?from={start_date.strftime('%Y-%m-%d')}&to={end_date.strftime('%Y-%m-%d')}&apikey={fmp_key}"
-                hist_response = requests.get(hist_url, timeout=10)
+                # Línea azul: Precios históricos
+                fig_targets.add_trace(go.Scatter(
+                    x=hist_df['date'],
+                    y=hist_df['close'],
+                    mode='lines',
+                    name='Historical Price',
+                    line=dict(color='#1f77b4', width=2),
+                    hovertemplate='<b>Date:</b> %{x|%Y-%m-%d}<br><b>Close:</b> $%{y:.2f}<extra></extra>'
+                ))
                 
-                # 2. Obtener price targets
-                target_url = f"https://financialmodelingprep.com/api/v4/price-target?symbol={ticker}&apikey={fmp_key}"
-                target_response = requests.get(target_url, timeout=10)
+                # Burbujas naranjas: Price Targets
+                if not targets_df.empty:
+                    fig_targets.add_trace(go.Scatter(
+                        x=targets_df['publishedDate'],
+                        y=targets_df['adjPriceTarget'],
+                        mode='markers',
+                        name='Analyst Targets',
+                        marker=dict(
+                            size=12,
+                            color='#ff7f0e',
+                            line=dict(width=2, color='white'),
+                            opacity=0.8
+                        ),
+                        text=targets_df['analystCompany'],
+                        hovertemplate='<b>%{text}</b><br><b>Date:</b> %{x|%Y-%m-%d}<br><b>Target:</b> $%{y:.2f}<extra></extra>'
+                    ))
                 
-                if hist_response.status_code == 200 and target_response.status_code == 200:
-                    hist_data = hist_response.json()
-                    target_data = target_response.json()
+                # Línea punteada: Precio actual
+                fig_targets.add_hline(
+                    y=current_price,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text=f"Current: ${current_price:.2f}",
+                    annotation_position="right"
+                )
+                
+                # Layout
+                fig_targets.update_layout(
+                    title=f"{ticker} - Price History vs Analyst Targets",
+                    xaxis_title="Date",
+                    yaxis_title="Price ($)",
+                    hovermode='x unified',
+                    template='plotly_dark',
+                    height=500,
+                    showlegend=True,
+                    legend=dict(x=0.01, y=0.99)
+                )
+                
+                st.plotly_chart(fig_targets, use_container_width=True)
+                
+                # Métricas de targets
+                if not targets_df.empty:
+                    col1, col2, col3, col4 = st.columns(4)
+                    avg_target = targets_df['adjPriceTarget'].mean()
+                    max_target = targets_df['adjPriceTarget'].max()
+                    min_target = targets_df['adjPriceTarget'].min()
+                    num_analysts = len(targets_df)
                     
-                    # Procesar datos históricos
-                    if hist_data and 'historical' in hist_data:
-                        hist_df = pd.DataFrame(hist_data['historical'])
-                        hist_df['date'] = pd.to_datetime(hist_df['date'])
-                        hist_df = hist_df.sort_values('date')
-                        
-                        # Procesar price targets
-                        if target_data and len(target_data) > 0:
-                            target_df = pd.DataFrame(target_data)
-                            target_df['publishedDate'] = pd.to_datetime(target_df['publishedDate'])
-                            
-                            # Filtrar últimos 12 meses de targets
-                            target_df = target_df[target_df['publishedDate'] >= start_date]
-                            
-                            # Crear gráfico
-                            fig_target = go.Figure()
-                            
-                            # Línea de precio histórico
-                            fig_target.add_trace(go.Scatter(
-                                x=hist_df['date'],
-                                y=hist_df['close'],
-                                mode='lines',
-                                name='Close Price',
-                                line=dict(color='#3498db', width=2),
-                                hovertemplate='<b>Date:</b> %{x|%Y-%m-%d}<br><b>Close:</b> $%{y:.2f}<extra></extra>'
-                            ))
-                            
-                            # Burbujas de price targets
-                            fig_target.add_trace(go.Scatter(
-                                x=target_df['publishedDate'],
-                                y=target_df['priceTarget'],
-                                mode='markers',
-                                name='Price Target',
-                                marker=dict(
-                                    size=12,
-                                    color='#e67e22',
-                                    opacity=0.7,
-                                    line=dict(color='white', width=1)
-                                ),
-                                customdata=target_df[['analystCompany', 'adjPriceTarget']].values,
-                                hovertemplate='<b>Date:</b> %{x|%Y-%m-%d}<br><b>Price Target:</b> $%{y:.2f}<br><b>Analyst:</b> %{customdata[0]}<br><b>Adj. Target:</b> $%{customdata[1]:.2f}<extra></extra>'
-                            ))
-                            
-                            # Línea horizontal del precio actual
-                            fig_target.add_hline(
-                                y=current_price,
-                                line_dash="dash",
-                                line_color="gray",
-                                annotation_text=f"Current: ${current_price:.2f}",
-                                annotation_position="right"
-                            )
-                            
-                            # Layout
-                            fig_target.update_layout(
-                                title=f"{ticker} Price Target Analysis (Last 12 Months)",
-                                xaxis_title="Date",
-                                yaxis_title="Price (USD)",
-                                template="plotly_white",
-                                hovermode="closest",
-                                legend=dict(
-                                    orientation="h",
-                                    yanchor="bottom",
-                                    y=1.02,
-                                    xanchor="right",
-                                    x=1
-                                ),
-                                height=500
-                            )
-                            
-                            st.plotly_chart(fig_target, use_container_width=True)
-                            
-                            # Métricas de targets
-                            if len(target_df) > 0:
-                                avg_target = target_df['priceTarget'].mean()
-                                max_target = target_df['priceTarget'].max()
-                                min_target = target_df['priceTarget'].min()
-                                upside = ((avg_target - current_price) / current_price) * 100
-                                
-                                col1, col2, col3, col4 = st.columns(4)
-                                col1.metric("Avg Target", f"${avg_target:.2f}", f"{upside:+.1f}%")
-                                col2.metric("High Target", f"${max_target:.2f}")
-                                col3.metric("Low Target", f"${min_target:.2f}")
-                                col4.metric("# Analysts", len(target_df))
-                                
-                                # Tabla de últimos 5 targets
-                                with st.expander("📊 Recent Analyst Targets"):
-                                    recent_targets = target_df.sort_values('publishedDate', ascending=False).head(5)
-                                    display_df = recent_targets[['publishedDate', 'analystCompany', 'priceTarget', 'adjPriceTarget']].copy()
-                                    display_df.columns = ['Date', 'Analyst', 'Target', 'Adj. Target']
-                                    display_df['Date'] = display_df['Date'].dt.strftime('%Y-%m-%d')
-                                    st.dataframe(display_df, use_container_width=True, hide_index=True)
-                        else:
-                            st.info(f"No analyst price targets available for {ticker} in the last 12 months.")
-                    else:
-                        st.warning(f"Could not load historical price data for {ticker}.")
+                    with col1:
+                        st.metric("Avg Target", f"${avg_target:.2f}", f"{((avg_target/current_price - 1) * 100):.1f}%")
+                    with col2:
+                        st.metric("High Target", f"${max_target:.2f}", f"{((max_target/current_price - 1) * 100):.1f}%")
+                    with col3:
+                        st.metric("Low Target", f"${min_target:.2f}", f"{((min_target/current_price - 1) * 100):.1f}%")
+                    with col4:
+                        st.metric("Analysts", num_analysts)
                 else:
-                    st.warning(f"Unable to fetch price target data for {ticker}.")
-            
-            except Exception as e:
-                st.error(f"Error loading price target chart: {str(e)}")
-                logger.error(f"Price target error for {ticker}: {e}")
+                    st.info("No analyst price targets available for the last 12 months.")
+            else:
+                st.warning(f"No data available from FMP API for {ticker}.")
+        else:
+            st.error(f"API Error - Historical: {hist_response.status_code}, Targets: {targets_response.status_code}")
+    
+    except Exception as e:
+        st.error(f"Error loading Price Target chart: {str(e)}")
 
             # Existing SEC Filings Section with Adjusted Tooltip and Dynamic Ticker Name
             st.markdown(f'<div class="sub-section">SEC Filings for {ticker}</div>', unsafe_allow_html=True)
