@@ -4118,8 +4118,7 @@ def main():
             st.plotly_chart(fig_options, use_container_width=True)
 
 
-    # ==============================================
-    # ==============================================
+            # ==============================================
     # PRICE TARGET CHART CON BURBUJAS
     # ==============================================
     try:
@@ -4127,37 +4126,37 @@ def main():
         st.subheader(f"🎯 Price Targets - {ticker}")
         
         # Fetch historical prices (últimos 6 meses)
-        hist_url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?apikey={FMP_API_KEY}"
-        hist_response = requests.get(hist_url, timeout=10)
+        tab1_hist_url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?apikey={FMP_API_KEY}"
+        tab1_hist_response = requests.get(tab1_hist_url, timeout=10)
         
         # Fetch price targets
-        targets_url = f"https://financialmodelingprep.com/api/v4/price-target?symbol={ticker}&apikey={FMP_API_KEY}"
-        targets_response = requests.get(targets_url, timeout=10)
+        tab1_targets_url = f"https://financialmodelingprep.com/api/v4/price-target?symbol={ticker}&apikey={FMP_API_KEY}"
+        tab1_targets_response = requests.get(tab1_targets_url, timeout=10)
         
-        if hist_response.status_code == 200 and targets_response.status_code == 200:
-            hist_data = hist_response.json()
-            targets_data = targets_response.json()
+        if tab1_hist_response.status_code == 200 and tab1_targets_response.status_code == 200:
+            tab1_hist_data = tab1_hist_response.json()
+            tab1_targets_data = tab1_targets_response.json()
             
-            if hist_data and 'historical' in hist_data and targets_data:
+            if tab1_hist_data and 'historical' in tab1_hist_data and tab1_targets_data:
                 # Procesar datos históricos (últimos 180 días)
-                historical = hist_data['historical'][:180]
-                hist_df = pd.DataFrame(historical)
-                hist_df['date'] = pd.to_datetime(hist_df['date']).dt.tz_localize(None)
-                hist_df = hist_df.sort_values('date')
+                tab1_historical = tab1_hist_data['historical'][:180]
+                tab1_hist_df = pd.DataFrame(tab1_historical)
+                tab1_hist_df['date'] = pd.to_datetime(tab1_hist_df['date']).dt.tz_localize(None)
+                tab1_hist_df = tab1_hist_df.sort_values('date')
                 
                 # Procesar targets (últimos 12 meses)
-                targets_df = pd.DataFrame(targets_data)
-                targets_df['publishedDate'] = pd.to_datetime(targets_df['publishedDate']).dt.tz_localize(None)
-                one_year_ago = pd.Timestamp.now().tz_localize(None) - pd.Timedelta(days=365)
-                targets_df = targets_df[targets_df['publishedDate'] >= one_year_ago]
+                tab1_targets_df = pd.DataFrame(tab1_targets_data)
+                tab1_targets_df['publishedDate'] = pd.to_datetime(tab1_targets_df['publishedDate']).dt.tz_localize(None)
+                tab1_one_year_ago = pd.Timestamp.now().tz_localize(None) - pd.Timedelta(days=365)
+                tab1_targets_df = tab1_targets_df[tab1_targets_df['publishedDate'] >= tab1_one_year_ago]
                 
                 # Crear figura
-                fig_targets = go.Figure()
+                tab1_fig_targets = go.Figure()
                 
                 # Línea azul: Precios históricos
-                fig_targets.add_trace(go.Scatter(
-                    x=hist_df['date'],
-                    y=hist_df['close'],
+                tab1_fig_targets.add_trace(go.Scatter(
+                    x=tab1_hist_df['date'],
+                    y=tab1_hist_df['close'],
                     mode='lines',
                     name='Historical Price',
                     line=dict(color='#1f77b4', width=2),
@@ -4165,10 +4164,10 @@ def main():
                 ))
                 
                 # Burbujas naranjas: Price Targets
-                if not targets_df.empty:
-                    fig_targets.add_trace(go.Scatter(
-                        x=targets_df['publishedDate'],
-                        y=targets_df['adjPriceTarget'],
+                if not tab1_targets_df.empty:
+                    tab1_fig_targets.add_trace(go.Scatter(
+                        x=tab1_targets_df['publishedDate'],
+                        y=tab1_targets_df['adjPriceTarget'],
                         mode='markers',
                         name='Analyst Targets',
                         marker=dict(
@@ -4177,12 +4176,12 @@ def main():
                             line=dict(width=2, color='white'),
                             opacity=0.8
                         ),
-                        text=targets_df['analystCompany'],
+                        text=tab1_targets_df['analystCompany'],
                         hovertemplate='<b>%{text}</b><br><b>Date:</b> %{x|%Y-%m-%d}<br><b>Target:</b> $%{y:.2f}<extra></extra>'
                     ))
                 
                 # Línea punteada: Precio actual
-                fig_targets.add_hline(
+                tab1_fig_targets.add_hline(
                     y=current_price,
                     line_dash="dash",
                     line_color="red",
@@ -4191,7 +4190,7 @@ def main():
                 )
                 
                 # Layout
-                fig_targets.update_layout(
+                tab1_fig_targets.update_layout(
                     title=f"{ticker} - Price History vs Analyst Targets",
                     xaxis_title="Date",
                     yaxis_title="Price ($)",
@@ -4202,109 +4201,229 @@ def main():
                     legend=dict(x=0.01, y=0.99)
                 )
                 
-                st.plotly_chart(fig_targets, use_container_width=True)
+                st.plotly_chart(tab1_fig_targets, use_container_width=True)
                 
                 # Métricas de targets
-                if not targets_df.empty:
+                if not tab1_targets_df.empty:
                     col1, col2, col3, col4 = st.columns(4)
-                    avg_target = targets_df['adjPriceTarget'].mean()
-                    max_target = targets_df['adjPriceTarget'].max()
-                    min_target = targets_df['adjPriceTarget'].min()
-                    num_analysts = len(targets_df)
+                    tab1_avg_target = tab1_targets_df['adjPriceTarget'].mean()
+                    tab1_max_target = tab1_targets_df['adjPriceTarget'].max()
+                    tab1_min_target = tab1_targets_df['adjPriceTarget'].min()
+                    tab1_num_analysts = len(tab1_targets_df)
                     
                     with col1:
-                        st.metric("Avg Target", f"${avg_target:.2f}", f"{((avg_target/current_price - 1) * 100):.1f}%")
+                        st.metric("Avg Target", f"${tab1_avg_target:.2f}", f"{((tab1_avg_target/current_price - 1) * 100):.1f}%")
                     with col2:
-                        st.metric("High Target", f"${max_target:.2f}", f"{((max_target/current_price - 1) * 100):.1f}%")
+                        st.metric("High Target", f"${tab1_max_target:.2f}", f"{((tab1_max_target/current_price - 1) * 100):.1f}%")
                     with col3:
-                        st.metric("Low Target", f"${min_target:.2f}", f"{((min_target/current_price - 1) * 100):.1f}%")
+                        st.metric("Low Target", f"${tab1_min_target:.2f}", f"{((tab1_min_target/current_price - 1) * 100):.1f}%")
                     with col4:
-                        st.metric("Analysts", num_analysts)
+                        st.metric("Analysts", tab1_num_analysts)
                 else:
                     st.info("No analyst price targets available for the last 12 months.")
             else:
                 st.warning(f"No data available from FMP API for {ticker}.")
         else:
-            st.error(f"API Error - Historical: {hist_response.status_code}, Targets: {targets_response.status_code}")
+            st.error(f"API Error - Historical: {tab1_hist_response.status_code}, Targets: {tab1_targets_response.status_code}")
     
     except Exception as e:
         st.error(f"Error loading Price Target chart: {str(e)}")
 
 
-    # === DEBUG: GAMMA EXPOSURE DATA ===
+            # ==============================================
+    # GAMMA EXPOSURE TARGETS CHART
+    # ==============================================
     st.markdown("---")
-    st.subheader(f"🔍 DEBUG - Estructura de Datos de Opciones - {ticker}")
+    st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
     
     try:
-        st.write(f"**Total opciones cargadas:** {len(options_data)}")
-        st.write(f"**Fecha de expiración seleccionada:** {expiration_date}")
-        st.write(f"**Precio actual:** ${current_price:.2f}")
+        # Variables locales con prefijo único para evitar conflictos con otros tabs
+        tab1_gamma_strikes = []
         
-        # Mostrar estructura de las primeras 3 opciones
-        st.write("### 📋 Primeras 3 opciones (estructura completa):")
-        for i, opt in enumerate(options_data[:3]):
-            st.json(opt)
-        
-        # Analizar qué campos tienen valores
-        st.write("### 🔎 Análisis de campos disponibles:")
-        
-        calls_with_gamma = 0
-        puts_with_gamma = 0
-        calls_without_gamma = 0
-        puts_without_gamma = 0
-        
-        sample_call_with_gamma = None
-        sample_put_with_gamma = None
-        
-        for opt in options_data:
-            option_type = opt.get("option_type", "").lower()
-            greeks = opt.get("greeks")
+        for tab1_opt_item in options_data:
+            tab1_opt_greeks = tab1_opt_item.get("greeks", {})
+            tab1_opt_gamma_value = tab1_opt_greeks.get("gamma", 0) if tab1_opt_greeks else 0
+            tab1_opt_strike = tab1_opt_item.get("strike", 0)
+            tab1_opt_expiration = tab1_opt_item.get("expiration_date", expiration_date)
+            tab1_opt_oi = tab1_opt_item.get("open_interest", 0)
+            tab1_opt_type = tab1_opt_item.get("option_type", "").lower()
             
-            if option_type == "call":
-                if greeks and greeks.get("gamma"):
-                    calls_with_gamma += 1
-                    if not sample_call_with_gamma:
-                        sample_call_with_gamma = opt
-                else:
-                    calls_without_gamma += 1
-            elif option_type == "put":
-                if greeks and greeks.get("gamma"):
-                    puts_with_gamma += 1
-                    if not sample_put_with_gamma:
-                        sample_put_with_gamma = opt
-                else:
-                    puts_without_gamma += 1
+            # Filtrar por gamma > 0.001 (gamma significativo)
+            if abs(tab1_opt_gamma_value) > 0.001 and tab1_opt_strike > 0 and tab1_opt_oi > 0:
+                # Calcular Gamma Exposure = |Gamma| × OI × 100 × Spot
+                tab1_gamma_exposure = abs(tab1_opt_gamma_value * tab1_opt_oi * 100 * current_price)
+                
+                tab1_gamma_strikes.append({
+                    "strike": tab1_opt_strike,
+                    "gamma": tab1_opt_gamma_value,
+                    "gamma_ex": tab1_gamma_exposure,
+                    "oi": tab1_opt_oi,
+                    "expiration": tab1_opt_expiration,
+                    "type": tab1_opt_type
+                })
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("CALLS con gamma", calls_with_gamma)
-            st.metric("CALLS sin gamma", calls_without_gamma)
-        with col2:
-            st.metric("PUTS con gamma", puts_with_gamma)
-            st.metric("PUTS sin gamma", puts_without_gamma)
-        
-        # Mostrar ejemplos con gamma
-        if sample_call_with_gamma:
-            st.write("### ✅ Ejemplo de CALL con gamma:")
-            st.json(sample_call_with_gamma)
-        
-        if sample_put_with_gamma:
-            st.write("### ✅ Ejemplo de PUT con gamma:")
-            st.json(sample_put_with_gamma)
-        
-        # Verificar campos alternativos
-        st.write("### 🔑 Campos disponibles en las opciones:")
-        if options_data:
-            all_keys = set()
-            for opt in options_data[:10]:
-                all_keys.update(opt.keys())
-            st.write(sorted(list(all_keys)))
+        if not tab1_gamma_strikes:
+            st.warning(f"No se encontraron opciones con |gamma| > 0.001 para {ticker} en {expiration_date}. " +
+                      "Las opciones muy ITM tienen gamma casi cero.")
+        else:
+            # Agrupar por strike (puede haber CALL y PUT en mismo strike)
+            tab1_strikes_grouped = {}
             
+            for tab1_item in tab1_gamma_strikes:
+                tab1_strike_key = tab1_item["strike"]
+                if tab1_strike_key not in tab1_strikes_grouped:
+                    tab1_strikes_grouped[tab1_strike_key] = {
+                        "strike": tab1_strike_key,
+                        "call_gamma_ex": 0,
+                        "put_gamma_ex": 0,
+                        "call_oi": 0,
+                        "put_oi": 0,
+                        "call_gamma": 0,
+                        "put_gamma": 0
+                    }
+                
+                if tab1_item["type"] == "call":
+                    tab1_strikes_grouped[tab1_strike_key]["call_gamma_ex"] += tab1_item["gamma_ex"]
+                    tab1_strikes_grouped[tab1_strike_key]["call_oi"] += tab1_item["oi"]
+                    tab1_strikes_grouped[tab1_strike_key]["call_gamma"] += abs(tab1_item["gamma"])
+                elif tab1_item["type"] == "put":
+                    tab1_strikes_grouped[tab1_strike_key]["put_gamma_ex"] += tab1_item["gamma_ex"]
+                    tab1_strikes_grouped[tab1_strike_key]["put_oi"] += tab1_item["oi"]
+                    tab1_strikes_grouped[tab1_strike_key]["put_gamma"] += abs(tab1_item["gamma"])
+            
+            # Convertir a lista y calcular métricas
+            tab1_final_strikes = []
+            for tab1_strike_key, tab1_data in tab1_strikes_grouped.items():
+                tab1_total_gex = tab1_data["call_gamma_ex"] + tab1_data["put_gamma_ex"]
+                tab1_net_gex = tab1_data["call_gamma_ex"] - tab1_data["put_gamma_ex"]
+                
+                tab1_final_strikes.append({
+                    "strike": tab1_strike_key,
+                    "call_gex": tab1_data["call_gamma_ex"],
+                    "put_gex": tab1_data["put_gamma_ex"],
+                    "total_gex": tab1_total_gex,
+                    "net_gex": tab1_net_gex,
+                    "call_oi": tab1_data["call_oi"],
+                    "put_oi": tab1_data["put_oi"],
+                    "dominance": "CALL" if tab1_data["call_gamma_ex"] > tab1_data["put_gamma_ex"] else "PUT"
+                })
+            
+            # Ordenar por strike
+            tab1_final_strikes.sort(key=lambda x: x["strike"])
+            
+            # Separar por dominancia
+            tab1_call_dom = [s for s in tab1_final_strikes if s["dominance"] == "CALL"]
+            tab1_put_dom = [s for s in tab1_final_strikes if s["dominance"] == "PUT"]
+            
+            # Crear figura
+            tab1_fig_gamma = go.Figure()
+            
+            # Burbujas CALL-dominant (verde)
+            if tab1_call_dom:
+                tab1_fig_gamma.add_trace(go.Scatter(
+                    x=[s["strike"] for s in tab1_call_dom],
+                    y=[s["total_gex"] / 1e6 for s in tab1_call_dom],
+                    mode='markers+text',
+                    marker=dict(
+                        size=[min(max(s["total_gex"] / 50000, 15), 80) for s in tab1_call_dom],
+                        color='#00ff00',
+                        opacity=0.75,
+                        line=dict(color='#006400', width=2.5)
+                    ),
+                    text=[f"${s['strike']:.0f}" for s in tab1_call_dom],
+                    textposition="middle center",
+                    textfont=dict(size=10, color='black', family='Arial Black'),
+                    name='CALL Dominant',
+                    hovertemplate='<b>Strike:</b> $%{x:.2f}<br>' +
+                                  '<b>Total GEX:</b> $%{y:.2f}M<br>' +
+                                  '<b>CALL GEX:</b> $%{customdata[0]:.2f}M<br>' +
+                                  '<b>PUT GEX:</b> $%{customdata[1]:.2f}M<br>' +
+                                  '<b>Net GEX:</b> $%{customdata[2]:.2f}M<br>' +
+                                  '<b>CALL OI:</b> %{customdata[3]:,.0f}<br>' +
+                                  '<b>PUT OI:</b> %{customdata[4]:,.0f}<extra></extra>',
+                    customdata=[[s["call_gex"]/1e6, s["put_gex"]/1e6, s["net_gex"]/1e6,
+                               s["call_oi"], s["put_oi"]] for s in tab1_call_dom]
+                ))
+            
+            # Burbujas PUT-dominant (rojo)
+            if tab1_put_dom:
+                tab1_fig_gamma.add_trace(go.Scatter(
+                    x=[s["strike"] for s in tab1_put_dom],
+                    y=[s["total_gex"] / 1e6 for s in tab1_put_dom],
+                    mode='markers+text',
+                    marker=dict(
+                        size=[min(max(s["total_gex"] / 50000, 15), 80) for s in tab1_put_dom],
+                        color='#ff6b6b',
+                        opacity=0.75,
+                        line=dict(color='#8b0000', width=2.5)
+                    ),
+                    text=[f"${s['strike']:.0f}" for s in tab1_put_dom],
+                    textposition="middle center",
+                    textfont=dict(size=10, color='black', family='Arial Black'),
+                    name='PUT Dominant',
+                    hovertemplate='<b>Strike:</b> $%{x:.2f}<br>' +
+                                  '<b>Total GEX:</b> $%{y:.2f}M<br>' +
+                                  '<b>CALL GEX:</b> $%{customdata[0]:.2f}M<br>' +
+                                  '<b>PUT GEX:</b> $%{customdata[1]:.2f}M<br>' +
+                                  '<b>Net GEX:</b> $%{customdata[2]:.2f}M<br>' +
+                                  '<b>CALL OI:</b> %{customdata[3]:,.0f}<br>' +
+                                  '<b>PUT OI:</b> %{customdata[4]:,.0f}<extra></extra>',
+                    customdata=[[s["call_gex"]/1e6, s["put_gex"]/1e6, s["net_gex"]/1e6,
+                               s["call_oi"], s["put_oi"]] for s in tab1_put_dom]
+                ))
+            
+            # Línea vertical del precio actual
+            tab1_fig_gamma.add_vline(
+                x=current_price,
+                line_dash="dash",
+                line_color="#ff0000",
+                line_width=3,
+                annotation_text=f"Current: ${current_price:.2f}",
+                annotation_position="top",
+                annotation_font_size=12,
+                annotation_font_color="#ff0000"
+            )
+            
+            # Layout
+            tab1_fig_gamma.update_layout(
+                title=f"Gamma Exposure Targets - {ticker} | Exp: {expiration_date}",
+                xaxis_title="Strike Price ($)",
+                yaxis_title="Total Gamma Exposure ($ Millions)",
+                template="plotly_dark",
+                height=600,
+                showlegend=True,
+                hovermode='closest',
+                legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)')
+            )
+            
+            st.plotly_chart(tab1_fig_gamma, use_container_width=True)
+            
+            # Métricas
+            col1, col2, col3, col4 = st.columns(4)
+            
+            tab1_total_call_gex = sum(s["call_gex"] for s in tab1_final_strikes) / 1e6
+            tab1_total_put_gex = sum(s["put_gex"] for s in tab1_final_strikes) / 1e6
+            tab1_net_gex_total = tab1_total_call_gex - tab1_total_put_gex
+            tab1_total_strikes_count = len(tab1_final_strikes)
+            
+            with col1:
+                st.metric("Total Strikes", tab1_total_strikes_count)
+            with col2:
+                st.metric("CALL GEX", f"${tab1_total_call_gex:.2f}M")
+            with col3:
+                st.metric("PUT GEX", f"${tab1_total_put_gex:.2f}M")
+            with col4:
+                st.metric("Net GEX", f"${tab1_net_gex_total:.2f}M",
+                         delta="Bullish" if tab1_net_gex_total > 0 else "Bearish")
+                
     except Exception as e:
-        st.error(f"Error en diagnóstico: {e}")
+        st.error(f"Error loading Gamma Exposure chart: {e}")
         import traceback
         st.write(traceback.format_exc())
-        
+
+
+    # ==============================================
+   
         st.markdown("*Developed by Ozy | © 2025*")
 
     with tab2:
