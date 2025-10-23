@@ -4230,10 +4230,11 @@ def main():
             st.error(f"Error loading Price Target chart: {str(e)}")
 
         # ==============================================
-        # GAMMA EXPOSURE TARGETS CHART
+        # ==============================================
+        # GAMMA EXPOSURE TARGETS CHART + MM BURN ZONE
         # ==============================================
         st.markdown("---")
-        st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
+        st.subheader(f"🎲 Gamma Exposure Targets + MM Burn Zone - {ticker}")
         
         try:
             # Variables locales con prefijo único para evitar conflictos con otros tabs
@@ -4296,6 +4297,11 @@ def main():
                     tab1_total_gex = tab1_data["call_gamma_ex"] + tab1_data["put_gamma_ex"]
                     tab1_net_gex = tab1_data["call_gamma_ex"] - tab1_data["put_gamma_ex"]
                     
+                    # Calcular "burn value" = dinero que pierden los traders si expira aquí
+                    tab1_intrinsic_value_calls = max(0, tab1_strike_key - current_price) * tab1_data["call_oi"] * 100
+                    tab1_intrinsic_value_puts = max(0, current_price - tab1_strike_key) * tab1_data["put_oi"] * 100
+                    tab1_burn_value = tab1_intrinsic_value_calls + tab1_intrinsic_value_puts
+                    
                     tab1_final_strikes.append({
                         "strike": tab1_strike_key,
                         "call_gex": tab1_data["call_gamma_ex"],
@@ -4304,11 +4310,41 @@ def main():
                         "net_gex": tab1_net_gex,
                         "call_oi": tab1_data["call_oi"],
                         "put_oi": tab1_data["put_oi"],
+                        "burn_value": tab1_burn_value,
                         "dominance": "CALL" if tab1_data["call_gamma_ex"] > tab1_data["put_gamma_ex"] else "PUT"
                     })
                 
                 # Ordenar por strike
                 tab1_final_strikes.sort(key=lambda x: x["strike"])
+                
+                # ===== ALGORITMO DE MM BURN ZONE =====
+                # Encontrar el punto óptimo donde MM quema más dinero
+                tab1_mm_burn_zones = []
+                
+                for i in range(len(tab1_final_strikes)):
+                    strike_test = tab1_final_strikes[i]["strike"]
+                    total_burned = 0
+                    
+                    # Calcular cuánto se quema si el precio cierra en strike_test
+                    for s in tab1_final_strikes:
+                        # CALLs se queman si strike > precio final
+                        if s["strike"] > strike_test:
+                            total_burned += s["call_oi"] * 100 * (s["strike"] - strike_test)
+                        # PUTs se queman si strike < precio final
+                        if s["strike"] < strike_test:
+                            total_burned += s["put_oi"] * 100 * (strike_test - s["strike"])
+                    
+                    tab1_mm_burn_zones.append({
+                        "strike": strike_test,
+                        "total_burned": total_burned,
+                        "gamma_ex": tab1_final_strikes[i]["total_gex"]
+                    })
+                
+                # Encontrar el strike con máxima quema
+                tab1_max_burn_strike = max(tab1_mm_burn_zones, key=lambda x: x["total_burned"])
+                
+                # Encontrar top 3 gamma walls (targets secuenciales)
+                tab1_gamma_walls = sorted(tab1_final_strikes, key=lambda x: x["total_gex"], reverse=True)[:3]
                 
                 # Separar por dominancia
                 tab1_call_dom = [s for s in tab1_final_strikes if s["dominance"] == "CALL"]
@@ -4371,7 +4407,7 @@ def main():
                                    s["call_oi"], s["put_oi"]] for s in tab1_put_dom]
                     ))
                 
-                # Línea vertical del precio actual
+                # LÍNEA VERTICAL: Precio actual
                 tab1_fig_gamma.add_vline(
                     x=current_price,
                     line_dash="dash",
@@ -4383,13 +4419,57 @@ def main():
                     annotation_font_color="#ff0000"
                 )
                 
+                # ZONA DE QUEMA MM (área sombreada)
+                tab1_fig_gamma.add_vline(
+                    x=tab1_max_burn_strike["strike"],
+                    line_dash="dot",
+                    line_color="#ff00ff",
+                    line_width=4,
+                    annotation_text=f"🔥 MM Burn: ${tab1_max_burn_strike['strike']:.2f}",
+                    annotation_position="bottom",
+                    annotation_font_size=14,
+                    annotation_font_color="#ff00ff"
+                )
+                
+                # LÍNEAS DE TARGETS SECUENCIALES (ruta probable)
+                if len(tab1_gamma_walls) >= 2:
+                    tab1_target_path_x = [current_price] + [w["strike"] for w in tab1_gamma_walls]
+                    tab1_target_path_y = [0] + [w["total_gex"]/1e6 for w in tab1_gamma_walls]
+                    
+                    tab1_fig_gamma.add_trace(go.Scatter(
+                        x=tab1_target_path_x,
+                        y=tab1_target_path_y,
+                        mode='lines+markers',
+                        line=dict(color='#ffff00', width=3, dash='dashdot'),
+                        marker=dict(size=12, color='#ffff00', symbol='star'),
+                        name='MM Target Path',
+                        hovertemplate='<b>Target:</b> $%{x:.2f}<br><b>GEX:</b> $%{y:.2f}M<extra></extra>'
+                    ))
+                
+                # Anotar Top 3 Gamma Walls
+                for idx, wall in enumerate(tab1_gamma_walls):
+                    tab1_fig_gamma.add_annotation(
+                        x=wall["strike"],
+                        y=wall["total_gex"]/1e6,
+                        text=f"🎯 Target {idx+1}",
+                        showarrow=True,
+                        arrowhead=2,
+                        arrowcolor="#ffff00",
+                        ax=40 if idx % 2 == 0 else -40,
+                        ay=-40,
+                        font=dict(size=11, color="#ffff00", family="Arial Black"),
+                        bgcolor="rgba(0,0,0,0.7)",
+                        bordercolor="#ffff00",
+                        borderwidth=2
+                    )
+                
                 # Layout
                 tab1_fig_gamma.update_layout(
-                    title=f"Gamma Exposure Targets - {ticker} | Exp: {expiration_date}",
+                    title=f"Gamma Exposure + MM Burn Zone - {ticker} | Exp: {expiration_date}",
                     xaxis_title="Strike Price ($)",
                     yaxis_title="Total Gamma Exposure ($ Millions)",
                     template="plotly_dark",
-                    height=600,
+                    height=650,
                     showlegend=True,
                     hovermode='closest',
                     legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)')
@@ -4397,8 +4477,8 @@ def main():
                 
                 st.plotly_chart(tab1_fig_gamma, use_container_width=True)
                 
-                # Métricas
-                col1, col2, col3, col4 = st.columns(4)
+                # Métricas + MM Burn Info
+                col1, col2, col3, col4, col5 = st.columns(5)
                 
                 tab1_total_call_gex = sum(s["call_gex"] for s in tab1_final_strikes) / 1e6
                 tab1_total_put_gex = sum(s["put_gex"] for s in tab1_final_strikes) / 1e6
@@ -4414,13 +4494,28 @@ def main():
                 with col4:
                     st.metric("Net GEX", f"${tab1_net_gex_total:.2f}M",
                              delta="Bullish" if tab1_net_gex_total > 0 else "Bearish")
+                with col5:
+                    st.metric("🔥 MM Burn Zone", f"${tab1_max_burn_strike['strike']:.2f}",
+                             delta=f"${(tab1_max_burn_strike['strike'] - current_price):.2f}")
+                
+                # Tabla de MM Target Path
+                st.markdown("### 🎯 MM Target Path (Sequential)")
+                tab1_target_table = pd.DataFrame([{
+                    "Priority": f"Target {idx+1}",
+                    "Strike": f"${w['strike']:.2f}",
+                    "Gamma Exposure": f"${w['total_gex']/1e6:.2f}M",
+                    "Distance from Current": f"${(w['strike'] - current_price):.2f}",
+                    "% Move": f"{((w['strike']/current_price - 1) * 100):.2f}%"
+                } for idx, w in enumerate(tab1_gamma_walls)])
+                
+                st.dataframe(tab1_target_table, use_container_width=True)
                     
         except Exception as e:
             st.error(f"Error loading Gamma Exposure chart: {e}")
             import traceback
             st.write(traceback.format_exc())
 
-            st.markdown("*Developed by Ozy | © 2025*")
+        st.markdown("*Developed by Ozy | © 2025*")
 
     with tab2:
         st.subheader("Market Scanner Pro")
