@@ -4123,7 +4123,6 @@ def main():
     # ==============================================
     try:
         
-        st.subheader(f"🎯 Price Targets - {ticker}")
         
         # Fetch historical prices (últimos 6 meses)
         tab1_hist_url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?apikey={FMP_API_KEY}"
@@ -4234,7 +4233,6 @@ def main():
     # GAMMA EXPOSURE TARGETS CHART
     # ==============================================
     
-    st.subheader(f"🎲 Gamma Exposure Targets - {ticker}")
     
     try:
         # Variables locales con prefijo único para evitar conflictos con otros tabs
