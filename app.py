@@ -4629,8 +4629,8 @@ yfinance version: {yf.__version__ if hasattr(yf, '__version__') else 'unknown'}
         st.info("💡 **Tip**: Try using a major US ticker like AAPL, MSFT, or GOOGL first to test.")
 
             
-            st.markdown("---")
-            st.markdown("*Developed by Ozy | © 2025*")
+            
+        st.markdown("*Developed by Ozy | © 2025*")
 
     with tab2:
         st.subheader("Market Scanner Pro")
