@@ -4156,7 +4156,7 @@ def main():
                     # Línea azul: Precios históricos
                     tab1_fig_targets.add_trace(go.Scatter(
                         x=tab1_hist_df['date'],
-                        y=tab1_hist_df['Open'],
+                        y=tab1_hist_df['close'],
                         mode='lines',
                         name='Historical Price',
                         line=dict(color='#1f77b4', width=2),
