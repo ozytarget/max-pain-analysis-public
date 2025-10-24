@@ -4234,7 +4234,7 @@ def main():
         # GAMMA EXPOSURE TARGETS CHART + MM BURN ZONE
         # ==============================================
         st.markdown("---")
-        st.subheader(f"🎲 Gamma Exposure Targets + MM Burn Zone - {ticker}")
+        st.subheader(f"Targets Zone - {ticker}")
         
         try:
             # Variables locales con prefijo único para evitar conflictos con otros tabs
