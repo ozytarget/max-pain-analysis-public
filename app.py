@@ -4232,23 +4232,13 @@ def main():
         # ==============================================
         # ==============================================
         # ==============================================
-        # GAMMA EXPOSURE TARGETS CHART + MM ADAPTIVE BURN ZONE
+        # GAMMA EXPOSURE + MM ADAPTIVE BURN TRACKER
         # ==============================================
         st.markdown("---")
-        st.subheader(f"🎲 Gamma Exposure + MM Adaptive Targets - {ticker}")
+        st.subheader(f"🎲 Gamma Exposure + MM Adaptive Burn Tracker - {ticker}")
         
         try:
-            # 1. OBTENER PRECIO HISTÓRICO (últimos 30 días para contexto)
-            tab1_price_hist_url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{ticker}?apikey={FMP_API_KEY}"
-            tab1_price_hist_response = requests.get(tab1_price_hist_url, timeout=10)
-            
-            tab1_price_history = []
-            if tab1_price_hist_response.status_code == 200:
-                tab1_price_hist_data = tab1_price_hist_response.json()
-                if tab1_price_hist_data and 'historical' in tab1_price_hist_data:
-                    tab1_price_history = tab1_price_hist_data['historical'][:30]  # Últimos 30 días
-            
-            # 2. PROCESAR OPTIONS DATA
+            # 1. PROCESAR OPTIONS DATA
             tab1_gamma_strikes = []
             
             for tab1_opt_item in options_data:
@@ -4259,11 +4249,23 @@ def main():
                 tab1_opt_oi = tab1_opt_item.get("open_interest", 0)
                 tab1_opt_volume = tab1_opt_item.get("volume", 0)
                 tab1_opt_type = tab1_opt_item.get("option_type", "").lower()
+                tab1_opt_bid = tab1_opt_item.get("bid", 0)
+                tab1_opt_ask = tab1_opt_item.get("ask", 0)
                 
                 # Filtrar por gamma > 0.001 (gamma significativo)
                 if abs(tab1_opt_gamma_value) > 0.001 and tab1_opt_strike > 0 and tab1_opt_oi > 0:
                     # Calcular Gamma Exposure = |Gamma| × OI × 100 × Spot
                     tab1_gamma_exposure = abs(tab1_opt_gamma_value * tab1_opt_oi * 100 * current_price)
+                    
+                    # CALCULAR VALOR INTRÍNSECO
+                    if tab1_opt_type == "call":
+                        tab1_intrinsic_value = max(0, current_price - tab1_opt_strike)
+                    else:  # put
+                        tab1_intrinsic_value = max(0, tab1_opt_strike - current_price)
+                    
+                    # Valor extrínseco = Precio de mercado - Valor intrínseco
+                    tab1_market_price = (tab1_opt_bid + tab1_opt_ask) / 2 if tab1_opt_bid > 0 and tab1_opt_ask > 0 else 0
+                    tab1_extrinsic_value = max(0, tab1_market_price - tab1_intrinsic_value)
                     
                     tab1_gamma_strikes.append({
                         "strike": tab1_opt_strike,
@@ -4272,13 +4274,16 @@ def main():
                         "oi": tab1_opt_oi,
                         "volume": tab1_opt_volume,
                         "expiration": tab1_opt_expiration,
-                        "type": tab1_opt_type
+                        "type": tab1_opt_type,
+                        "intrinsic_value": tab1_intrinsic_value,
+                        "extrinsic_value": tab1_extrinsic_value,
+                        "market_price": tab1_market_price
                     })
             
             if not tab1_gamma_strikes:
                 st.warning(f"No se encontraron opciones con |gamma| > 0.001 para {ticker} en {expiration_date}.")
             else:
-                # 3. AGRUPAR POR STRIKE
+                # 2. AGRUPAR POR STRIKE CON VALOR INTRÍNSECO
                 tab1_strikes_grouped = {}
                 
                 for tab1_item in tab1_gamma_strikes:
@@ -4293,7 +4298,11 @@ def main():
                             "call_volume": 0,
                             "put_volume": 0,
                             "call_gamma": 0,
-                            "put_gamma": 0
+                            "put_gamma": 0,
+                            "call_intrinsic": 0,
+                            "put_intrinsic": 0,
+                            "call_extrinsic": 0,
+                            "put_extrinsic": 0
                         }
                     
                     if tab1_item["type"] == "call":
@@ -4301,42 +4310,60 @@ def main():
                         tab1_strikes_grouped[tab1_strike_key]["call_oi"] += tab1_item["oi"]
                         tab1_strikes_grouped[tab1_strike_key]["call_volume"] += tab1_item["volume"]
                         tab1_strikes_grouped[tab1_strike_key]["call_gamma"] += abs(tab1_item["gamma"])
+                        tab1_strikes_grouped[tab1_strike_key]["call_intrinsic"] += tab1_item["intrinsic_value"] * tab1_item["oi"] * 100
+                        tab1_strikes_grouped[tab1_strike_key]["call_extrinsic"] += tab1_item["extrinsic_value"] * tab1_item["oi"] * 100
                     elif tab1_item["type"] == "put":
                         tab1_strikes_grouped[tab1_strike_key]["put_gamma_ex"] += tab1_item["gamma_ex"]
                         tab1_strikes_grouped[tab1_strike_key]["put_oi"] += tab1_item["oi"]
                         tab1_strikes_grouped[tab1_strike_key]["put_volume"] += tab1_item["volume"]
                         tab1_strikes_grouped[tab1_strike_key]["put_gamma"] += abs(tab1_item["gamma"])
+                        tab1_strikes_grouped[tab1_strike_key]["put_intrinsic"] += tab1_item["intrinsic_value"] * tab1_item["oi"] * 100
+                        tab1_strikes_grouped[tab1_strike_key]["put_extrinsic"] += tab1_item["extrinsic_value"] * tab1_item["oi"] * 100
                 
-                # 4. ALGORITMO ADAPTATIVO DE MM
+                # 3. ALGORITMO ADAPTATIVO DE MM CON BURN TRACKING
                 tab1_final_strikes = []
+                tab1_total_call_intrinsic = 0
+                tab1_total_put_intrinsic = 0
+                tab1_total_call_extrinsic = 0
+                tab1_total_put_extrinsic = 0
                 
                 for tab1_strike_key, tab1_data in tab1_strikes_grouped.items():
                     tab1_total_gex = tab1_data["call_gamma_ex"] + tab1_data["put_gamma_ex"]
                     tab1_net_gex = tab1_data["call_gamma_ex"] - tab1_data["put_gamma_ex"]
                     
-                    # CALCULAR BURN VALUE: Cuánto dinero pierden los traders si expira aquí
-                    tab1_call_burn = max(0, current_price - tab1_strike_key) * tab1_data["call_oi"] * 100
-                    tab1_put_burn = max(0, tab1_strike_key - current_price) * tab1_data["put_oi"] * 100
+                    # CALCULAR BURN VALUE (dinero que pierden traders si expira aquí)
+                    # CALLs se queman si están OTM (strike > precio actual)
+                    if tab1_strike_key > current_price:
+                        tab1_call_burn = tab1_data["call_intrinsic"] + tab1_data["call_extrinsic"]
+                    else:
+                        tab1_call_burn = tab1_data["call_extrinsic"]  # Solo pierden el valor extrínseco
+                    
+                    # PUTs se queman si están OTM (strike < precio actual)
+                    if tab1_strike_key < current_price:
+                        tab1_put_burn = tab1_data["put_intrinsic"] + tab1_data["put_extrinsic"]
+                    else:
+                        tab1_put_burn = tab1_data["put_extrinsic"]  # Solo pierden el valor extrínseco
+                    
                     tab1_total_burn = tab1_call_burn + tab1_put_burn
                     
-                    # RATIO DE ACTIVIDAD: Volume/OI (indica acumulación reciente)
+                    # Acumular totales globales
+                    tab1_total_call_intrinsic += tab1_data["call_intrinsic"]
+                    tab1_total_put_intrinsic += tab1_data["put_intrinsic"]
+                    tab1_total_call_extrinsic += tab1_data["call_extrinsic"]
+                    tab1_total_put_extrinsic += tab1_data["put_extrinsic"]
+                    
+                    # RATIO DE ACTIVIDAD (Volume/OI)
                     tab1_call_activity = tab1_data["call_volume"] / max(tab1_data["call_oi"], 1)
                     tab1_put_activity = tab1_data["put_volume"] / max(tab1_data["put_oi"], 1)
                     tab1_activity_score = (tab1_call_activity + tab1_put_activity) / 2
                     
                     # SCORE ADAPTATIVO DE MM (0-100)
-                    # Factores:
-                    # - 40% Gamma Exposure (alta concentración = imán de precio)
-                    # - 30% Burn Value (máxima pérdida para traders = ganancia MM)
-                    # - 20% Activity Score (volumen reciente = interés activo)
-                    # - 10% Distancia desde precio actual (cercanía = más probable)
-                    
                     tab1_max_gex = max([s["call_gamma_ex"] + s["put_gamma_ex"] for s in tab1_strikes_grouped.values()])
                     tab1_gex_score = (tab1_total_gex / max(tab1_max_gex, 1)) * 40
                     
                     tab1_max_burn = max([
-                        max(0, current_price - s["strike"]) * s["call_oi"] * 100 +
-                        max(0, s["strike"] - current_price) * s["put_oi"] * 100
+                        (s["call_intrinsic"] + s["call_extrinsic"] if s["strike"] > current_price else s["call_extrinsic"]) +
+                        (s["put_intrinsic"] + s["put_extrinsic"] if s["strike"] < current_price else s["put_extrinsic"])
                         for s in tab1_strikes_grouped.values()
                     ])
                     tab1_burn_score = (tab1_total_burn / max(tab1_max_burn, 1)) * 30
@@ -4349,6 +4376,14 @@ def main():
                     
                     tab1_mm_score = tab1_gex_score + tab1_burn_score + tab1_activity_score_norm + tab1_distance_score
                     
+                    # Determinar estado de quema
+                    if tab1_strike_key > current_price:
+                        tab1_burn_status = "🔥 CALLs Burning"
+                    elif tab1_strike_key < current_price:
+                        tab1_burn_status = "🔥 PUTs Burning"
+                    else:
+                        tab1_burn_status = "⚖️ At The Money"
+                    
                     tab1_final_strikes.append({
                         "strike": tab1_strike_key,
                         "call_gex": tab1_data["call_gamma_ex"],
@@ -4357,90 +4392,94 @@ def main():
                         "net_gex": tab1_net_gex,
                         "call_oi": tab1_data["call_oi"],
                         "put_oi": tab1_data["put_oi"],
+                        "call_intrinsic": tab1_data["call_intrinsic"],
+                        "put_intrinsic": tab1_data["put_intrinsic"],
+                        "call_extrinsic": tab1_data["call_extrinsic"],
+                        "put_extrinsic": tab1_data["put_extrinsic"],
+                        "call_burn": tab1_call_burn,
+                        "put_burn": tab1_put_burn,
                         "total_burn": tab1_total_burn,
                         "mm_score": tab1_mm_score,
                         "activity": tab1_activity_score,
+                        "burn_status": tab1_burn_status,
                         "dominance": "CALL" if tab1_data["call_gamma_ex"] > tab1_data["put_gamma_ex"] else "PUT"
                     })
                 
                 # Ordenar por strike
                 tab1_final_strikes.sort(key=lambda x: x["strike"])
                 
-                # 5. IDENTIFICAR TOP TARGETS ADAPTATIVOS
+                # 4. IDENTIFICAR TOP TARGETS ADAPTATIVOS
                 tab1_top_targets = sorted(tab1_final_strikes, key=lambda x: x["mm_score"], reverse=True)[:5]
+                
+                # 5. CALCULAR BURN ACTUAL (CALLs vs PUTs quemándose AHORA)
+                tab1_calls_burning_now = sum(s["call_burn"] for s in tab1_final_strikes if s["strike"] > current_price)
+                tab1_puts_burning_now = sum(s["put_burn"] for s in tab1_final_strikes if s["strike"] < current_price)
+                tab1_total_burning = tab1_calls_burning_now + tab1_puts_burning_now
                 
                 # 6. CREAR FIGURA CON LÍNEA DE PRECIO + BURBUJAS DE TARGETS
                 tab1_fig_gamma = go.Figure()
                 
-                # LÍNEA DE PRECIO HISTÓRICO (fondo azul)
-                if tab1_price_history:
-                    tab1_hist_df_mini = pd.DataFrame(tab1_price_history)
-                    tab1_hist_df_mini['date'] = pd.to_datetime(tab1_hist_df_mini['date'])
-                    tab1_hist_df_mini = tab1_hist_df_mini.sort_values('date')
-                    
-                    # Mapear fechas a índices para el eje X
-                    tab1_date_range = pd.date_range(
-                        start=tab1_hist_df_mini['date'].min(),
-                        end=tab1_hist_df_mini['date'].max(),
-                        periods=len(tab1_final_strikes)
-                    )
-                    
-                    # Interpolar precios para alinear con strikes
-                    tab1_price_interpolated = []
-                    for strike in [s["strike"] for s in tab1_final_strikes]:
-                        # Encontrar el precio más cercano en el historial
-                        closest_price = tab1_hist_df_mini.iloc[-1]['close']  # Default: precio más reciente
-                        tab1_price_interpolated.append(closest_price)
-                    
-                    tab1_fig_gamma.add_trace(go.Scatter(
-                        x=[s["strike"] for s in tab1_final_strikes],
-                        y=tab1_price_interpolated,
-                        mode='lines',
-                        name='Price Trend',
-                        line=dict(color='#4A90E2', width=3),
-                        hovertemplate='<b>Strike:</b> $%{x:.2f}<br><b>Price:</b> $%{y:.2f}<extra></extra>',
-                        showlegend=True
-                    ))
+                tab1_min_strike = min(s["strike"] for s in tab1_final_strikes)
+                tab1_max_strike = max(s["strike"] for s in tab1_final_strikes)
                 
-                # BURBUJAS DE TODOS LOS STRIKES (pequeñas, grises)
+                # ===== LÍNEA HORIZONTAL AZUL DE PRECIO ACTUAL =====
+                tab1_fig_gamma.add_trace(go.Scatter(
+                    x=[tab1_min_strike, tab1_max_strike],
+                    y=[current_price, current_price],
+                    mode='lines',
+                    name='Price Trend',
+                    line=dict(color='#4A90E2', width=4),
+                    hovertemplate='<b>Current Price:</b> $%{y:.2f}<extra></extra>',
+                    showlegend=True
+                ))
+                
+                # ===== BURBUJAS GRISES: TODOS LOS STRIKES =====
                 tab1_fig_gamma.add_trace(go.Scatter(
                     x=[s["strike"] for s in tab1_final_strikes],
-                    y=[s["total_gex"] / 1e6 for s in tab1_final_strikes],
+                    y=[current_price] * len(tab1_final_strikes),
                     mode='markers',
                     marker=dict(
-                        size=[min(max(s["total_gex"] / 100000, 8), 40) for s in tab1_final_strikes],
+                        size=[min(max(s["total_gex"] / 100000, 10), 50) for s in tab1_final_strikes],
                         color='rgba(128,128,128,0.3)',
                         line=dict(color='rgba(255,255,255,0.2)', width=1)
                     ),
                     name='All Strikes',
-                    hovertemplate='<b>Strike:</b> $%{x:.2f}<br><b>GEX:</b> $%{y:.2f}M<extra></extra>',
+                    hovertemplate='<b>Strike:</b> $%{x:.2f}<br>' +
+                                  '<b>GEX:</b> %{customdata[0]:.2f}M<br>' +
+                                  '<b>Status:</b> %{customdata[1]}<extra></extra>',
+                    customdata=[[s["total_gex"]/1e6, s["burn_status"]] for s in tab1_final_strikes],
                     showlegend=False
                 ))
                 
-                # BURBUJAS NARANJAS: TOP MM TARGETS (adaptativas)
+                # ===== BURBUJAS NARANJAS: TOP MM TARGETS =====
                 tab1_fig_gamma.add_trace(go.Scatter(
                     x=[t["strike"] for t in tab1_top_targets],
-                    y=[t["total_gex"] / 1e6 for t in tab1_top_targets],
+                    y=[current_price] * len(tab1_top_targets),
                     mode='markers+text',
                     marker=dict(
-                        size=[min(max(t["mm_score"] * 0.8, 20), 80) for t in tab1_top_targets],
+                        size=[min(max(t["mm_score"] * 0.9, 30), 120) for t in tab1_top_targets],
                         color='#FF8C42',
                         line=dict(color='#2D2D2D', width=3),
                         opacity=0.9
                     ),
                     text=[f"${t['strike']:.0f}" for t in tab1_top_targets],
                     textposition="middle center",
-                    textfont=dict(size=11, color='black', family='Arial Black'),
+                    textfont=dict(size=12, color='black', family='Arial Black'),
                     name='MM Targets',
                     hovertemplate='<b>Strike:</b> $%{x:.2f}<br>' +
-                                  '<b>GEX:</b> $%{y:.2f}M<br>' +
-                                  '<b>MM Score:</b> %{customdata[0]:.1f}/100<br>' +
-                                  '<b>Burn Value:</b> $%{customdata[1]:.2f}M<br>' +
-                                  '<b>Activity:</b> %{customdata[2]:.2f}<extra></extra>',
-                    customdata=[[t["mm_score"], t["total_burn"]/1e6, t["activity"]] for t in tab1_top_targets]
+                                  '<b>GEX:</b> %{customdata[0]:.2f}M<br>' +
+                                  '<b>MM Score:</b> %{customdata[1]:.1f}/100<br>' +
+                                  '<b>Burn Value:</b> $%{customdata[2]:.2f}M<br>' +
+                                  '<b>CALL Intrinsic:</b> $%{customdata[3]:.2f}M<br>' +
+                                  '<b>PUT Intrinsic:</b> $%{customdata[4]:.2f}M<br>' +
+                                  '<b>Activity:</b> %{customdata[5]:.2f}<br>' +
+                                  '<b>Status:</b> %{customdata[6]}<extra></extra>',
+                    customdata=[[t["total_gex"]/1e6, t["mm_score"], t["total_burn"]/1e6,
+                               t["call_intrinsic"]/1e6, t["put_intrinsic"]/1e6,
+                               t["activity"], t["burn_status"]] for t in tab1_top_targets]
                 ))
                 
-                # LÍNEA VERTICAL: Precio actual
+                # ===== LÍNEA VERTICAL ROJA: Precio actual =====
                 tab1_fig_gamma.add_vline(
                     x=current_price,
                     line_dash="dash",
@@ -4452,10 +4491,28 @@ def main():
                     annotation_font_color="#E74C3C"
                 )
                 
-                # Layout
+                # ===== ANOTACIONES DE TARGETS =====
+                tab1_price_range = tab1_max_strike - tab1_min_strike
+                for idx, target in enumerate(tab1_top_targets):
+                    tab1_fig_gamma.add_annotation(
+                        x=target["strike"],
+                        y=current_price + (tab1_price_range * 0.02),
+                        text=f"🎯 #{idx+1}",
+                        showarrow=True,
+                        arrowhead=2,
+                        arrowcolor="#FF8C42",
+                        ax=0,
+                        ay=-40,
+                        font=dict(size=11, color="#FF8C42", family="Arial Black"),
+                        bgcolor="rgba(0,0,0,0.8)",
+                        bordercolor="#FF8C42",
+                        borderwidth=2
+                    )
+                
+                # ===== LAYOUT =====
                 tab1_fig_gamma.update_layout(
                     title=dict(
-                        text=f"MM Adaptive Gamma Targets - {ticker} | Exp: {expiration_date}",
+                        text=f"MM Adaptive Gamma Targets + Burn Tracker - {ticker} | Exp: {expiration_date}",
                         font=dict(size=18, color='#FFFFFF', family='Arial Black')
                     ),
                     xaxis=dict(
@@ -4463,18 +4520,20 @@ def main():
                         showgrid=True,
                         gridwidth=1,
                         gridcolor='rgba(128,128,128,0.2)',
-                        color='#FFFFFF'
+                        color='#FFFFFF',
+                        range=[tab1_min_strike - 5, tab1_max_strike + 5]
                     ),
                     yaxis=dict(
-                        title="Gamma Exposure ($ Millions)",
+                        title="Price Level ($)",
                         showgrid=True,
                         gridwidth=1,
                         gridcolor='rgba(128,128,128,0.2)',
-                        color='#FFFFFF'
+                        color='#FFFFFF',
+                        range=[current_price * 0.97, current_price * 1.03]
                     ),
                     plot_bgcolor='#0E1117',
                     paper_bgcolor='#0E1117',
-                    height=600,
+                    height=550,
                     showlegend=True,
                     hovermode='closest',
                     legend=dict(
@@ -4490,8 +4549,8 @@ def main():
                 
                 st.plotly_chart(tab1_fig_gamma, use_container_width=True)
                 
-                # Métricas + Top Target
-                col1, col2, col3, col4, col5 = st.columns(5)
+                # ===== MÉTRICAS + BURN TRACKER =====
+                col1, col2, col3, col4, col5, col6 = st.columns(6)
                 
                 tab1_total_call_gex = sum(s["call_gex"] for s in tab1_final_strikes) / 1e6
                 tab1_total_put_gex = sum(s["put_gex"] for s in tab1_final_strikes) / 1e6
@@ -4509,37 +4568,83 @@ def main():
                     st.metric("Net GEX", f"${tab1_net_gex_total:.2f}M",
                              delta="Bullish" if tab1_net_gex_total > 0 else "Bearish")
                 with col5:
-                    st.metric("🎯 Top MM Target", f"${tab1_top_target['strike']:.2f}",
-                             delta=f"{tab1_top_target['mm_score']:.0f}/100 score")
+                    st.metric("🎯 Top Target", f"${tab1_top_target['strike']:.2f}",
+                             delta=f"{tab1_top_target['mm_score']:.0f}/100")
+                with col6:
+                    st.metric("🔥 Total Burning", f"${tab1_total_burning/1e6:.2f}M")
                 
-                # Tabla de MM Adaptive Targets
+                # ===== BURN TRACKER: CALLs vs PUTs =====
+                st.markdown("### 🔥 Current Burn Status")
+                col_burn1, col_burn2, col_burn3 = st.columns(3)
+                
+                with col_burn1:
+                    st.metric("🔴 CALLs Burning Now", 
+                             f"${tab1_calls_burning_now/1e6:.2f}M",
+                             delta=f"{(tab1_calls_burning_now/tab1_total_burning*100):.1f}%" if tab1_total_burning > 0 else "0%")
+                with col_burn2:
+                    st.metric("🔵 PUTs Burning Now", 
+                             f"${tab1_puts_burning_now/1e6:.2f}M",
+                             delta=f"{(tab1_puts_burning_now/tab1_total_burning*100):.1f}%" if tab1_total_burning > 0 else "0%")
+                with col_burn3:
+                    tab1_burn_winner = "CALLs" if tab1_calls_burning_now > tab1_puts_burning_now else "PUTs"
+                    st.metric("💰 MM Profits From", tab1_burn_winner,
+                             delta=f"${abs(tab1_calls_burning_now - tab1_puts_burning_now)/1e6:.2f}M advantage")
+                
+                # ===== VALOR INTRÍNSECO TOTAL =====
+                st.markdown("### 💎 Intrinsic vs Extrinsic Value")
+                col_val1, col_val2, col_val3, col_val4 = st.columns(4)
+                
+                with col_val1:
+                    st.metric("CALL Intrinsic", f"${tab1_total_call_intrinsic/1e6:.2f}M")
+                with col_val2:
+                    st.metric("CALL Extrinsic", f"${tab1_total_call_extrinsic/1e6:.2f}M")
+                with col_val3:
+                    st.metric("PUT Intrinsic", f"${tab1_total_put_intrinsic/1e6:.2f}M")
+                with col_val4:
+                    st.metric("PUT Extrinsic", f"${tab1_total_put_extrinsic/1e6:.2f}M")
+                
+                # ===== TABLA DE MM ADAPTIVE TARGETS =====
                 st.markdown("### 🎯 MM Adaptive Targets (Top 5)")
                 tab1_target_table = pd.DataFrame([{
                     "Rank": f"#{idx+1}",
                     "Strike": f"${t['strike']:.2f}",
                     "MM Score": f"{t['mm_score']:.1f}/100",
                     "Gamma Exposure": f"${t['total_gex']/1e6:.2f}M",
-                    "Burn Value": f"${t['total_burn']/1e6:.2f}M",
+                    "Total Burn": f"${t['total_burn']/1e6:.2f}M",
+                    "CALL Burn": f"${t['call_burn']/1e6:.2f}M",
+                    "PUT Burn": f"${t['put_burn']/1e6:.2f}M",
                     "Activity": f"{t['activity']:.2f}",
+                    "Status": t['burn_status'],
                     "Distance": f"${(t['strike'] - current_price):.2f}",
                     "% Move": f"{((t['strike']/current_price - 1) * 100):.2f}%"
                 } for idx, t in enumerate(tab1_top_targets)])
                 
                 st.dataframe(tab1_target_table, use_container_width=True)
                 
-                # Explicación del algoritmo
-                with st.expander("📊 ¿Cómo funciona el MM Adaptive Score?"):
-                    st.markdown("""
-                    **El algoritmo calcula un score de 0-100 basado en:**
+                # ===== EXPLICACIÓN DEL ALGORITMO =====
+                with st.expander("📊 ¿Cómo funciona el MM Adaptive Algorithm + Burn Tracker?"):
+                    st.markdown(f"""
+                    **🎯 MM Score Adaptativo (0-100 puntos):**
                     
-                    1. **Gamma Exposure (40%)**: Concentración de gamma = imán de precio
-                    2. **Burn Value (30%)**: Dinero que pierden traders si expira ahí = ganancia MM
+                    1. **Gamma Exposure (40%)**: Alta concentración = imán de precio
+                    2. **Burn Value (30%)**: Dinero que pierden traders = ganancia MM
                     3. **Activity Score (20%)**: Ratio Volume/OI = acumulación reciente
-                    4. **Distance Score (10%)**: Cercanía al precio actual = más probable
+                    4. **Distance Score (10%)**: Cercanía al precio = más probable
                     
-                    **Strikes con mayor score = targets más probables según estrategia MM**
+                    **🔥 Burn Tracker:**
                     
-                    🔥 **MM busca maximizar pérdidas de traders mientras acumula gamma**
+                    - **CALLs Burning**: Strikes > ${current_price:.2f} (actualmente **${tab1_calls_burning_now/1e6:.2f}M**)
+                    - **PUTs Burning**: Strikes < ${current_price:.2f} (actualmente **${tab1_puts_burning_now/1e6:.2f}M**)
+                    - **Total Burning**: ${tab1_total_burning/1e6:.2f}M en pérdidas para traders
+                    
+                    **💎 Valor Intrínseco vs Extrínseco:**
+                    
+                    - **Intrínseco**: Valor real si ejerces la opción HOY
+                    - **Extrínseco**: Prima de tiempo + volatilidad (se evapora al expirar)
+                    
+                    **MM maximiza ganancias quemando valor extrínseco + forzando OTM options**
+                    
+                    🚀 **Strikes con mayor score = targets más probables según estrategia MM**
                     """)
                     
         except Exception as e:
