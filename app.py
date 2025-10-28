@@ -7515,43 +7515,133 @@ def main():
                 else:
                     logger.warning(f"No options data for {ticker} across all expirations")
 
-            # MM Target Price (using all expiration dates)
+            # MM Target Price (using all expiration dates) - CORREGIDO
             mm_target_price = None
             mm_target_strike = current_price
             direction = "Neutral"
             prob_below_target = 0.0
+            
             if total_call_contracts > 0 and total_put_contracts > 0:
+                # OI Imbalance
                 oi_imbalance = (total_call_contracts - total_put_contracts) / (total_call_contracts + total_put_contracts)
-                premium_ratio = 1.0 / (total_call_premium / total_put_premium) if total_call_premium < total_put_premium else min(total_call_premium / total_put_premium, 10.0)
+                
+                # Premium Ratio (FIX: evitar división por cero)
+                if total_put_premium > 0 and total_call_premium > 0:
+                    if total_call_premium < total_put_premium:
+                        premium_ratio = 1.0 / (total_call_premium / total_put_premium)
+                    else:
+                        premium_ratio = min(total_call_premium / total_put_premium, 10.0)
+                else:
+                    premium_ratio = 1.0
+                
                 daily_range_dollars = current_price * daily_range
-                otm_ratio = max(otm_call_contracts / otm_put_contracts, otm_put_contracts / otm_call_contracts) if otm_put_contracts > 0 else 1.0
-                otm_ratio = min(otm_ratio, 2.0)
+                
+                # OTM Ratio (FIX: evitar división por cero)
+                if otm_call_contracts > 0 and otm_put_contracts > 0:
+                    otm_ratio = max(otm_call_contracts / otm_put_contracts, otm_put_contracts / otm_call_contracts)
+                    otm_ratio = min(otm_ratio, 2.0)
+                else:
+                    otm_ratio = 1.0
+                
+                # OI Adjustment
                 oi_adjustment = -daily_range_dollars * oi_imbalance * premium_ratio * 1.5 * otm_ratio
+                
+                # Volatility Factor
                 volatility_factor = (iv / 100) * (daily_range / 0.01)
+                
+                # ITM Estimates
                 itm_call_oi_est = itm_call_contracts if itm_call_contracts > 0 else total_call_contracts * 0.4
                 itm_put_oi_est = itm_put_contracts if itm_put_contracts > 0 else total_put_contracts * 0.4
-                gamma_adjustment = iv * (itm_call_oi_est - itm_put_oi_est) / (itm_call_oi_est + itm_put_oi_est + 1)
+                
+                # Gamma Adjustment (FIX: evitar división por cero)
+                if (itm_call_oi_est + itm_put_oi_est) > 0:
+                    gamma_adjustment = iv * (itm_call_oi_est - itm_put_oi_est) / (itm_call_oi_est + itm_put_oi_est + 1)
+                else:
+                    gamma_adjustment = 0.0
+                
+                # Theta Adjustment
                 theta_adjustment = -daily_range_dollars * (total_call_contracts / (total_call_contracts + total_put_contracts)) * 1.5
+                
+                # Base Price
                 base_price = max_pain if max_pain is not None and current_price * 0.5 <= max_pain <= current_price * 1.5 else current_price
+                
+                # Mean Reversion (VIX specific)
                 mean_reversion_adjustment = -0.2 * (current_price - 19.0) if sentiment == "Neutral" and ticker == "VIX" else 0.0
+                
+                # Call/Put OTM Value
                 call_otm_value = sum(premium for strike, premium in call_premiums if strike > current_price)
                 put_otm_value = sum(premium for strike, premium in put_premiums if strike < current_price)
-                value_imbalance = (call_otm_value - put_otm_value) / (call_otm_value + put_otm_value + 1e-10)
-                delta_pressure = sum(delta * oi for strike, delta, oi in zip(strikes, deltas, total_oi) if abs(strike - current_price) < daily_range_dollars)
-                gamma_pressure = sum(gamma * oi for strike, gamma, oi in zip(strikes, gammas, total_oi) if abs(strike - current_price) < daily_range_dollars)
-                delta_gamma_adjustment = daily_range_dollars * (delta_pressure / (abs(gamma_pressure) + 1e-10)) * 0.1
-                itm_call_value = sum(max(current_price - strike, 0) * oi * 100 for strike, oi in zip(strikes, total_oi) if strike < current_price and opt.get("option_type", "").upper() == "CALL")
-                itm_put_value = sum(max(strike - current_price, 0) * oi * 100 for strike, oi in zip(strikes, total_oi) if strike > current_price and opt.get("option_type", "").upper() == "PUT")
-                intrinsic_bias = -(itm_call_value - itm_put_value) / (itm_call_value + itm_put_value + 1e-10) * daily_range_dollars * 0.05
+                
+                # Value Imbalance (FIX: evitar división por cero)
+                if (call_otm_value + put_otm_value) > 0:
+                    value_imbalance = (call_otm_value - put_otm_value) / (call_otm_value + put_otm_value + 1e-10)
+                else:
+                    value_imbalance = 0.0
+                
+                # Delta Pressure (FIX: verificar que strikes, deltas, total_oi existen)
+                if strikes and deltas and total_oi and len(strikes) == len(deltas) == len(total_oi):
+                    delta_pressure = sum(delta * oi for strike, delta, oi in zip(strikes, deltas, total_oi) if abs(strike - current_price) < daily_range_dollars)
+                else:
+                    delta_pressure = 0.0
+                
+                # Gamma Pressure (FIX: verificar que gammas existe)
+                if strikes and gammas and total_oi and len(strikes) == len(gammas) == len(total_oi):
+                    gamma_pressure = sum(gamma * oi for strike, gamma, oi in zip(strikes, gammas, total_oi) if abs(strike - current_price) < daily_range_dollars)
+                else:
+                    gamma_pressure = 0.0
+                
+                # Delta-Gamma Adjustment (FIX: evitar división por cero)
+                if abs(gamma_pressure) > 1e-10:
+                    delta_gamma_adjustment = daily_range_dollars * (delta_pressure / abs(gamma_pressure)) * 0.1
+                else:
+                    delta_gamma_adjustment = 0.0
+                
+                # ITM Values (FIX: verificar que opt existe y tiene option_type)
+                itm_call_value = 0.0
+                itm_put_value = 0.0
+                
+                for strike, oi in zip(strikes, total_oi):
+                    # Buscar opción correspondiente
+                    matching_opts = [opt for opt in options_data if opt.get('strike') == strike]
+                    
+                    for opt in matching_opts:
+                        opt_type = opt.get("option_type", "").upper()
+                        
+                        if opt_type == "CALL" and strike < current_price:
+                            itm_call_value += max(current_price - strike, 0) * oi * 100
+                        elif opt_type == "PUT" and strike > current_price:
+                            itm_put_value += max(strike - current_price, 0) * oi * 100
+                
+                # Intrinsic Bias (FIX: evitar división por cero)
+                if (itm_call_value + itm_put_value) > 0:
+                    intrinsic_bias = -(itm_call_value - itm_put_value) / (itm_call_value + itm_put_value + 1e-10) * daily_range_dollars * 0.05
+                else:
+                    intrinsic_bias = 0.0
+                
+                # MM Target Price Final
                 mm_target_price = base_price + (value_imbalance * daily_range_dollars * 0.5) + delta_gamma_adjustment + intrinsic_bias
+                
+                # Clip to realistic range
                 mm_target_price = max(current_price - daily_range_dollars, min(current_price + daily_range_dollars, mm_target_price))
+                
+                # Find closest strike
                 mm_target_strike = min(strikes, key=lambda x: abs(x - mm_target_price)) if strikes else current_price
+                
+                # Direction
                 direction = "Bearish" if mm_target_price < current_price else "Bullish"
+                
+                # Probability (FIX: evitar división por cero y valores inválidos)
                 expected_move = current_price * daily_range
-                prob_below_target = norm.cdf((mm_target_price - current_price) / expected_move) if direction == "Bearish" else 1.0 - norm.cdf((mm_target_price - current_price) / expected_move)
+                if expected_move > 0:
+                    z_score = (mm_target_price - current_price) / expected_move
+                    if direction == "Bearish":
+                        prob_below_target = norm.cdf(z_score)
+                    else:
+                        prob_below_target = 1.0 - norm.cdf(z_score)
+                else:
+                    prob_below_target = 0.5
             else:
                 logger.warning(f"No valid contracts for MM target calculation for {ticker}")
-
             # Chart (Aggregated across all expiration dates)
             @st.cache_data
             def create_chart(_ticker, expiration_dates, current_price, max_pain, sentiment, daily_range, momentum, mm_target_strike):
