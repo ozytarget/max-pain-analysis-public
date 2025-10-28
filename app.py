@@ -4976,8 +4976,8 @@ def main():
                     else:
                         st.warning("❌ No stocks returned from FinViz.")
         
-        st.markdown("---")
-        st.markdown("*🚀 Developed by Ozy*")
+                        st.markdown("---")
+                        st.markdown("*🚀 Developed by Ozy*")
     # Tab 3: News Scanner
     with tab3:
         st.subheader("News Scanner")
