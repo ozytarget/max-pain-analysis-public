@@ -4836,8 +4836,10 @@ def main():
         elif "EARNINGS" in scan_strategy:
             finviz_filters = {
                 "earningsdate_thisweek": None,
-                "sh_avgvol_o500": None
+                "sh_avgvol_o500": None,
+                "o": "-earningsdate"  # Ordenar por fecha de earnings
             }
+
         
         elif "SHORT SQUEEZE" in scan_strategy:
             finviz_filters = {
@@ -5151,6 +5153,11 @@ def main():
                                     display_cols.append('Ticker')
                                 if 'Pattern' in df_finviz.columns:
                                     display_cols.append('Pattern')
+                                
+                                # Si es estrategia de EARNINGS, agregar columna de fecha
+                                if "EARNINGS" in scan_strategy and 'Earnings' in df_finviz.columns:
+                                    display_cols.append('Earnings')
+                                
                                 if 'Company' in df_finviz.columns:
                                     display_cols.append('Company')
                                 if 'Price' in df_finviz.columns:
@@ -5164,8 +5171,18 @@ def main():
                                 if 'RSI (14)' in df_finviz.columns:
                                     display_cols.append('RSI (14)')
                                 
-                                if display_cols:
+                                if "EARNINGS" in scan_strategy and 'Earnings' in df_finviz.columns:
+                                    # Renombrar columna para que sea más clara
+                                if 'Earnings' in display_cols:
+                                        df_finviz_display = df_finviz[display_cols].copy()
+                                        df_finviz_display.rename(columns={'Earnings': '📅 Earnings Date'}, inplace=True)
+                                        st.dataframe(df_finviz_display.head(max_results), use_container_width=True)
+                                    else:
+                                        st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
+                                elif display_cols:
                                     st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
+                                else:
+                                    st.dataframe(df_finviz.head(max_results), use_container_width=True)
                                 else:
                                     st.dataframe(df_finviz.head(max_results), use_container_width=True)
                         
