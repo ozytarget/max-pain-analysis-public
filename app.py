@@ -5081,6 +5081,10 @@ def main():
                     else:
                         st.success(f"✅ Scanner returned {len(df_finviz)} stocks!")
                         
+                        # DEBUG: Mostrar columnas disponibles
+                        if "EARNINGS" in scan_strategy:
+                            st.info(f"🔍 DEBUG - Available columns: {', '.join(df_finviz.columns.tolist())}")
+                        
                         try:
                             if 'Volume' in df_finviz.columns:
                                 if df_finviz['Volume'].dtype == 'object':
@@ -5147,16 +5151,27 @@ def main():
                                 
                                 st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
                                 
+                                # Construir columnas dinámicamente
                                 display_cols = []
+                                
+                                # Siempre agregar Ticker primero
                                 if 'Ticker' in df_finviz.columns:
                                     display_cols.append('Ticker')
+                                
+                                # Agregar Pattern si existe (solo para FIGURAS TÉCNICAS)
                                 if 'Pattern' in df_finviz.columns:
                                     display_cols.append('Pattern')
                                 
-                                # Si es estrategia de EARNINGS, agregar columna de fecha
-                                if "EARNINGS" in scan_strategy and 'Earnings' in df_finviz.columns:
-                                    display_cols.append('Earnings')
+                                # Buscar columna de Earnings con múltiples nombres posibles
+                                earnings_col = None
+                                if "EARNINGS" in scan_strategy:
+                                    for possible_name in ['Earnings', 'Earnings Date', 'Earn Date', 'Next Earnings Date']:
+                                        if possible_name in df_finviz.columns:
+                                            earnings_col = possible_name
+                                            display_cols.append(earnings_col)
+                                            break
                                 
+                                # Agregar columnas estándar
                                 if 'Company' in df_finviz.columns:
                                     display_cols.append('Company')
                                 if 'Price' in df_finviz.columns:
@@ -5170,14 +5185,15 @@ def main():
                                 if 'RSI (14)' in df_finviz.columns:
                                     display_cols.append('RSI (14)')
                                 
-                                # Formatear y mostrar tabla
-                                if "EARNINGS" in scan_strategy and 'Earnings' in df_finviz.columns and 'Earnings' in display_cols:
-                                    # Renombrar columna para que sea más clara
-                                    df_finviz_display = df_finviz[display_cols].copy()
-                                    df_finviz_display.rename(columns={'Earnings': '📅 Earnings Date'}, inplace=True)
-                                    st.dataframe(df_finviz_display.head(max_results), use_container_width=True)
-                                elif display_cols:
-                                    st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
+                                # Mostrar tabla
+                                if display_cols:
+                                    df_display = df_finviz[display_cols].copy()
+                                    
+                                    # Renombrar columna de earnings si existe
+                                    if earnings_col and earnings_col in df_display.columns:
+                                        df_display.rename(columns={earnings_col: '📅 Earnings Date'}, inplace=True)
+                                    
+                                    st.dataframe(df_display.head(max_results), use_container_width=True)
                                 else:
                                     st.dataframe(df_finviz.head(max_results), use_container_width=True)
                         
@@ -5229,7 +5245,7 @@ def main():
         """)
         
         st.markdown("---")
-        st.markdown("*🚀 Developed by Ozy !!!*")
+        st.markdown("*🚀 Developed by Ozy !*")
     # Tab 3: News Scanner
     with tab3:
         st.subheader("News Scanner")
