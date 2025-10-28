@@ -4697,7 +4697,10 @@ def main():
         
         # Function to fetch data from FinViz Elite API
         def get_finviz_screener(filters_dict, columns_list=None, add_delay=True):
-            """Fetch screener data from Ozy"""
+            """Fetch screener data from FinViz Elite API"""
+            import time  # Import inside function to avoid scope issues
+            from io import StringIO
+            
             try:
                 # Add delay to avoid rate limiting
                 if add_delay:
@@ -4719,7 +4722,6 @@ def main():
                 response.raise_for_status()
                 
                 # Parse CSV response
-                from io import StringIO
                 df = pd.read_csv(StringIO(response.text))
                 
                 return df
