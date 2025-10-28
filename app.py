@@ -4812,25 +4812,159 @@ def main():
                 st.write("Available soon - Use preset strategies for now")
                 finviz_filters = {"sh_avgvol_o500": None}
         
-        # ===== FILTROS ADICIONALES =====
-        with st.expander("🔧 Additional Filters"):
-            col_f1, col_f2, col_f3 = st.columns(3)
+        # ===== FILTROS ADICIONALES (SIEMPRE VISIBLES) =====
+        st.markdown("### 🔧 Filter Settings")
+        
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        
+        with col_f1:
+            min_price_filter = st.number_input("Min Price ($)", 0.01, 10000.0, 1.0, key="fv_min_price")
+            min_volume_filter = st.number_input("Min Volume (K)", 0, 100000, 500, step=100, key="fv_min_vol")
+        
+        with col_f2:
+            max_price_filter = st.number_input("Max Price ($)", 0.01, 10000.0, 500.0, key="fv_max_price")
+            min_change_filter = st.number_input("Min Change %", -50.0, 100.0, 0.0, step=1.0, key="fv_min_change")
+        
+        with col_f3:
+            exchange_fv = st.multiselect(
+                "Exchange",
+                ["NASDAQ", "NYSE", "AMEX"],
+                default=["NASDAQ", "NYSE"],
+                key="fv_exchange"
+            )
+        
+        with col_f4:
+            sector_filter = st.multiselect(
+                "Sector (Optional)",
+                ["Technology", "Healthcare", "Financial", "Energy", "Consumer", "Industrial"],
+                key="fv_sector"
+            )
+        
+        # ===== CUSTOM FILTERS (FUNCIONAL CUANDO SE SELECCIONA) =====
+        if "CUSTOM" in scan_strategy:
+            st.markdown("---")
+            st.markdown("### 🎛️ Custom FinViz Filters")
             
-            with col_f1:
-                min_price_filter = st.number_input("Min Price ($)", 0.01, 10000.0, 1.0, key="fv_min_price")
-                max_price_filter = st.number_input("Max Price ($)", 0.01, 10000.0, 500.0, key="fv_max_price")
+            col_c1, col_c2, col_c3 = st.columns(3)
             
-            with col_f2:
-                min_volume_filter = st.number_input("Min Avg Volume (K)", 0, 100000, 500, step=100, key="fv_min_vol")
-                min_change_filter = st.number_input("Min Change %", -50.0, 100.0, 0.0, step=1.0, key="fv_min_change")
-            
-            with col_f3:
-                exchange_fv = st.multiselect(
-                    "Exchange",
-                    ["NASDAQ", "NYSE", "AMEX"],
-                    default=["NASDAQ", "NYSE"],
-                    key="fv_exchange"
+            with col_c1:
+                st.markdown("**📊 Market Cap**")
+                custom_cap = st.selectbox(
+                    "Cap Size",
+                    ["Any", "Mega (>$200B)", "Large ($10B-$200B)", "Mid ($2B-$10B)", "Small ($300M-$2B)", "Micro (<$300M)"],
+                    key="custom_cap"
                 )
+                
+                st.markdown("**📈 Performance**")
+                custom_perf = st.selectbox(
+                    "Today's Performance",
+                    ["Any", "Up", "Down", "Up >5%", "Down >5%", "Up >10%", "Down >10%"],
+                    key="custom_perf"
+                )
+            
+            with col_c2:
+                st.markdown("**📊 Volume**")
+                custom_vol = st.selectbox(
+                    "Relative Volume",
+                    ["Any", ">1.5x Avg", ">2x Avg", ">3x Avg", ">5x Avg"],
+                    key="custom_vol"
+                )
+                
+                st.markdown("**🎯 Technical**")
+                custom_rsi = st.selectbox(
+                    "RSI (14)",
+                    ["Any", "Oversold (<30)", "Overbought (>70)", "Neutral (40-60)"],
+                    key="custom_rsi"
+                )
+            
+            with col_c3:
+                st.markdown("**💹 Volatility**")
+                custom_volatility = st.selectbox(
+                    "Weekly Volatility",
+                    ["Any", ">3%", ">5%", ">8%", ">10%"],
+                    key="custom_volatility"
+                )
+                
+                st.markdown("**📉 Short Interest**")
+                custom_short = st.selectbox(
+                    "Short Float",
+                    ["Any", ">10%", ">20%", ">30%"],
+                    key="custom_short"
+                )
+            
+            # Convertir selecciones a filtros FinViz
+            custom_finviz_filters = {}
+            
+            # Market Cap mapping
+            if custom_cap == "Mega (>$200B)":
+                custom_finviz_filters["cap_mega"] = None
+            elif custom_cap == "Large ($10B-$200B)":
+                custom_finviz_filters["cap_largeover"] = None
+            elif custom_cap == "Mid ($2B-$10B)":
+                custom_finviz_filters["cap_mid"] = None
+            elif custom_cap == "Small ($300M-$2B)":
+                custom_finviz_filters["cap_small"] = None
+            elif custom_cap == "Micro (<$300M)":
+                custom_finviz_filters["cap_micro"] = None
+            
+            # Performance mapping
+            if custom_perf == "Up":
+                custom_finviz_filters["ta_change_u"] = None
+            elif custom_perf == "Down":
+                custom_finviz_filters["ta_change_d"] = None
+            elif custom_perf == "Up >5%":
+                custom_finviz_filters["ta_change_u5"] = None
+            elif custom_perf == "Down >5%":
+                custom_finviz_filters["ta_change_d5"] = None
+            elif custom_perf == "Up >10%":
+                custom_finviz_filters["ta_change_u10"] = None
+            elif custom_perf == "Down >10%":
+                custom_finviz_filters["ta_change_d10"] = None
+            
+            # Volume mapping
+            if custom_vol == ">1.5x Avg":
+                custom_finviz_filters["sh_relvol_o1.5"] = None
+            elif custom_vol == ">2x Avg":
+                custom_finviz_filters["sh_relvol_o2"] = None
+            elif custom_vol == ">3x Avg":
+                custom_finviz_filters["sh_relvol_o3"] = None
+            elif custom_vol == ">5x Avg":
+                custom_finviz_filters["sh_relvol_o5"] = None
+            
+            # RSI mapping
+            if custom_rsi == "Oversold (<30)":
+                custom_finviz_filters["ta_rsi_ob30"] = None
+            elif custom_rsi == "Overbought (>70)":
+                custom_finviz_filters["ta_rsi_ob70"] = None
+            elif custom_rsi == "Neutral (40-60)":
+                custom_finviz_filters["ta_rsi_nob60"] = None
+            
+            # Volatility mapping
+            if custom_volatility == ">3%":
+                custom_finviz_filters["ta_volatility_wo3"] = None
+            elif custom_volatility == ">5%":
+                custom_finviz_filters["ta_volatility_wo5"] = None
+            elif custom_volatility == ">8%":
+                custom_finviz_filters["ta_volatility_wo8"] = None
+            elif custom_volatility == ">10%":
+                custom_finviz_filters["ta_volatility_wo10"] = None
+            
+            # Short Interest mapping
+            if custom_short == ">10%":
+                custom_finviz_filters["sh_short_o10"] = None
+            elif custom_short == ">20%":
+                custom_finviz_filters["sh_short_o20"] = None
+            elif custom_short == ">30%":
+                custom_finviz_filters["sh_short_o30"] = None
+            
+            # Si no hay filtros personalizados, usar filtro base
+            if not custom_finviz_filters:
+                custom_finviz_filters = {"sh_avgvol_o500": None}
+            
+            # Reemplazar finviz_filters con los custom
+            finviz_filters = custom_finviz_filters
+            
+            st.info(f"🎯 **Active Custom Filters:** {len(custom_finviz_filters)} criteria selected")
         
         # ===== BOTÓN DE ESCANEO =====
         if st.button("🔍 START CRAZY SCAN", key="start_fv_scan", use_container_width=True):
