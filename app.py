@@ -4674,8 +4674,6 @@ def main():
 
     
     # ==================================================================================
-    # TAB 2: CRAZY SCANNER (FinViz Elite Integration)
-    # ==================================================================================
     # ==================================================================================
     # TAB 2: CRAZY SCANNER (FinViz Elite Integration)
     # ==================================================================================
@@ -4697,28 +4695,37 @@ def main():
         
         # Function to fetch data from FinViz Elite API
         def get_finviz_screener(filters_dict, columns_list=None, add_delay=True):
-            """Fetch screener data from FinViz Elite API"""
-            import time  # Import inside function to avoid scope issues
+            """Fetch screener data from Ozy"""
+            import time
             from io import StringIO
             
             try:
                 # Add delay to avoid rate limiting
                 if add_delay:
-                    time.sleep(2)  # Wait 2 seconds between requests
+                    time.sleep(2)
                 
                 # Build URL parameters
                 params = {
-                    "v": "152",  # Custom view with all columns
-                    "auth": FINVIZ_API_TOKEN
+                    "v": "152",
+                    "auth": FINVIZ_API_TOKEN,
+                    "r": "1000"  # Request up to 1000 results per call
                 }
                 
                 # Add filter string if provided
                 if filters_dict:
+                    # Separate ordering parameter from filters
+                    order_by = filters_dict.pop("o", None)
+                    
                     filter_str = ",".join([k for k in filters_dict.keys()])
-                    params["f"] = filter_str
+                    if filter_str:
+                        params["f"] = filter_str
+                    
+                    # Add ordering if specified
+                    if order_by:
+                        params["o"] = order_by
                 
                 # Make request
-                response = requests.get(FINVIZ_BASE_URL, params=params, timeout=10)
+                response = requests.get(FINVIZ_BASE_URL, params=params, timeout=15)
                 response.raise_for_status()
                 
                 # Parse CSV response
@@ -4755,74 +4762,74 @@ def main():
             )
         
         with col_max:
-            max_results = st.slider("Max", 10, 200, 50, key="crazy_max")
+            max_results = st.slider("Max Results", 10, 500, 100, key="crazy_max")
         
         # ===== MAPEO DE ESTRATEGIAS A FILTROS FINVIZ =====
         finviz_filters = {}
         pattern_filters_list = []
-        columns_to_fetch = [1, 2, 65, 66, 67, 6, 59, 64, 50, 51, 61, 42, 52, 53, 54]  # Ticker, Company, Price, Change, Volume, Market Cap, RSI, Rel Vol, Vol Week, Vol Month, Gap, Perf Week, SMA20, SMA50, SMA200
+        columns_to_fetch = [1, 2, 65, 66, 67, 6, 59, 64, 50, 51, 61, 42, 52, 53, 54]
         
         if "CRAZY MOVERS" in scan_strategy:
             finviz_filters = {
-                "cap_smallunder": None,  # Small cap
-                "sh_avgvol_o1000": None,  # Volume > 1M
-                "ta_volatility_wo5": None,  # Volatility > 5% weekly
-                "ta_changeopen_u5": None  # Change from open > 5%
+                "cap_smallunder": None,
+                "sh_avgvol_o1000": None,
+                "ta_volatility_wo5": None,
+                "ta_changeopen_u5": None
             }
         
         elif "MEGA CAP" in scan_strategy:
             finviz_filters = {
-                "cap_mega": None,  # Mega cap (>$200B)
-                "ta_perf_1wup": None,  # Week up
-                "sh_avgvol_o500": None  # Volume > 500K
+                "cap_mega": None,
+                "ta_perf_1wup": None,
+                "sh_avgvol_o500": None
             }
         
         elif "DOUBLE TOP" in scan_strategy:
             finviz_filters = {
-                "ta_pattern_doubletop": None,  # Double top pattern
+                "ta_pattern_doubletop": None,
                 "sh_avgvol_o500": None
             }
-            # También buscar double bottom
             finviz_filters_alt = {
                 "ta_pattern_doublebottom": None,
                 "sh_avgvol_o500": None
             }
         
         elif "FIGURAS TÉCNICAS" in scan_strategy:
-            # Buscar múltiples patrones: Cup & Handle, Head & Shoulders, etc.
             finviz_filters = {
-                "ta_pattern_horizontal": None,
-                "sh_avgvol_o500": None
+                "ta_pattern_horizontal": None
             }
             
-            # Lista de patrones a buscar en paralelo
+            # Lista optimizada de patrones con ordenamiento inteligente
             pattern_filters_list = [
-                {"ta_pattern_horizontal": None, "sh_avgvol_o500": None},  # Cup base
-                {"ta_pattern_horizontal2": None, "sh_avgvol_o500": None},  # Handle
-                {"ta_pattern_tlsupport": None, "sh_avgvol_o500": None},   # Head & Shoulders izq
-                {"ta_pattern_tlresistance": None, "sh_avgvol_o500": None}, # Head & Shoulders der
-                {"ta_pattern_wedgeup": None, "sh_avgvol_o500": None},      # Ascending wedge
-                {"ta_pattern_wedgedown": None, "sh_avgvol_o500": None},    # Descending wedge
-                {"ta_pattern_channelup": None, "sh_avgvol_o500": None},    # Channel Up
-                {"ta_pattern_channeldown": None, "sh_avgvol_o500": None}   # Channel Down
+                {"ta_pattern_horizontal": None, "sh_avgvol_o500": None, "o": "-relativevolume"},
+                {"ta_pattern_horizontal2": None, "sh_avgvol_o500": None, "o": "-relativevolume"},
+                {"ta_pattern_headandshoulders": None, "sh_avgvol_o500": None, "o": "-change"},
+                {"ta_pattern_tlsupport": None, "sh_avgvol_o500": None, "o": "-change"},
+                {"ta_pattern_tlresistance": None, "sh_avgvol_o500": None, "o": "-change"},
+                {"ta_pattern_wedgeup": None, "sh_avgvol_o500": None, "o": "-change"},
+                {"ta_pattern_wedgedown": None, "sh_avgvol_o500": None, "o": "-change"},
+                {"ta_pattern_channelup": None, "sh_avgvol_o500": None, "o": "-volume"},
+                {"ta_pattern_channeldown": None, "sh_avgvol_o500": None, "o": "-volume"},
+                {"ta_pattern_triangleasc": None, "sh_avgvol_o500": None, "o": "-change"},
+                {"ta_pattern_triangledesc": None, "sh_avgvol_o500": None, "o": "-change"}
             ]
         
         elif "52-WEEK BREAKOUT" in scan_strategy:
             finviz_filters = {
-                "ta_highlow52w_nh": None,  # New high
+                "ta_highlow52w_nh": None,
                 "sh_avgvol_o500": None,
-                "ta_rsi_os50": None  # RSI > 50
+                "ta_rsi_os50": None
             }
         
         elif "VOLUME EXPLOSION" in scan_strategy:
             finviz_filters = {
-                "sh_relvol_o3": None,  # Relative volume > 3
-                "ta_change_u5": None  # Change > 5%
+                "sh_relvol_o3": None,
+                "ta_change_u5": None
             }
         
         elif "WILD SWINGS" in scan_strategy:
             finviz_filters = {
-                "ta_volatility_wo8": None,  # Weekly volatility > 8%
+                "ta_volatility_wo8": None,
                 "sh_avgvol_o1000": None
             }
         
@@ -4834,9 +4841,9 @@ def main():
         
         elif "SHORT SQUEEZE" in scan_strategy:
             finviz_filters = {
-                "sh_short_o20": None,  # Short float > 20%
-                "ta_change_u5": None,  # Price up > 5%
-                "sh_relvol_o2": None  # Rel volume > 2
+                "sh_short_o20": None,
+                "ta_change_u5": None,
+                "sh_relvol_o2": None
             }
         
         elif "CUSTOM" in scan_strategy:
@@ -4864,11 +4871,36 @@ def main():
             )
         
         with col_f4:
+            # TOGGLE PARA ESCANEAR TODO
+            scan_all_stocks = st.checkbox(
+                "🌐 Scan ALL stocks",
+                value=False,
+                help="Include low-volume stocks (slower, more results)",
+                key="scan_all"
+            )
+            
             sector_filter = st.multiselect(
                 "Sector (Optional)",
                 ["Technology", "Healthcare", "Financial", "Energy", "Consumer", "Industrial"],
                 key="fv_sector"
             )
+        
+        # Si scan_all está activado, remover filtro de volumen
+        if scan_all_stocks and "FIGURAS TÉCNICAS" in scan_strategy:
+            pattern_filters_list = [
+                {"ta_pattern_horizontal": None, "o": "-relativevolume"},
+                {"ta_pattern_horizontal2": None, "o": "-relativevolume"},
+                {"ta_pattern_headandshoulders": None, "o": "-change"},
+                {"ta_pattern_tlsupport": None, "o": "-change"},
+                {"ta_pattern_tlresistance": None, "o": "-change"},
+                {"ta_pattern_wedgeup": None, "o": "-change"},
+                {"ta_pattern_wedgedown": None, "o": "-change"},
+                {"ta_pattern_channelup": None, "o": "-volume"},
+                {"ta_pattern_channeldown": None, "o": "-volume"},
+                {"ta_pattern_triangleasc": None, "o": "-change"},
+                {"ta_pattern_triangledesc": None, "o": "-change"}
+            ]
+            st.warning("⚠️ Scanning ALL stocks - This will take longer (~30-40 seconds)")
         
         # ===== CUSTOM FILTERS (FUNCIONAL CUANDO SE SELECCIONA) =====
         if "CUSTOM" in scan_strategy:
@@ -4925,7 +4957,6 @@ def main():
             # Convertir selecciones a filtros FinViz
             custom_finviz_filters = {}
             
-            # Market Cap mapping
             if custom_cap == "Mega (>$200B)":
                 custom_finviz_filters["cap_mega"] = None
             elif custom_cap == "Large ($10B-$200B)":
@@ -4937,7 +4968,6 @@ def main():
             elif custom_cap == "Micro (<$300M)":
                 custom_finviz_filters["cap_micro"] = None
             
-            # Performance mapping
             if custom_perf == "Up":
                 custom_finviz_filters["ta_change_u"] = None
             elif custom_perf == "Down":
@@ -4951,7 +4981,6 @@ def main():
             elif custom_perf == "Down >10%":
                 custom_finviz_filters["ta_change_d10"] = None
             
-            # Volume mapping
             if custom_vol == ">1.5x Avg":
                 custom_finviz_filters["sh_relvol_o1.5"] = None
             elif custom_vol == ">2x Avg":
@@ -4961,7 +4990,6 @@ def main():
             elif custom_vol == ">5x Avg":
                 custom_finviz_filters["sh_relvol_o5"] = None
             
-            # RSI mapping
             if custom_rsi == "Oversold (<30)":
                 custom_finviz_filters["ta_rsi_ob30"] = None
             elif custom_rsi == "Overbought (>70)":
@@ -4969,7 +4997,6 @@ def main():
             elif custom_rsi == "Neutral (40-60)":
                 custom_finviz_filters["ta_rsi_nob60"] = None
             
-            # Volatility mapping
             if custom_volatility == ">3%":
                 custom_finviz_filters["ta_volatility_wo3"] = None
             elif custom_volatility == ">5%":
@@ -4979,7 +5006,6 @@ def main():
             elif custom_volatility == ">10%":
                 custom_finviz_filters["ta_volatility_wo10"] = None
             
-            # Short Interest mapping
             if custom_short == ">10%":
                 custom_finviz_filters["sh_short_o10"] = None
             elif custom_short == ">20%":
@@ -4987,11 +5013,9 @@ def main():
             elif custom_short == ">30%":
                 custom_finviz_filters["sh_short_o30"] = None
             
-            # Si no hay filtros personalizados, usar filtro base
             if not custom_finviz_filters:
                 custom_finviz_filters = {"sh_avgvol_o500": None}
             
-            # Reemplazar finviz_filters con los custom
             finviz_filters = custom_finviz_filters
             
             st.info(f"🎯 **Active Custom Filters:** {len(custom_finviz_filters)} criteria selected")
@@ -5004,16 +5028,31 @@ def main():
                 try:
                     # Obtener datos de FinViz
                     if "FIGURAS TÉCNICAS" in scan_strategy:
-                        # Buscar múltiples patrones y combinarlos
                         df_list = []
-                        pattern_names = ["HORIZONTAL", "HORIZONTAL2", "TLSUPPORT", "TLRESISTANCE", "WEDGEUP", "WEDGEDOWN", "CHANNELUP", "CHANNELDOWN"]
+                        pattern_names = [
+                            "HORIZONTAL",
+                            "HORIZONTAL2",
+                            "HEADSHOULDERS",
+                            "TLSUPPORT",
+                            "TLRESISTANCE",
+                            "WEDGEUP",
+                            "WEDGEDOWN",
+                            "CHANNELUP",
+                            "CHANNELDOWN",
+                            "TRIANGLEASC",
+                            "TRIANGLEDESC"
+                        ]
                         
-                        st.info(f"🔍 Searching {len(pattern_filters_list)} patterns... This may take ~{len(pattern_filters_list)*2} seconds")
+                        total_patterns = len(pattern_filters_list)
+                        est_time = total_patterns * 2
+                        st.info(f"🔍 Searching {total_patterns} patterns... Estimated time: ~{est_time} seconds")
                         
                         progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
                         for idx, pattern_filter in enumerate(pattern_filters_list):
-                            # Update progress
-                            progress_bar.progress((idx + 1) / len(pattern_filters_list))
+                            status_text.text(f"Searching pattern {idx+1}/{total_patterns}: {pattern_names[idx]}...")
+                            progress_bar.progress((idx + 1) / total_patterns)
                             
                             df_temp = get_finviz_screener(pattern_filter, columns_to_fetch, add_delay=True)
                             if not df_temp.empty:
@@ -5022,17 +5061,16 @@ def main():
                                 st.success(f"✅ Found {len(df_temp)} stocks with {pattern_names[idx]} pattern")
                         
                         progress_bar.empty()
+                        status_text.empty()
                         
                         if df_list:
                             df_finviz = pd.concat(df_list, ignore_index=True)
-                            # Eliminar duplicados manteniendo el primer patrón detectado
                             df_finviz = df_finviz.drop_duplicates(subset=['Ticker'], keep='first')
                         else:
                             df_finviz = pd.DataFrame()
                     else:
                         df_finviz = get_finviz_screener(finviz_filters, columns_to_fetch, add_delay=False)
                     
-                    # Buscar double bottom si es estrategia de double top
                     if "DOUBLE TOP" in scan_strategy and 'finviz_filters_alt' in locals():
                         df_finviz_alt = get_finviz_screener(finviz_filters_alt, columns_to_fetch, add_delay=False)
                         df_finviz = pd.concat([df_finviz, df_finviz_alt], ignore_index=True)
@@ -5042,49 +5080,37 @@ def main():
                     else:
                         st.success(f"✅ Scanner returned {len(df_finviz)} stocks!")
                         
-                        # Aplicar filtros adicionales
                         try:
-                            # Handle Volume column - check if it's already numeric
                             if 'Volume' in df_finviz.columns:
                                 if df_finviz['Volume'].dtype == 'object':
-                                    # If string, clean commas first
                                     df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'].str.replace(',', ''), errors='coerce')
                                 else:
-                                    # Already numeric, just convert to ensure proper type
                                     df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'], errors='coerce')
                                 
-                                # Apply volume filter
                                 df_finviz = df_finviz[df_finviz['Volume_num'] >= (min_volume_filter * 1000)]
                             
-                            # Handle Change column - same logic
                             if 'Change' in df_finviz.columns:
                                 if df_finviz['Change'].dtype == 'object':
-                                    # Remove % sign if present
                                     df_finviz['Change_num'] = pd.to_numeric(df_finviz['Change'].str.replace('%', ''), errors='coerce')
                                 else:
                                     df_finviz['Change_num'] = pd.to_numeric(df_finviz['Change'], errors='coerce')
                                 
-                                # Apply change filter
                                 df_finviz = df_finviz[df_finviz['Change_num'] >= min_change_filter]
                             
-                            # Handle Price column
                             if 'Price' in df_finviz.columns:
                                 if df_finviz['Price'].dtype == 'object':
                                     df_finviz['Price_num'] = pd.to_numeric(df_finviz['Price'].str.replace('$', ''), errors='coerce')
                                 else:
                                     df_finviz['Price_num'] = pd.to_numeric(df_finviz['Price'], errors='coerce')
                                 
-                                # Apply price filters
                                 df_finviz = df_finviz[
                                     (df_finviz['Price_num'] >= min_price_filter) &
                                     (df_finviz['Price_num'] <= max_price_filter)
                                 ]
                             
-                            # Filter by exchange
                             if 'Exchange' in df_finviz.columns and exchange_fv:
                                 df_finviz = df_finviz[df_finviz['Exchange'].isin(exchange_fv)]
                             
-                            # Apply strategy-specific filters using numeric columns
                             if "CRAZY MOVERS" in scan_strategy:
                                 if 'Volume_num' in df_finviz.columns:
                                     df_finviz = df_finviz[df_finviz['Volume_num'] > 1000000]
@@ -5097,30 +5123,29 @@ def main():
                                 if 'Change_num' in df_finviz.columns:
                                     df_finviz = df_finviz[abs(df_finviz['Change_num']) > 5]
                             
-                            # Limitar resultados
                             df_finviz = df_finviz.head(max_results)
                             
                             if df_finviz.empty:
                                 st.warning("⚠️ No stocks passed your additional filters.")
                             else:
-                                # Mapear nombres técnicos a nombres legibles para FIGURAS TÉCNICAS
                                 if 'Pattern_Detected' in df_finviz.columns:
                                     pattern_map = {
                                         "HORIZONTAL": "☕ CUP (Base)",
                                         "HORIZONTAL2": "🍵 HANDLE",
-                                        "TLSUPPORT": "👤 H&S (Left)",
-                                        "TLRESISTANCE": "🙍 H&S (Right)",
+                                        "HEADSHOULDERS": "👤 HEAD & SHOULDERS",
+                                        "TLSUPPORT": "📈 TRENDLINE SUPPORT",
+                                        "TLRESISTANCE": "📉 TRENDLINE RESISTANCE",
                                         "WEDGEUP": "📐 WEDGE UP",
                                         "WEDGEDOWN": "📉 WEDGE DOWN",
                                         "CHANNELUP": "📈 CHANNEL UP",
-                                        "CHANNELDOWN": "📊 CHANNEL DOWN"
+                                        "CHANNELDOWN": "📊 CHANNEL DOWN",
+                                        "TRIANGLEASC": "🔺 TRIANGLE ASC",
+                                        "TRIANGLEDESC": "🔻 TRIANGLE DESC"
                                     }
                                     df_finviz['Pattern'] = df_finviz['Pattern_Detected'].map(pattern_map).fillna("UNKNOWN")
                                 
-                                # Display results
                                 st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
                                 
-                                # Show top results
                                 display_cols = []
                                 if 'Ticker' in df_finviz.columns:
                                     display_cols.append('Ticker')
@@ -5140,9 +5165,9 @@ def main():
                                     display_cols.append('RSI (14)')
                                 
                                 if display_cols:
-                                    st.dataframe(df_finviz[display_cols].head(50), use_container_width=True)
+                                    st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
                                 else:
-                                    st.dataframe(df_finviz.head(50), use_container_width=True)
+                                    st.dataframe(df_finviz.head(max_results), use_container_width=True)
                         
                         except Exception as e:
                             st.error(f"Error processing data: {str(e)}")
@@ -5163,7 +5188,7 @@ def main():
         1. **CRAZY MOVERS** - Small cap volatility bombs
         2. **MEGA CAP MOMENTUM** - Large cap unusual activity
         3. **DOUBLE TOPS/BOTTOMS** - Technical reversal patterns
-        4. **☕ FIGURAS TÉCNICAS** - Cup & Handle, Head & Shoulders, Wedges, Channels
+        4. **☕ FIGURAS TÉCNICAS** - Cup & Handle, Head & Shoulders, Wedges, Channels, Triangles
         5. **52-WEEK BREAKOUTS** - New highs/lows momentum
         6. **VOLUME EXPLOSION** - 3x+ average volume spikes
         7. **WILD SWINGS** - >8% intraday range moves
@@ -5171,18 +5196,27 @@ def main():
         9. **SHORT SQUEEZE** - High short interest + momentum
         10. **CUSTOM FILTERS** - Build your own criteria
         
-        **Pattern Detection (FIGURAS TÉCNICAS):**
+        **Pattern Detection (FIGURAS TÉCNICAS) - 11 Patterns:**
         - ☕ **CUP (Base)** - Rounded bottom formation
         - 🍵 **HANDLE** - Consolidation after cup
-        - 👤 **H&S (Left/Right)** - Head & Shoulders pattern
+        - 👤 **HEAD & SHOULDERS** - Classic reversal pattern
+        - 📈 **TRENDLINE SUPPORT** - Bouncing off support
+        - 📉 **TRENDLINE RESISTANCE** - Testing resistance
         - 📐 **WEDGE UP/DOWN** - Converging trend lines
         - 📈 **CHANNEL UP/DOWN** - Parallel trend lines
+        - 🔺 **TRIANGLE ASC/DESC** - Triangle breakout patterns
+        
+        **Smart Filtering:**
+        - ✅ Ordered by activity (volume, change, momentum)
+        - ✅ Quality stocks with liquidity
+        - ✅ Optional "Scan ALL" for exhaustive search
+        - ✅ Customizable filters (price, volume, exchange)
         
         **All filters are dynamic** - No hardcoded lists, fresh data every scan! 🚀
         """)
         
         st.markdown("---")
-        st.markdown("*🚀 Developed by Ozy*")
+        st.markdown("*🚀 Developed by Ozy !!!*")
     # Tab 3: News Scanner
     with tab3:
         st.subheader("News Scanner")
