@@ -4843,7 +4843,7 @@ def main():
         # ===== CUSTOM FILTERS (FUNCIONAL CUANDO SE SELECCIONA) =====
         if "CUSTOM" in scan_strategy:
             st.markdown("---")
-            st.markdown("### 🎛️ Custom FinViz Filters")
+            st.markdown("### Filters")
             
             col_c1, col_c2, col_c3 = st.columns(3)
             
