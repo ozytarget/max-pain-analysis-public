@@ -4839,7 +4839,6 @@ def main():
                 "sh_avgvol_o500": None,
                 "o": "-earningsdate"  # Ordenar por fecha de earnings
             }
-
         
         elif "SHORT SQUEEZE" in scan_strategy:
             finviz_filters = {
@@ -5171,18 +5170,14 @@ def main():
                                 if 'RSI (14)' in df_finviz.columns:
                                     display_cols.append('RSI (14)')
                                 
-                                if "EARNINGS" in scan_strategy and 'Earnings' in df_finviz.columns:
+                                # Formatear y mostrar tabla
+                                if "EARNINGS" in scan_strategy and 'Earnings' in df_finviz.columns and 'Earnings' in display_cols:
                                     # Renombrar columna para que sea más clara
-                                if 'Earnings' in display_cols:
-                                        df_finviz_display = df_finviz[display_cols].copy()
-                                        df_finviz_display.rename(columns={'Earnings': '📅 Earnings Date'}, inplace=True)
-                                        st.dataframe(df_finviz_display.head(max_results), use_container_width=True)
-                                    else:
-                                        st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
+                                    df_finviz_display = df_finviz[display_cols].copy()
+                                    df_finviz_display.rename(columns={'Earnings': '📅 Earnings Date'}, inplace=True)
+                                    st.dataframe(df_finviz_display.head(max_results), use_container_width=True)
                                 elif display_cols:
                                     st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
-                                else:
-                                    st.dataframe(df_finviz.head(max_results), use_container_width=True)
                                 else:
                                     st.dataframe(df_finviz.head(max_results), use_container_width=True)
                         
@@ -5209,7 +5204,7 @@ def main():
         5. **52-WEEK BREAKOUTS** - New highs/lows momentum
         6. **VOLUME EXPLOSION** - 3x+ average volume spikes
         7. **WILD SWINGS** - >8% intraday range moves
-        8. **EARNINGS PLAYS** - This week's earnings reports
+        8. **EARNINGS PLAYS** - This week's earnings reports with dates
         9. **SHORT SQUEEZE** - High short interest + momentum
         10. **CUSTOM FILTERS** - Build your own criteria
         
@@ -5228,6 +5223,7 @@ def main():
         - ✅ Quality stocks with liquidity
         - ✅ Optional "Scan ALL" for exhaustive search
         - ✅ Customizable filters (price, volume, exchange)
+        - ✅ Earnings dates displayed for earnings strategy
         
         **All filters are dynamic** - No hardcoded lists, fresh data every scan! 🚀
         """)
