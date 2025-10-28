@@ -4905,82 +4905,79 @@ def main():
                     
                     # Top Pick
                     if not df_finviz.empty:
-                        top = df_finviz.iloc[0]
-                        emoji = "🟢" if top.get('Direction') == 'Up' else "🔴" if top.get('Direction') == 'Down' else "🟡"
-                        st.success(f"{emoji} **TOP PICK:** {top.get('Ticker', 'N/A')} | {top.get('Company', 'N/A')} | ${top.get('Price', 0):.2f} ({top.get('Change', 'N/A')}) | FMS: {top.get('FMS', 0):.0f}")
-                    
-                    # Tabla de resultados
-                    display_columns = ['Ticker', 'Company', 'Price', 'Change', 'Volume', 'Market Cap', 
-                                      'RSI', 'Rel Volume', 'FMS', 'GCF', 'Direction']
-                    available_cols = [col for col in display_columns if col in df_finviz.columns]
-                    
-                    st.dataframe(
-                        df_finviz[available_cols].style.background_gradient(cmap='Reds', subset=['FMS'] if 'FMS' in available_cols else []),
-                        use_container_width=True
-                    )
-                    
-                    # Gráfico
-                    if 'Ticker' in df_finviz.columns and 'FMS' in df_finviz.columns:
-                        fig = go.Figure()
-                        fig.add_trace(go.Bar(
-                            x=df_finviz['Ticker'][:20],
-                            y=df_finviz['FMS'][:20],
-                            name='FMS',
-                            marker_color='red'
-                        ))
+                        try:
+                            # Handle Volume column - check if it's already numeric
+                            if 'Volume' in df_finviz.columns:
+                                if df_finviz['Volume'].dtype == 'object':
+                                    # If string, clean commas first
+                                    df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'].str.replace(',', ''), errors='coerce')
+                                else:
+                                    # Already numeric, just convert to ensure proper type
+                                    df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'], errors='coerce')
+                            
+                            # Handle Change column - same logic
+                            if 'Change' in df_finviz.columns:
+                                if df_finviz['Change'].dtype == 'object':
+                                    # Remove % sign if present
+                                    df_finviz['Change_num'] = pd.to_numeric(df_finviz['Change'].str.replace('%', ''), errors='coerce')
+                                else:
+                                    df_finviz['Change_num'] = pd.to_numeric(df_finviz['Change'], errors='coerce')
+                            
+                            # Handle Price column
+                            if 'Price' in df_finviz.columns:
+                                if df_finviz['Price'].dtype == 'object':
+                                    df_finviz['Price_num'] = pd.to_numeric(df_finviz['Price'].str.replace('$', ''), errors='coerce')
+                                else:
+                                    df_finviz['Price_num'] = pd.to_numeric(df_finviz['Price'], errors='coerce')
+                            
+                            # Now apply strategy-specific filters using numeric columns
+                            if scanner_preset == "CRAZY MOVERS (High Vol + Small Cap)":
+                                if 'Volume_num' in df_finviz.columns:
+                                    df_finviz = df_finviz[df_finviz['Volume_num'] > 1000000]
+                            
+                            elif scanner_preset == "VOLUME EXPLOSION (3x Average)":
+                                if 'Volume_num' in df_finviz.columns:
+                                    df_finviz = df_finviz[df_finviz['Volume_num'] > 5000000]
+                            
+                            elif scanner_preset == "WILD SWINGS (>8% Range)":
+                                if 'Change_num' in df_finviz.columns:
+                                    df_finviz = df_finviz[abs(df_finviz['Change_num']) > 5]
+                            
+                            # Display results
+                            st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
+                            
+                            if not df_finviz.empty:
+                                # Show top results
+                                display_cols = []
+                                if 'Ticker' in df_finviz.columns:
+                                    display_cols.append('Ticker')
+                                if 'Company' in df_finviz.columns:
+                                    display_cols.append('Company')
+                                if 'Price' in df_finviz.columns:
+                                    display_cols.append('Price')
+                                if 'Change' in df_finviz.columns:
+                                    display_cols.append('Change')
+                                if 'Volume' in df_finviz.columns:
+                                    display_cols.append('Volume')
+                                if 'Market Cap' in df_finviz.columns:
+                                    display_cols.append('Market Cap')
+                                
+                                if display_cols:
+                                    st.dataframe(df_finviz[display_cols].head(50), use_container_width=True)
+                                else:
+                                    st.dataframe(df_finviz.head(50), use_container_width=True)
+                            else:
+                                st.warning("No stocks passed the additional filters.")
                         
-                        if 'GCF' in df_finviz.columns:
-                            fig.add_trace(go.Scatter(
-                                x=df_finviz['Ticker'][:20],
-                                y=df_finviz['GCF'][:20],
-                                name='GCF',
-                                mode='lines+markers',
-                                yaxis='y2',
-                                line=dict(color='lime', width=3)
-                            ))
-                        
-                        fig.update_layout(
-                            title=f"{scan_strategy} - Top 20",
-                            xaxis_title="Ticker",
-                            yaxis_title="Future Motion Score",
-                            yaxis2=dict(title="Confidence %", overlaying='y', side='right'),
-                            template='plotly_dark',
-                            height=600
-                        )
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Descarga
-                    csv_data = df_finviz.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Download CSV",
-                        data=csv_data,
-                        file_name=f"crazy_scan_finviz_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
-                    )
-                    
-                    # Stats
-                    st.markdown("### 📊 Scan Stats")
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Total Found", len(df_finviz))
-                    with col2:
-                        avg_change = df_finviz['Change_pct'].mean() if 'Change_pct' in df_finviz.columns else 0
-                        st.metric("Avg Change", f"{avg_change:.2f}%")
-                    with col3:
-                        avg_fms = df_finviz['FMS'].mean() if 'FMS' in df_finviz.columns else 0
-                        st.metric("Avg FMS", f"{avg_fms:.1f}")
-                    with col4:
-                        up_count = (df_finviz['Direction'] == 'Up').sum() if 'Direction' in df_finviz.columns else 0
-                        st.metric("Bullish", up_count)
-                
-                except Exception as e:
-                    st.error(f"❌ FinViz API Error: {str(e)}")
-                    import traceback
-                    st.write(traceback.format_exc())
+                        except Exception as e:
+                            st.error(f"Error processing data: {str(e)}")
+                            st.write("Debug - DataFrame columns:", df_finviz.columns.tolist() if not df_finviz.empty else "Empty")
+                            st.write("Debug - Volume dtype:", df_finviz['Volume'].dtype if 'Volume' in df_finviz.columns else "N/A")
+                    else:
+                        st.warning("❌ No stocks returned from FinViz.")
         
         st.markdown("---")
-        st.markdown("*🚀 Powered by FinViz Elite API | Real-Time Screener | Developed by Ozy*")
+        st.markdown("*🚀 Developed by Ozy*")
     # Tab 3: News Scanner
     with tab3:
         st.subheader("News Scanner")
