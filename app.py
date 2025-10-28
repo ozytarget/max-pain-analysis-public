@@ -4678,7 +4678,7 @@ def main():
             <h1 style='color: white; font-size: 48px; text-shadow: 0 0 10px rgba(255,255,255,0.8);'>
                 🚀 CRAZY SCANNER 🚀
             </h1>
-            <p style='color: white; font-size: 18px;'>Powered by FinViz Elite | Real-Time Market Data</p>
+            <p style='color: white; font-size: 18px;'>Powered by Ozy | Real-Time Market Data</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -4690,7 +4690,7 @@ def main():
         
         # Function to fetch data from FinViz Elite API
         def get_finviz_screener(filters_dict, columns_list=None):
-            """Fetch screener data from FinViz Elite API"""
+            """Fetch screener data """
             try:
                 # Build URL parameters
                 params = {
@@ -4714,10 +4714,10 @@ def main():
                 return df
                 
             except requests.exceptions.RequestException as e:
-                st.error(f"❌ FinViz API Error: {str(e)}")
+                st.error(f"❌ Ozy API Error: {str(e)}")
                 return pd.DataFrame()
             except Exception as e:
-                st.error(f"❌ Error processing FinViz data: {str(e)}")
+                st.error(f"❌ Error processing Ozy data: {str(e)}")
                 return pd.DataFrame()
         
         # ===== SELECTOR DE ESTRATEGIA =====
@@ -4807,7 +4807,7 @@ def main():
         
         elif "CUSTOM" in scan_strategy:
             st.markdown("### 🔧 Custom Filters")
-            with st.expander("Configure FinViz Filters"):
+            with st.expander("Configure Scanner Filters"):
                 st.write("Available soon - Use preset strategies for now")
                 finviz_filters = {"sh_avgvol_o500": None}
         
@@ -4833,7 +4833,7 @@ def main():
         
         # ===== BOTÓN DE ESCANEO =====
         if st.button("🔍 START CRAZY SCAN", key="start_fv_scan", use_container_width=True):
-            with st.spinner(f"🔥 Scanning with FinViz Elite: {scan_strategy}..."):
+            with st.spinner(f"🔥 Scanning with Ozy Files: {scan_strategy}..."):
                 try:
                     # Obtener datos de FinViz
                     df_finviz = get_finviz_screener(finviz_filters, columns_to_fetch)
@@ -4846,7 +4846,7 @@ def main():
                     if df_finviz.empty:
                         st.error("❌ No stocks found with these filters. Try a different strategy.")
                     else:
-                        st.success(f"✅ FinViz returned {len(df_finviz)} stocks!")
+                        st.success(f"✅ Scanner returned {len(df_finviz)} stocks!")
                         
                         # Aplicar filtros adicionales
                         try:
@@ -4949,7 +4949,7 @@ def main():
         st.markdown("""
         ### 📖 How CRAZY SCANNER Works:
         
-        **Data Source:** FinViz Elite API (Real-time screening)
+        
         
         **9 Strategies Available:**
         1. **CRAZY MOVERS** - Small cap volatility bombs
