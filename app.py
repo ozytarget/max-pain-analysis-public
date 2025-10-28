@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd 
+import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -4675,6 +4675,8 @@ def main():
     
     # ==================================================================================
     # ==================================================================================
+    # TAB 2: CRAZY SCANNER (FinViz Elite Integration)
+    # ==================================================================================
     with tab2:
         st.markdown("""
         <div style='text-align: center; padding: 20px; background: linear-gradient(90deg, #FF00FF, #FF8C00); border-radius: 10px;'>
@@ -4693,38 +4695,49 @@ def main():
         
         # Function to fetch data from FinViz Elite API
         def get_finviz_screener(filters_dict, columns_list=None, add_delay=True):
-            """Fetch screener data from FinViz Elite"""
+            """Fetch screener data from Ozy"""
             import time
             from io import StringIO
             
             try:
+                # Add delay to avoid rate limiting
                 if add_delay:
                     time.sleep(2)
                 
+                # Build URL parameters
                 params = {
                     "v": "152",
                     "auth": FINVIZ_API_TOKEN,
-                    "r": "1000"
+                    "r": "1000"  # Request up to 1000 results per call
                 }
                 
+                # Add filter string if provided
                 if filters_dict:
+                    # Separate ordering parameter from filters
                     order_by = filters_dict.pop("o", None)
+                    
                     filter_str = ",".join([k for k in filters_dict.keys()])
                     if filter_str:
                         params["f"] = filter_str
+                    
+                    # Add ordering if specified
                     if order_by:
                         params["o"] = order_by
                 
+                # Make request
                 response = requests.get(FINVIZ_BASE_URL, params=params, timeout=15)
                 response.raise_for_status()
+                
+                # Parse CSV response
                 df = pd.read_csv(StringIO(response.text))
+                
                 return df
                 
             except requests.exceptions.RequestException as e:
-                st.error(f"❌ FinViz API Error: {str(e)}")
+                st.error(f"❌ Ozy API Error: {str(e)}")
                 return pd.DataFrame()
             except Exception as e:
-                st.error(f"❌ Error processing data: {str(e)}")
+                st.error(f"❌ Error processing Ozy data: {str(e)}")
                 return pd.DataFrame()
         
         # ===== SELECTOR DE ESTRATEGIA =====
@@ -4751,20 +4764,42 @@ def main():
         with col_max:
             max_results = st.slider("Max Results", 10, 500, 100, key="crazy_max")
         
-        # ===== MAPEO DE ESTRATEGIAS =====
+        # ===== MAPEO DE ESTRATEGIAS A FILTROS FINVIZ =====
         finviz_filters = {}
         pattern_filters_list = []
         columns_to_fetch = [1, 2, 65, 66, 67, 6, 59, 64, 50, 51, 61, 42, 52, 53, 54]
         
         if "CRAZY MOVERS" in scan_strategy:
-            finviz_filters = {"cap_smallunder": None, "sh_avgvol_o1000": None, "ta_volatility_wo5": None, "ta_changeopen_u5": None}
+            finviz_filters = {
+                "cap_smallunder": None,
+                "sh_avgvol_o1000": None,
+                "ta_volatility_wo5": None,
+                "ta_changeopen_u5": None
+            }
+        
         elif "MEGA CAP" in scan_strategy:
-            finviz_filters = {"cap_mega": None, "ta_perf_1wup": None, "sh_avgvol_o500": None}
+            finviz_filters = {
+                "cap_mega": None,
+                "ta_perf_1wup": None,
+                "sh_avgvol_o500": None
+            }
+        
         elif "DOUBLE TOP" in scan_strategy:
-            finviz_filters = {"ta_pattern_doubletop": None, "sh_avgvol_o500": None}
-            finviz_filters_alt = {"ta_pattern_doublebottom": None, "sh_avgvol_o500": None}
+            finviz_filters = {
+                "ta_pattern_doubletop": None,
+                "sh_avgvol_o500": None
+            }
+            finviz_filters_alt = {
+                "ta_pattern_doublebottom": None,
+                "sh_avgvol_o500": None
+            }
+        
         elif "FIGURAS TÉCNICAS" in scan_strategy:
-            finviz_filters = {"ta_pattern_horizontal": None}
+            finviz_filters = {
+                "ta_pattern_horizontal": None
+            }
+            
+            # Lista optimizada de patrones con ordenamiento inteligente
             pattern_filters_list = [
                 {"ta_pattern_horizontal": None, "sh_avgvol_o500": None, "o": "-relativevolume"},
                 {"ta_pattern_horizontal2": None, "sh_avgvol_o500": None, "o": "-relativevolume"},
@@ -4778,115 +4813,247 @@ def main():
                 {"ta_pattern_triangleasc": None, "sh_avgvol_o500": None, "o": "-change"},
                 {"ta_pattern_triangledesc": None, "sh_avgvol_o500": None, "o": "-change"}
             ]
+        
         elif "52-WEEK BREAKOUT" in scan_strategy:
-            finviz_filters = {"ta_highlow52w_nh": None, "sh_avgvol_o500": None, "ta_rsi_os50": None}
+            finviz_filters = {
+                "ta_highlow52w_nh": None,
+                "sh_avgvol_o500": None,
+                "ta_rsi_os50": None
+            }
+        
         elif "VOLUME EXPLOSION" in scan_strategy:
-            finviz_filters = {"sh_relvol_o3": None, "ta_change_u5": None}
+            finviz_filters = {
+                "sh_relvol_o3": None,
+                "ta_change_u5": None
+            }
+        
         elif "WILD SWINGS" in scan_strategy:
-            finviz_filters = {"ta_volatility_wo8": None, "sh_avgvol_o1000": None}
+            finviz_filters = {
+                "ta_volatility_wo8": None,
+                "sh_avgvol_o1000": None
+            }
+        
         elif "EARNINGS" in scan_strategy:
-            finviz_filters = {"earningsdate_thisweek": None, "sh_avgvol_o500": None, "o": "-earningsdate"}
+            finviz_filters = {
+                "earningsdate_thisweek": None,
+                "sh_avgvol_o500": None,
+                "o": "-earningsdate"  # Ordenar por fecha de earnings
+            }
+            # Columnas especiales para Earnings (incluye volatilidad, ATR, Beta)
             columns_to_fetch = [1, 2, 48, 65, 66, 67, 6, 59, 60, 61, 64, 52, 53, 54, 24, 25]
+        
         elif "SHORT SQUEEZE" in scan_strategy:
-            finviz_filters = {"sh_short_o20": None, "ta_change_u5": None, "sh_relvol_o2": None}
+            finviz_filters = {
+                "sh_short_o20": None,
+                "ta_change_u5": None,
+                "sh_relvol_o2": None
+            }
+        
         elif "CUSTOM" in scan_strategy:
             finviz_filters = {"sh_avgvol_o500": None}
         
-        # ===== FILTROS ADICIONALES =====
+        # ===== FILTROS ADICIONALES (SIEMPRE VISIBLES) =====
         st.markdown("### 🔧 Filter Settings")
+        
         col_f1, col_f2, col_f3, col_f4 = st.columns(4)
         
         with col_f1:
             min_price_filter = st.number_input("Min Price ($)", 0.01, 10000.0, 1.0, key="fv_min_price")
             min_volume_filter = st.number_input("Min Volume (K)", 0, 100000, 500, step=100, key="fv_min_vol")
+        
         with col_f2:
             max_price_filter = st.number_input("Max Price ($)", 0.01, 10000.0, 500.0, key="fv_max_price")
             min_change_filter = st.number_input("Min Change %", -50.0, 100.0, 0.0, step=1.0, key="fv_min_change")
-        with col_f3:
-            exchange_fv = st.multiselect("Exchange", ["NASDAQ", "NYSE", "AMEX"], default=["NASDAQ", "NYSE"], key="fv_exchange")
-        with col_f4:
-            scan_all_stocks = st.checkbox("🌐 Scan ALL stocks", value=False, key="scan_all")
-            sector_filter = st.multiselect("Sector (Optional)", ["Technology", "Healthcare", "Financial", "Energy", "Consumer", "Industrial"], key="fv_sector")
         
+        with col_f3:
+            exchange_fv = st.multiselect(
+                "Exchange",
+                ["NASDAQ", "NYSE", "AMEX"],
+                default=["NASDAQ", "NYSE"],
+                key="fv_exchange"
+            )
+        
+        with col_f4:
+            scan_all_stocks = st.checkbox(
+                "🌐 Scan ALL stocks",
+                value=False,
+                help="Include low-volume stocks (slower, more results)",
+                key="scan_all"
+            )
+            
+            sector_filter = st.multiselect(
+                "Sector (Optional)",
+                ["Technology", "Healthcare", "Financial", "Energy", "Consumer", "Industrial"],
+                key="fv_sector"
+            )
+        
+        # Si scan_all está activado, remover filtro de volumen
         if scan_all_stocks and "FIGURAS TÉCNICAS" in scan_strategy:
-            pattern_filters_list = [{"ta_pattern_horizontal": None, "o": "-relativevolume"}, {"ta_pattern_horizontal2": None, "o": "-relativevolume"}, {"ta_pattern_headandshoulders": None, "o": "-change"}, {"ta_pattern_tlsupport": None, "o": "-change"}, {"ta_pattern_tlresistance": None, "o": "-change"}, {"ta_pattern_wedgeup": None, "o": "-change"}, {"ta_pattern_wedgedown": None, "o": "-change"}, {"ta_pattern_channelup": None, "o": "-volume"}, {"ta_pattern_channeldown": None, "o": "-volume"}, {"ta_pattern_triangleasc": None, "o": "-change"}, {"ta_pattern_triangledesc": None, "o": "-change"}]
+            pattern_filters_list = [
+                {"ta_pattern_horizontal": None, "o": "-relativevolume"},
+                {"ta_pattern_horizontal2": None, "o": "-relativevolume"},
+                {"ta_pattern_headandshoulders": None, "o": "-change"},
+                {"ta_pattern_tlsupport": None, "o": "-change"},
+                {"ta_pattern_tlresistance": None, "o": "-change"},
+                {"ta_pattern_wedgeup": None, "o": "-change"},
+                {"ta_pattern_wedgedown": None, "o": "-change"},
+                {"ta_pattern_channelup": None, "o": "-volume"},
+                {"ta_pattern_channeldown": None, "o": "-volume"},
+                {"ta_pattern_triangleasc": None, "o": "-change"},
+                {"ta_pattern_triangledesc": None, "o": "-change"}
+            ]
             st.warning("⚠️ Scanning ALL stocks - This will take longer (~30-40 seconds)")
         
         # ===== CUSTOM FILTERS =====
         if "CUSTOM" in scan_strategy:
             st.markdown("---")
             st.markdown("### 🎛️ Custom Filters")
+            
             col_c1, col_c2, col_c3 = st.columns(3)
+            
             with col_c1:
                 st.markdown("**📊 Market Cap**")
-                custom_cap = st.selectbox("Cap Size", ["Any", "Mega (>$200B)", "Large ($10B-$200B)", "Mid ($2B-$10B)", "Small ($300M-$2B)", "Micro (<$300M)"], key="custom_cap")
+                custom_cap = st.selectbox(
+                    "Cap Size",
+                    ["Any", "Mega (>$200B)", "Large ($10B-$200B)", "Mid ($2B-$10B)", "Small ($300M-$2B)", "Micro (<$300M)"],
+                    key="custom_cap"
+                )
+                
                 st.markdown("**📈 Performance**")
-                custom_perf = st.selectbox("Today's Performance", ["Any", "Up", "Down", "Up >5%", "Down >5%", "Up >10%", "Down >10%"], key="custom_perf")
+                custom_perf = st.selectbox(
+                    "Today's Performance",
+                    ["Any", "Up", "Down", "Up >5%", "Down >5%", "Up >10%", "Down >10%"],
+                    key="custom_perf"
+                )
+            
             with col_c2:
                 st.markdown("**📊 Volume**")
-                custom_vol = st.selectbox("Relative Volume", ["Any", ">1.5x Avg", ">2x Avg", ">3x Avg", ">5x Avg"], key="custom_vol")
+                custom_vol = st.selectbox(
+                    "Relative Volume",
+                    ["Any", ">1.5x Avg", ">2x Avg", ">3x Avg", ">5x Avg"],
+                    key="custom_vol"
+                )
+                
                 st.markdown("**🎯 Technical**")
-                custom_rsi = st.selectbox("RSI (14)", ["Any", "Oversold (<30)", "Overbought (>70)", "Neutral (40-60)"], key="custom_rsi")
+                custom_rsi = st.selectbox(
+                    "RSI (14)",
+                    ["Any", "Oversold (<30)", "Overbought (>70)", "Neutral (40-60)"],
+                    key="custom_rsi"
+                )
+            
             with col_c3:
                 st.markdown("**💹 Volatility**")
-                custom_volatility = st.selectbox("Weekly Volatility", ["Any", ">3%", ">5%", ">8%", ">10%"], key="custom_volatility")
+                custom_volatility = st.selectbox(
+                    "Weekly Volatility",
+                    ["Any", ">3%", ">5%", ">8%", ">10%"],
+                    key="custom_volatility"
+                )
+                
                 st.markdown("**📉 Short Interest**")
-                custom_short = st.selectbox("Short Float", ["Any", ">10%", ">20%", ">30%"], key="custom_short")
+                custom_short = st.selectbox(
+                    "Short Float",
+                    ["Any", ">10%", ">20%", ">30%"],
+                    key="custom_short"
+                )
             
             custom_finviz_filters = {}
-            if custom_cap == "Mega (>$200B)": custom_finviz_filters["cap_mega"] = None
-            elif custom_cap == "Large ($10B-$200B)": custom_finviz_filters["cap_largeover"] = None
-            elif custom_cap == "Mid ($2B-$10B)": custom_finviz_filters["cap_mid"] = None
-            elif custom_cap == "Small ($300M-$2B)": custom_finviz_filters["cap_small"] = None
-            elif custom_cap == "Micro (<$300M)": custom_finviz_filters["cap_micro"] = None
-            if custom_perf == "Up": custom_finviz_filters["ta_change_u"] = None
-            elif custom_perf == "Down": custom_finviz_filters["ta_change_d"] = None
-            elif custom_perf == "Up >5%": custom_finviz_filters["ta_change_u5"] = None
-            elif custom_perf == "Down >5%": custom_finviz_filters["ta_change_d5"] = None
-            elif custom_perf == "Up >10%": custom_finviz_filters["ta_change_u10"] = None
-            elif custom_perf == "Down >10%": custom_finviz_filters["ta_change_d10"] = None
-            if custom_vol == ">1.5x Avg": custom_finviz_filters["sh_relvol_o1.5"] = None
-            elif custom_vol == ">2x Avg": custom_finviz_filters["sh_relvol_o2"] = None
-            elif custom_vol == ">3x Avg": custom_finviz_filters["sh_relvol_o3"] = None
-            elif custom_vol == ">5x Avg": custom_finviz_filters["sh_relvol_o5"] = None
-            if custom_rsi == "Oversold (<30)": custom_finviz_filters["ta_rsi_ob30"] = None
-            elif custom_rsi == "Overbought (>70)": custom_finviz_filters["ta_rsi_ob70"] = None
-            elif custom_rsi == "Neutral (40-60)": custom_finviz_filters["ta_rsi_nob60"] = None
-            if custom_volatility == ">3%": custom_finviz_filters["ta_volatility_wo3"] = None
-            elif custom_volatility == ">5%": custom_finviz_filters["ta_volatility_wo5"] = None
-            elif custom_volatility == ">8%": custom_finviz_filters["ta_volatility_wo8"] = None
-            elif custom_volatility == ">10%": custom_finviz_filters["ta_volatility_wo10"] = None
-            if custom_short == ">10%": custom_finviz_filters["sh_short_o10"] = None
-            elif custom_short == ">20%": custom_finviz_filters["sh_short_o20"] = None
-            elif custom_short == ">30%": custom_finviz_filters["sh_short_o30"] = None
-            if not custom_finviz_filters: custom_finviz_filters = {"sh_avgvol_o500": None}
+            
+            if custom_cap == "Mega (>$200B)":
+                custom_finviz_filters["cap_mega"] = None
+            elif custom_cap == "Large ($10B-$200B)":
+                custom_finviz_filters["cap_largeover"] = None
+            elif custom_cap == "Mid ($2B-$10B)":
+                custom_finviz_filters["cap_mid"] = None
+            elif custom_cap == "Small ($300M-$2B)":
+                custom_finviz_filters["cap_small"] = None
+            elif custom_cap == "Micro (<$300M)":
+                custom_finviz_filters["cap_micro"] = None
+            
+            if custom_perf == "Up":
+                custom_finviz_filters["ta_change_u"] = None
+            elif custom_perf == "Down":
+                custom_finviz_filters["ta_change_d"] = None
+            elif custom_perf == "Up >5%":
+                custom_finviz_filters["ta_change_u5"] = None
+            elif custom_perf == "Down >5%":
+                custom_finviz_filters["ta_change_d5"] = None
+            elif custom_perf == "Up >10%":
+                custom_finviz_filters["ta_change_u10"] = None
+            elif custom_perf == "Down >10%":
+                custom_finviz_filters["ta_change_d10"] = None
+            
+            if custom_vol == ">1.5x Avg":
+                custom_finviz_filters["sh_relvol_o1.5"] = None
+            elif custom_vol == ">2x Avg":
+                custom_finviz_filters["sh_relvol_o2"] = None
+            elif custom_vol == ">3x Avg":
+                custom_finviz_filters["sh_relvol_o3"] = None
+            elif custom_vol == ">5x Avg":
+                custom_finviz_filters["sh_relvol_o5"] = None
+            
+            if custom_rsi == "Oversold (<30)":
+                custom_finviz_filters["ta_rsi_ob30"] = None
+            elif custom_rsi == "Overbought (>70)":
+                custom_finviz_filters["ta_rsi_ob70"] = None
+            elif custom_rsi == "Neutral (40-60)":
+                custom_finviz_filters["ta_rsi_nob60"] = None
+            
+            if custom_volatility == ">3%":
+                custom_finviz_filters["ta_volatility_wo3"] = None
+            elif custom_volatility == ">5%":
+                custom_finviz_filters["ta_volatility_wo5"] = None
+            elif custom_volatility == ">8%":
+                custom_finviz_filters["ta_volatility_wo8"] = None
+            elif custom_volatility == ">10%":
+                custom_finviz_filters["ta_volatility_wo10"] = None
+            
+            if custom_short == ">10%":
+                custom_finviz_filters["sh_short_o10"] = None
+            elif custom_short == ">20%":
+                custom_finviz_filters["sh_short_o20"] = None
+            elif custom_short == ">30%":
+                custom_finviz_filters["sh_short_o30"] = None
+            
+            if not custom_finviz_filters:
+                custom_finviz_filters = {"sh_avgvol_o500": None}
+            
             finviz_filters = custom_finviz_filters
+            
             st.info(f"🎯 **Active Custom Filters:** {len(custom_finviz_filters)} criteria selected")
         
         st.markdown("---")
         
         # ===== BOTÓN DE ESCANEO =====
         if st.button("🔍 START CRAZY SCAN", key="start_fv_scan", use_container_width=True):
-            with st.spinner(f"🔥 Scanning: {scan_strategy}..."):
+            with st.spinner(f"🔥 Scanning with Ozy Files: {scan_strategy}..."):
                 try:
                     if "FIGURAS TÉCNICAS" in scan_strategy:
                         df_list = []
-                        pattern_names = ["HORIZONTAL", "HORIZONTAL2", "HEADSHOULDERS", "TLSUPPORT", "TLRESISTANCE", "WEDGEUP", "WEDGEDOWN", "CHANNELUP", "CHANNELDOWN", "TRIANGLEASC", "TRIANGLEDESC"]
+                        pattern_names = [
+                            "HORIZONTAL", "HORIZONTAL2", "HEADSHOULDERS", "TLSUPPORT", "TLRESISTANCE",
+                            "WEDGEUP", "WEDGEDOWN", "CHANNELUP", "CHANNELDOWN", "TRIANGLEASC", "TRIANGLEDESC"
+                        ]
+                        
                         total_patterns = len(pattern_filters_list)
                         est_time = total_patterns * 2
                         st.info(f"🔍 Searching {total_patterns} patterns... Estimated time: ~{est_time} seconds")
+                        
                         progress_bar = st.progress(0)
                         status_text = st.empty()
+                        
                         for idx, pattern_filter in enumerate(pattern_filters_list):
                             status_text.text(f"Searching pattern {idx+1}/{total_patterns}: {pattern_names[idx]}...")
                             progress_bar.progress((idx + 1) / total_patterns)
+                            
                             df_temp = get_finviz_screener(pattern_filter, columns_to_fetch, add_delay=True)
                             if not df_temp.empty:
                                 df_temp['Pattern_Detected'] = pattern_names[idx]
                                 df_list.append(df_temp)
                                 st.success(f"✅ Found {len(df_temp)} stocks with {pattern_names[idx]} pattern")
+                        
                         progress_bar.empty()
                         status_text.empty()
+                        
                         if df_list:
                             df_finviz = pd.concat(df_list, ignore_index=True)
                             df_finviz = df_finviz.drop_duplicates(subset=['Ticker'], keep='first')
@@ -4905,7 +5072,7 @@ def main():
                         st.success(f"✅ Scanner returned {len(df_finviz)} stocks!")
                         
                         try:
-                            # Aplicar filtros
+                            # Aplicar filtros de procesamiento
                             if 'Volume' in df_finviz.columns:
                                 if df_finviz['Volume'].dtype == 'object':
                                     df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'].str.replace(',', ''), errors='coerce')
@@ -4930,6 +5097,13 @@ def main():
                             if 'Exchange' in df_finviz.columns and exchange_fv:
                                 df_finviz = df_finviz[df_finviz['Exchange'].isin(exchange_fv)]
                             
+                            if "CRAZY MOVERS" in scan_strategy and 'Volume_num' in df_finviz.columns:
+                                df_finviz = df_finviz[df_finviz['Volume_num'] > 1000000]
+                            elif "VOLUME EXPLOSION" in scan_strategy and 'Volume_num' in df_finviz.columns:
+                                df_finviz = df_finviz[df_finviz['Volume_num'] > 5000000]
+                            elif "WILD SWINGS" in scan_strategy and 'Change_num' in df_finviz.columns:
+                                df_finviz = df_finviz[abs(df_finviz['Change_num']) > 5]
+                            
                             df_finviz = df_finviz.head(max_results)
                             
                             if df_finviz.empty:
@@ -4937,207 +5111,136 @@ def main():
                             else:
                                 # Mapear patrones
                                 if 'Pattern_Detected' in df_finviz.columns:
-                                    pattern_map = {"HORIZONTAL": "☕ CUP (Base)", "HORIZONTAL2": "🍵 HANDLE", "HEADSHOULDERS": "👤 HEAD & SHOULDERS", "TLSUPPORT": "📈 TRENDLINE SUPPORT", "TLRESISTANCE": "📉 TRENDLINE RESISTANCE", "WEDGEUP": "📐 WEDGE UP", "WEDGEDOWN": "📉 WEDGE DOWN", "CHANNELUP": "📈 CHANNEL UP", "CHANNELDOWN": "📊 CHANNEL DOWN", "TRIANGLEASC": "🔺 TRIANGLE ASC", "TRIANGLEDESC": "🔻 TRIANGLE DESC"}
+                                    pattern_map = {
+                                        "HORIZONTAL": "☕ CUP (Base)", "HORIZONTAL2": "🍵 HANDLE",
+                                        "HEADSHOULDERS": "👤 HEAD & SHOULDERS", "TLSUPPORT": "📈 TRENDLINE SUPPORT",
+                                        "TLRESISTANCE": "📉 TRENDLINE RESISTANCE", "WEDGEUP": "📐 WEDGE UP",
+                                        "WEDGEDOWN": "📉 WEDGE DOWN", "CHANNELUP": "📈 CHANNEL UP",
+                                        "CHANNELDOWN": "📊 CHANNEL DOWN", "TRIANGLEASC": "🔺 TRIANGLE ASC",
+                                        "TRIANGLEDESC": "🔻 TRIANGLE DESC"
+                                    }
                                     df_finviz['Pattern'] = df_finviz['Pattern_Detected'].map(pattern_map).fillna("UNKNOWN")
                                 
                                 st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
                                 
-                                # ============ TABLA EARNINGS (ALGORITMO CORREGIDO) ============
+                                # ============ TABLA ESPECIAL PARA EARNINGS ============
                                 if "EARNINGS" in scan_strategy:
+                                    st.markdown("### 📊 Earnings Scanner con Predicción de Movimiento")
                                     
-                                    
-                                    st.markdown("### 📊 EARNINGS PREDICTIVE ANALYSIS")
-                                    
-                                    # Buscar columna Earnings
+                                    # Buscar columna de Earnings
                                     earnings_col = None
-                                    for possible_name in ['Earnings', 'Earnings Date', 'Earn Date', 'Next Earnings', 'Earnings Date_1']:
+                                    for possible_name in ['Earnings', 'Earnings Date', 'Earn Date', 'Next Earnings']:
                                         if possible_name in df_finviz.columns:
                                             earnings_col = possible_name
                                             break
                                     
-                                    earnings_df = df_finviz.copy()
-                                    
-                                    # ========================================================
-                                    # ALGORITMO MEJORADO CON MANEJO DE NaN
-                                    # ========================================================
-                                    
-                                    # PASO 1: Market Cap Factor
-                                    def parse_market_cap(cap_str):
-                                        if pd.isna(cap_str) or cap_str == '-':
-                                            return 1_000_000_000
-                                        try:
-                                            cap_str = str(cap_str).upper().replace('$', '').strip()
-                                            if 'T' in cap_str: return float(cap_str.replace('T', '')) * 1e12
-                                            elif 'B' in cap_str: return float(cap_str.replace('B', '')) * 1e9
-                                            elif 'M' in cap_str: return float(cap_str.replace('M', '')) * 1e6
-                                            else: return float(cap_str)
-                                        except: return 1_000_000_000
-                                    
-                                    if 'Market Cap' in earnings_df.columns:
-                                        earnings_df['MarketCap_Numeric'] = earnings_df['Market Cap'].apply(parse_market_cap)
-                                        earnings_df['Cap_Volatility_Factor'] = np.clip(2.5 - (np.log10(earnings_df['MarketCap_Numeric']) - 6) * 0.3, 0.5, 2.5)
-                                    else:
-                                        earnings_df['Cap_Volatility_Factor'] = 1.2
-                                    
-                                    # PASO 2: Sector Multiplier
-                                    sector_volatility = {'Technology': 1.8, 'Healthcare': 1.7, 'Communication Services': 1.6, 'Consumer Cyclical': 1.5, 'Financial': 1.3, 'Energy': 1.4, 'Industrials': 1.2, 'Basic Materials': 1.3, 'Real Estate': 1.1, 'Consumer Defensive': 0.9, 'Utilities': 0.8}
-                                    if 'Sector' in earnings_df.columns:
-                                        earnings_df['Sector_Multiplier'] = earnings_df['Sector'].map(sector_volatility).fillna(1.2)
-                                    else:
-                                        earnings_df['Sector_Multiplier'] = 1.2
-                                    
-                                    # PASO 3: Volume Factor
-                                    def parse_volume(vol_str):
-                                        if pd.isna(vol_str) or vol_str == '-':
-                                            return 1_000_000
-                                        try:
-                                            vol_str = str(vol_str).upper().replace(',', '').strip()
-                                            if 'M' in vol_str: return float(vol_str.replace('M', '')) * 1e6
-                                            elif 'K' in vol_str: return float(vol_str.replace('K', '')) * 1e3
-                                            else: return float(vol_str)
-                                        except: return 1_000_000
-                                    
-                                    if 'Volume' in earnings_df.columns:
-                                        earnings_df['Volume_Numeric'] = earnings_df['Volume'].apply(parse_volume)
-                                        volume_median = earnings_df['Volume_Numeric'].median()
-                                        if volume_median > 0:
-                                            earnings_df['Volume_Factor'] = np.clip((earnings_df['Volume_Numeric'] / volume_median) * 0.5 + 0.8, 0.8, 1.5)
-                                        else:
-                                            earnings_df['Volume_Factor'] = 1.0
-                                    else:
-                                        earnings_df['Volume_Factor'] = 1.0
-                                    
-                                    # PASO 4: Momentum Factor
-                                    if 'Change_num' in earnings_df.columns:
-                                        change_abs = abs(earnings_df['Change_num'].fillna(0))
-                                        earnings_df['Momentum_Factor'] = np.clip(1 + (change_abs / 5), 0.8, 2.0)
-                                    else:
-                                        earnings_df['Momentum_Factor'] = 1.0
-                                    
-                                    # PASO 5: Base Expected
-                                    earnings_df['Base_Expected'] = np.clip(5 + (2.5 - earnings_df['Cap_Volatility_Factor']) * 2, 3, 8)
-                                    
-                                    # PASO 6: Calcular Expected Move Raw
-                                    earnings_df['Expected_Move_Raw'] = (
-                                        earnings_df['Base_Expected'] *
-                                        earnings_df['Cap_Volatility_Factor'] *
-                                        earnings_df['Sector_Multiplier'] *
-                                        earnings_df['Volume_Factor'] *
-                                        earnings_df['Momentum_Factor']
-                                    )
-                                    
-                                    # PASO 7: Clip y manejo de NaN (CRÍTICO)
-                                    earnings_df['Expected_Move_Final'] = np.clip(earnings_df['Expected_Move_Raw'], 2.0, 35.0)
-                                    earnings_df['Expected_Move_Final'] = earnings_df['Expected_Move_Final'].fillna(8.0)
-                                    
-                                    # PASO 8: Random noise
-                                    np.random.seed(42)
-                                    random_noise = np.random.uniform(-0.5, 0.5, len(earnings_df))
-                                    earnings_df['Expected_Move_Final'] = np.clip(earnings_df['Expected_Move_Final'] + random_noise, 2.0, 35.0)
-                                    
-                                    # Verificación final
-                                    if earnings_df['Expected_Move_Final'].isna().any():
-                                        st.warning(f"⚠️ {earnings_df['Expected_Move_Final'].isna().sum()} stocks con datos incompletos, usando 8% por defecto")
-                                        earnings_df['Expected_Move_Final'] = earnings_df['Expected_Move_Final'].fillna(8.0)
-                                    
-                                    # PASO 9: Direction y Confidence
-                                    if 'Change_num' in earnings_df.columns:
-                                        direction_score = earnings_df['Change_num'].fillna(0) * 8
-                                        earnings_df['Direction'] = direction_score.apply(lambda x: '🟢 BULLISH' if x > 2 else ('🔴 BEARISH' if x < -2 else '🟡 NEUTRAL'))
-                                        confidence_base = (abs(earnings_df['Change_num']) * 15).clip(20, 100)
-                                        volume_boost = ((earnings_df['Volume_Factor'] - 0.8) / 0.7) * 20
-                                        earnings_df['Confidence'] = np.clip(confidence_base + volume_boost, 30, 100).round(0).astype(int).astype(str) + '%'
-                                    else:
-                                        earnings_df['Direction'] = '🟡 NEUTRAL'
-                                        earnings_df['Confidence'] = '50%'
-                                    
-                                    # ========================================================
-                                    # PREPARAR TABLA DISPLAY (CORREGIDO)
-                                    # ========================================================
-                                    display_earnings = pd.DataFrame()
-                                    display_earnings['No'] = range(1, len(earnings_df) + 1)
+                                    # Crear DataFrame especial
+                                    earnings_df = pd.DataFrame()
+                                    if 'Ticker' in df_finviz.columns:
+                                        earnings_df['Ticker'] = df_finviz['Ticker']
                                     if earnings_col:
-                                        display_earnings['📅 Earnings'] = earnings_df[earnings_col].values
-                                    else:
-                                        display_earnings['📅 Earnings'] = "This Week"
-                                    if 'Ticker' in earnings_df.columns:
-                                        display_earnings['Ticker'] = earnings_df['Ticker'].values
-                                    if 'Company' in earnings_df.columns:
-                                        display_earnings['Company'] = earnings_df['Company'].values
-                                    if 'Price' in earnings_df.columns:
-                                        display_earnings['Price'] = earnings_df['Price'].values
+                                        earnings_df['📅 Earnings'] = df_finviz[earnings_col]
+                                    if 'Company' in df_finviz.columns:
+                                        earnings_df['Company'] = df_finviz['Company']
+                                    if 'Price' in df_finviz.columns:
+                                        earnings_df['Price'] = df_finviz['Price']
                                     
-                                    # ========================================================
-                                    # CRÍTICO: Transferencia correcta de Expected Move %
-                                    # ========================================================
-                                    expected_move_values = earnings_df['Expected_Move_Final'].round(1).values
-                                    display_earnings['Expected Move %'] = [f"{val}%" for val in expected_move_values]
+                                    # Algoritmo Predictivo Ozy
+                                    volatility_score = pd.Series([5] * len(df_finviz))
+                                    if 'Volatility' in df_finviz.columns:
+                                        vol_vals = pd.to_numeric(df_finviz['Volatility'].astype(str).str.replace('%', ''), errors='coerce').fillna(3)
+                                        volatility_score = vol_vals.clip(1, 15)
                                     
-                                    display_earnings['Direction'] = earnings_df['Direction'].values
-                                    display_earnings['Confidence'] = earnings_df['Confidence'].values
-                                    if 'Volume' in earnings_df.columns:
-                                        display_earnings['Volume'] = earnings_df['Volume'].values
-                                    if 'Market Cap' in earnings_df.columns:
-                                        display_earnings['Market Cap'] = earnings_df['Market Cap'].values
-                                    if 'Change' in earnings_df.columns:
-                                        display_earnings['Change %'] = earnings_df['Change'].values
-                                    if 'Sector' in earnings_df.columns:
-                                        display_earnings['Sector'] = earnings_df['Sector'].values
+                                    rsi_score = pd.Series([2] * len(df_finviz))
+                                    if 'RSI (14)' in df_finviz.columns:
+                                        rsi_vals = pd.to_numeric(df_finviz['RSI (14)'], errors='coerce').fillna(50)
+                                        rsi_score = abs(rsi_vals - 50) / 10
                                     
-                                    # Banner
-                                    st.markdown("""
-                                    <div style='background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
-                                        <p style='color: #E0E0E0; margin: 0; font-size: 14px;'>
-                                            <strong>🧠 Multi-Factor Algorithm:</strong> Expected Move % calculated using Market Cap (0.5-2.5x), 
-                                            Sector (0.8-1.8x), Volume (0.8-1.5x), Momentum (0.8-2.0x), and Base Volatility (3-8%). 
-                                            Each stock gets unique realistic prediction (2-35% range).
-                                        </p>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                    vol_activity = pd.Series([1] * len(df_finviz))
+                                    if 'Relative Volume' in df_finviz.columns:
+                                        rel_vol = pd.to_numeric(df_finviz['Relative Volume'], errors='coerce').fillna(1)
+                                        vol_activity = (rel_vol - 1).clip(0, 5) * 2
                                     
-                                    # Color coding
-                                    def style_earnings_row(row):
-                                        try:
-                                            move = float(str(row['Expected Move %']).replace('%', ''))
-                                            if move >= 15: return ['background-color: rgba(255, 87, 51, 0.2)'] * len(row)
-                                            elif move >= 10: return ['background-color: rgba(255, 193, 7, 0.1)'] * len(row)
-                                            elif move >= 6: return ['background-color: rgba(76, 175, 80, 0.1)'] * len(row)
-                                            else: return ['background-color: rgba(33, 150, 243, 0.1)'] * len(row)
-                                        except:
-                                            return [''] * len(row)
+                                    perf_momentum = pd.Series([1] * len(df_finviz))
+                                    if 'Perf Week' in df_finviz.columns:
+                                        perf_vals = pd.to_numeric(df_finviz['Perf Week'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        perf_momentum = abs(perf_vals) / 5
                                     
-                                    styled_earnings = display_earnings.style.apply(style_earnings_row, axis=1)
-                                    st.dataframe(styled_earnings, use_container_width=True, height=600)
+                                    sma_divergence = pd.Series([1] * len(df_finviz))
+                                    if 'SMA20' in df_finviz.columns:
+                                        sma20_vals = pd.to_numeric(df_finviz['SMA20'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        sma_divergence = abs(sma20_vals) / 10
                                     
-                                    # Métricas
-                                    col1, col2, col3, col4 = st.columns(4)
-                                    with col1:
-                                        avg_move = earnings_df['Expected_Move_Final'].mean()
-                                        st.metric("📊 Avg Expected Move", f"{avg_move:.1f}%")
-                                    with col2:
-                                        high_vol_count = len(earnings_df[earnings_df['Expected_Move_Final'] >= 12])
-                                        st.metric("🔥 High Volatility (>12%)", high_vol_count)
-                                    with col3:
-                                        bullish_count = len(earnings_df[earnings_df['Direction'] == '🟢 BULLISH'])
-                                        st.metric("🟢 Bullish Signals", bullish_count)
-                                    with col4:
-                                        bearish_count = len(earnings_df[earnings_df['Direction'] == '🔴 BEARISH'])
-                                        st.metric("🔴 Bearish Signals", bearish_count)
+                                    expected_move = (volatility_score * 0.40 + rsi_score * 0.20 + vol_activity * 0.20 + perf_momentum * 0.10 + sma_divergence * 0.10).clip(2, 25)
+                                    earnings_df['Expected Move %'] = expected_move.round(1).astype(str) + '%'
                                     
-                                    # Expander explicación
-
+                                    # Dirección
+                                    direction_score = pd.Series([0] * len(df_finviz), dtype=float)
+                                    if 'RSI (14)' in df_finviz.columns:
+                                        rsi_vals = pd.to_numeric(df_finviz['RSI (14)'], errors='coerce').fillna(50)
+                                        direction_score += (rsi_vals - 50) / 10
+                                    if 'Perf Week' in df_finviz.columns:
+                                        perf_vals = pd.to_numeric(df_finviz['Perf Week'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        direction_score += perf_vals / 5
+                                    if 'SMA20' in df_finviz.columns:
+                                        sma20_vals = pd.to_numeric(df_finviz['SMA20'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        direction_score += sma20_vals / 10
+                                    if 'Change' in df_finviz.columns:
+                                        change_vals = pd.to_numeric(df_finviz['Change'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        direction_score += change_vals * 2
+                                    
+                                    def get_direction(score):
+                                        if score > 5:
+                                            return "🟢 BULLISH"
+                                        elif score < -5:
+                                            return "🔴 BEARISH"
+                                        else:
+                                            return "🟡 NEUTRAL"
+                                    
+                                    earnings_df['Direction'] = direction_score.apply(get_direction)
+                                    confidence = (abs(direction_score) * 5).clip(0, 100).round(0).astype(int)
+                                    earnings_df['Confidence'] = confidence.astype(str) + '%'
+                                    
+                                    if 'Volume' in df_finviz.columns:
+                                        earnings_df['Volume'] = df_finviz['Volume']
+                                    if 'Market Cap' in df_finviz.columns:
+                                        earnings_df['Market Cap'] = df_finviz['Market Cap']
+                                    if 'RSI (14)' in df_finviz.columns:
+                                        earnings_df['RSI'] = df_finviz['RSI (14)']
+                                    
+                                    st.dataframe(earnings_df.head(max_results), use_container_width=True, height=600)
+                                    
+                                    with st.expander("📖 Cómo funciona el Algoritmo Predictivo Ozy"):
+                                        st.markdown("""
+                                        ### 🧠 Algoritmo de Predicción de Movimiento en Earnings
+                                        
+                                        **Expected Move %**: Volatilidad (40%) + RSI (20%) + Rel Vol (20%) + Perf Week (10%) + SMA (10%)
+                                        
+                                        **Direction**: RSI>50=Bullish, Perf Week+, Precio>SMA20, Change+
+                                        
+                                        **Confidence**: 0-100% fuerza de señal
+                                        """)
                                 
                                 # ============ TABLA ESTÁNDAR PARA OTRAS ESTRATEGIAS ============
                                 else:
                                     display_cols = []
-                                    if 'Ticker' in df_finviz.columns: display_cols.append('Ticker')
-                                    if 'Pattern' in df_finviz.columns: display_cols.append('Pattern')
-                                    if 'Company' in df_finviz.columns: display_cols.append('Company')
-                                    if 'Price' in df_finviz.columns: display_cols.append('Price')
-                                    if 'Change' in df_finviz.columns: display_cols.append('Change')
-                                    if 'Volume' in df_finviz.columns: display_cols.append('Volume')
-                                    if 'Market Cap' in df_finviz.columns: display_cols.append('Market Cap')
-                                    if 'RSI (14)' in df_finviz.columns: display_cols.append('RSI (14)')
+                                    if 'Ticker' in df_finviz.columns:
+                                        display_cols.append('Ticker')
+                                    if 'Pattern' in df_finviz.columns:
+                                        display_cols.append('Pattern')
+                                    if 'Company' in df_finviz.columns:
+                                        display_cols.append('Company')
+                                    if 'Price' in df_finviz.columns:
+                                        display_cols.append('Price')
+                                    if 'Change' in df_finviz.columns:
+                                        display_cols.append('Change')
+                                    if 'Volume' in df_finviz.columns:
+                                        display_cols.append('Volume')
+                                    if 'Market Cap' in df_finviz.columns:
+                                        display_cols.append('Market Cap')
+                                    if 'RSI (14)' in df_finviz.columns:
+                                        display_cols.append('RSI (14)')
+                                    
                                     if display_cols:
                                         st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
                                     else:
@@ -5150,7 +5253,25 @@ def main():
                 except Exception as e:
                     st.error(f"❌ Scanner Error: {str(e)}")
         
-
+        st.markdown("---")
+        st.markdown("""
+        ### 📖 How CRAZY SCANNER Works:
+        
+        **10 Strategies Available:**
+        1. CRAZY MOVERS - Small cap volatility  
+        2. MEGA CAP MOMENTUM - Large cap activity  
+        3. DOUBLE TOPS/BOTTOMS - Reversals  
+        4. ☕ FIGURAS TÉCNICAS - 11 patterns  
+        5. 52-WEEK BREAKOUTS - New highs/lows  
+        6. VOLUME EXPLOSION - 3x+ volume  
+        7. WILD SWINGS - >8% range  
+        8. EARNINGS PLAYS - With predictive algorithm  
+        9. SHORT SQUEEZE - High SI + momentum  
+        10. CUSTOM FILTERS - Build your own  
+        
+        🚀 **All dynamic - No hardcoded lists!**
+        """)
+        
         st.markdown("---")
         st.markdown("*🚀 Developed by Ozy *")
     # Tab 3: News Scanner
@@ -7514,129 +7635,43 @@ def main():
                 else:
                     logger.warning(f"No options data for {ticker} across all expirations")
 
-            # MM Target Price (using all expiration dates) - CORREGIDO
+            # MM Target Price (using all expiration dates)
             mm_target_price = None
             mm_target_strike = current_price
             direction = "Neutral"
             prob_below_target = 0.0
-            
             if total_call_contracts > 0 and total_put_contracts > 0:
-                # OI Imbalance
                 oi_imbalance = (total_call_contracts - total_put_contracts) / (total_call_contracts + total_put_contracts)
-                
-                # Premium Ratio (FIX: evitar división por cero)
-                if total_put_premium > 0 and total_call_premium > 0:
-                    if total_call_premium < total_put_premium:
-                        premium_ratio = 1.0 / (total_call_premium / total_put_premium)
-                    else:
-                        premium_ratio = min(total_call_premium / total_put_premium, 10.0)
-                else:
-                    premium_ratio = 1.0
-                
+                premium_ratio = 1.0 / (total_call_premium / total_put_premium) if total_call_premium < total_put_premium else min(total_call_premium / total_put_premium, 10.0)
                 daily_range_dollars = current_price * daily_range
-                
-                # OTM Ratio (FIX: evitar división por cero)
-                if otm_call_contracts > 0 and otm_put_contracts > 0:
-                    otm_ratio = max(otm_call_contracts / otm_put_contracts, otm_put_contracts / otm_call_contracts)
-                    otm_ratio = min(otm_ratio, 2.0)
-                else:
-                    otm_ratio = 1.0
-                
-                # OI Adjustment
+                otm_ratio = max(otm_call_contracts / otm_put_contracts, otm_put_contracts / otm_call_contracts) if otm_put_contracts > 0 else 1.0
+                otm_ratio = min(otm_ratio, 2.0)
                 oi_adjustment = -daily_range_dollars * oi_imbalance * premium_ratio * 1.5 * otm_ratio
-                
-                # Volatility Factor
                 volatility_factor = (iv / 100) * (daily_range / 0.01)
-                
-                # ITM Estimates
                 itm_call_oi_est = itm_call_contracts if itm_call_contracts > 0 else total_call_contracts * 0.4
                 itm_put_oi_est = itm_put_contracts if itm_put_contracts > 0 else total_put_contracts * 0.4
-                
-                # Gamma Adjustment (FIX: evitar división por cero)
-                if (itm_call_oi_est + itm_put_oi_est) > 0:
-                    gamma_adjustment = iv * (itm_call_oi_est - itm_put_oi_est) / (itm_call_oi_est + itm_put_oi_est + 1)
-                else:
-                    gamma_adjustment = 0.0
-                
-                # Theta Adjustment
+                gamma_adjustment = iv * (itm_call_oi_est - itm_put_oi_est) / (itm_call_oi_est + itm_put_oi_est + 1)
                 theta_adjustment = -daily_range_dollars * (total_call_contracts / (total_call_contracts + total_put_contracts)) * 1.5
-                
-                # Base Price
                 base_price = max_pain if max_pain is not None and current_price * 0.5 <= max_pain <= current_price * 1.5 else current_price
-                
-                # Mean Reversion (VIX specific)
                 mean_reversion_adjustment = -0.2 * (current_price - 19.0) if sentiment == "Neutral" and ticker == "VIX" else 0.0
-                
-                # Call/Put OTM Value
                 call_otm_value = sum(premium for strike, premium in call_premiums if strike > current_price)
                 put_otm_value = sum(premium for strike, premium in put_premiums if strike < current_price)
-                
-                # Value Imbalance (FIX: evitar división por cero)
-                if (call_otm_value + put_otm_value) > 0:
-                    value_imbalance = (call_otm_value - put_otm_value) / (call_otm_value + put_otm_value)
-                else:
-                    value_imbalance = 0.0
-                
-                # Delta Pressure (FIX: verificar que strikes, deltas, total_oi existen)
-                delta_pressure = 0.0
-                if strikes and deltas and total_oi and len(strikes) == len(deltas) == len(total_oi):
-                    delta_pressure = sum(delta * oi for strike, delta, oi in zip(strikes, deltas, total_oi) if abs(strike - current_price) < daily_range_dollars)
-                
-                # Gamma Pressure (FIX: verificar que gammas existe)
-                gamma_pressure = 0.0
-                if strikes and gammas and total_oi and len(strikes) == len(gammas) == len(total_oi):
-                    gamma_pressure = sum(gamma * oi for strike, gamma, oi in zip(strikes, gammas, total_oi) if abs(strike - current_price) < daily_range_dollars)
-                
-                # Delta-Gamma Adjustment (FIX: evitar división por cero)
-                delta_gamma_adjustment = 0.0
-                if abs(gamma_pressure) > 1e-10:
-                    delta_gamma_adjustment = daily_range_dollars * (delta_pressure / abs(gamma_pressure)) * 0.1
-                
-                # ITM Values (FIX: verificar que options_data existe)
-                itm_call_value = 0.0
-                itm_put_value = 0.0
-                
-                if options_data_all and strikes and total_oi:
-                    for strike, oi in zip(strikes, total_oi):
-                        matching_opts = [opt for opt in options_data_all if opt.get('strike') == strike]
-                        
-                        for opt in matching_opts:
-                            opt_type = opt.get("option_type", "").upper()
-                            
-                            if opt_type == "CALL" and strike < current_price:
-                                itm_call_value += max(current_price - strike, 0) * oi * 100
-                            elif opt_type == "PUT" and strike > current_price:
-                                itm_put_value += max(strike - current_price, 0) * oi * 100
-                
-                # Intrinsic Bias (FIX: evitar división por cero)
-                intrinsic_bias = 0.0
-                if (itm_call_value + itm_put_value) > 0:
-                    intrinsic_bias = -(itm_call_value - itm_put_value) / (itm_call_value + itm_put_value) * daily_range_dollars * 0.05
-                
-                # MM Target Price Final
+                value_imbalance = (call_otm_value - put_otm_value) / (call_otm_value + put_otm_value + 1e-10)
+                delta_pressure = sum(delta * oi for strike, delta, oi in zip(strikes, deltas, total_oi) if abs(strike - current_price) < daily_range_dollars)
+                gamma_pressure = sum(gamma * oi for strike, gamma, oi in zip(strikes, gammas, total_oi) if abs(strike - current_price) < daily_range_dollars)
+                delta_gamma_adjustment = daily_range_dollars * (delta_pressure / (abs(gamma_pressure) + 1e-10)) * 0.1
+                itm_call_value = sum(max(current_price - strike, 0) * oi * 100 for strike, oi in zip(strikes, total_oi) if strike < current_price and opt.get("option_type", "").upper() == "CALL")
+                itm_put_value = sum(max(strike - current_price, 0) * oi * 100 for strike, oi in zip(strikes, total_oi) if strike > current_price and opt.get("option_type", "").upper() == "PUT")
+                intrinsic_bias = -(itm_call_value - itm_put_value) / (itm_call_value + itm_put_value + 1e-10) * daily_range_dollars * 0.05
                 mm_target_price = base_price + (value_imbalance * daily_range_dollars * 0.5) + delta_gamma_adjustment + intrinsic_bias
-                
-                # Clip to realistic range
                 mm_target_price = max(current_price - daily_range_dollars, min(current_price + daily_range_dollars, mm_target_price))
-                
-                # Find closest strike
                 mm_target_strike = min(strikes, key=lambda x: abs(x - mm_target_price)) if strikes else current_price
-                
-                # Direction
                 direction = "Bearish" if mm_target_price < current_price else "Bullish"
-                
-                # Probability (FIX: evitar división por cero y valores inválidos)
                 expected_move = current_price * daily_range
-                if expected_move > 0:
-                    z_score = (mm_target_price - current_price) / expected_move
-                    if direction == "Bearish":
-                        prob_below_target = norm.cdf(z_score)
-                    else:
-                        prob_below_target = 1.0 - norm.cdf(z_score)
-                else:
-                    prob_below_target = 0.5
+                prob_below_target = norm.cdf((mm_target_price - current_price) / expected_move) if direction == "Bearish" else 1.0 - norm.cdf((mm_target_price - current_price) / expected_move)
             else:
                 logger.warning(f"No valid contracts for MM target calculation for {ticker}")
+
             # Chart (Aggregated across all expiration dates)
             @st.cache_data
             def create_chart(_ticker, expiration_dates, current_price, max_pain, sentiment, daily_range, momentum, mm_target_strike):
