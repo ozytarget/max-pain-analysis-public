@@ -4808,8 +4808,7 @@ def main():
         
         elif "CUSTOM" in scan_strategy:
             st.markdown("### 🔧 Custom Filters")
-            with st.expander("Configure Scanner Filters"):
-                st.write("Available soon - Use preset strategies for now")
+           
                 finviz_filters = {"sh_avgvol_o500": None}
         
         # ===== FILTROS ADICIONALES (SIEMPRE VISIBLES) =====
