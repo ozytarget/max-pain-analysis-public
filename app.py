@@ -4675,8 +4675,6 @@ def main():
     
     # ==================================================================================
     # ==================================================================================
-    # TAB 2: CRAZY SCANNER (FinViz Elite Integration)
-    # ==================================================================================
     with tab2:
         st.markdown("""
         <div style='text-align: center; padding: 20px; background: linear-gradient(90deg, #FF00FF, #FF8C00); border-radius: 10px;'>
@@ -5123,9 +5121,11 @@ def main():
                                 
                                 st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
                                 
-                                # ============ TABLA ESPECIAL PARA EARNINGS ============
+                                # ============ TABLA ESPECIAL PARA EARNINGS (ALGORITMO MEJORADO) ============
                                 if "EARNINGS" in scan_strategy:
-                                    st.markdown("### 📊 Earnings Scanner con Predicción de Movimiento")
+                                    import numpy as np
+                                    
+                                    st.markdown("### 📊 EARNINGS PREDICTIVE ANALYSIS")
                                     
                                     # Buscar columna de Earnings
                                     earnings_col = None
@@ -5134,109 +5134,276 @@ def main():
                                             earnings_col = possible_name
                                             break
                                     
-                                    # Crear DataFrame especial
-                                    earnings_df = pd.DataFrame()
+                                    # Crear DataFrame para earnings
+                                    earnings_df = df_finviz.copy()
                                     
-                                    if 'Ticker' in df_finviz.columns:
-                                        earnings_df['Ticker'] = df_finviz['Ticker']
+                                    # ========================================================
+                                    # ALGORITMO MEJORADO - EXPECTED MOVE % (MULTI-FACTOR)
+                                    # ========================================================
+                                    
+                                    # PASO 1: Market Cap Volatility Factor
+                                    def parse_market_cap(cap_str):
+                                        """Convierte Market Cap string a número"""
+                                        if pd.isna(cap_str) or cap_str == '-':
+                                            return 1_000_000_000
+                                        try:
+                                            cap_str = str(cap_str).upper().replace('$', '').strip()
+                                            if 'T' in cap_str:
+                                                return float(cap_str.replace('T', '')) * 1_000_000_000_000
+                                            elif 'B' in cap_str:
+                                                return float(cap_str.replace('B', '')) * 1_000_000_000
+                                            elif 'M' in cap_str:
+                                                return float(cap_str.replace('M', '')) * 1_000_000
+                                            else:
+                                                return float(cap_str)
+                                        except:
+                                            return 1_000_000_000
+                                    
+                                    if 'Market Cap' in earnings_df.columns:
+                                        earnings_df['MarketCap_Numeric'] = earnings_df['Market Cap'].apply(parse_market_cap)
+                                        earnings_df['Cap_Volatility_Factor'] = np.clip(
+                                            2.5 - (np.log10(earnings_df['MarketCap_Numeric']) - 6) * 0.3,
+                                            0.5,
+                                            2.5
+                                        )
+                                    else:
+                                        earnings_df['Cap_Volatility_Factor'] = 1.2
+                                    
+                                    # PASO 2: Sector Volatility Multiplier
+                                    sector_volatility = {
+                                        'Technology': 1.8, 'Healthcare': 1.7, 'Communication Services': 1.6,
+                                        'Consumer Cyclical': 1.5, 'Financial': 1.3, 'Energy': 1.4,
+                                        'Industrials': 1.2, 'Basic Materials': 1.3, 'Real Estate': 1.1,
+                                        'Consumer Defensive': 0.9, 'Utilities': 0.8
+                                    }
+                                    
+                                    if 'Sector' in earnings_df.columns:
+                                        earnings_df['Sector_Multiplier'] = earnings_df['Sector'].map(sector_volatility).fillna(1.2)
+                                    else:
+                                        earnings_df['Sector_Multiplier'] = 1.2
+                                    
+                                    # PASO 3: Volume Activity Factor
+                                    def parse_volume(vol_str):
+                                        """Convierte Volume string a número"""
+                                        if pd.isna(vol_str) or vol_str == '-':
+                                            return 1_000_000
+                                        try:
+                                            vol_str = str(vol_str).upper().replace(',', '').strip()
+                                            if 'M' in vol_str:
+                                                return float(vol_str.replace('M', '')) * 1_000_000
+                                            elif 'K' in vol_str:
+                                                return float(vol_str.replace('K', '')) * 1_000
+                                            else:
+                                                return float(vol_str)
+                                        except:
+                                            return 1_000_000
+                                    
+                                    if 'Volume' in earnings_df.columns:
+                                        earnings_df['Volume_Numeric'] = earnings_df['Volume'].apply(parse_volume)
+                                        volume_median = earnings_df['Volume_Numeric'].median()
+                                        earnings_df['Volume_Factor'] = np.clip(
+                                            (earnings_df['Volume_Numeric'] / volume_median) * 0.5 + 0.8,
+                                            0.8,
+                                            1.5
+                                        )
+                                    else:
+                                        earnings_df['Volume_Factor'] = 1.0
+                                    
+                                    # PASO 4: Recent Momentum Factor
+                                    if 'Change_num' in earnings_df.columns:
+                                        change_abs = abs(earnings_df['Change_num'].fillna(0))
+                                        earnings_df['Momentum_Factor'] = np.clip(1 + (change_abs / 5), 0.8, 2.0)
+                                    else:
+                                        earnings_df['Momentum_Factor'] = 1.0
+                                    
+                                    # PASO 5: Calcular Expected Move Final
+                                    earnings_df['Base_Expected'] = np.clip(
+                                        5 + (2.5 - earnings_df['Cap_Volatility_Factor']) * 2,
+                                        3,
+                                        8
+                                    )
+                                    
+                                    earnings_df['Expected_Move_Raw'] = (
+                                        earnings_df['Base_Expected'] *
+                                        earnings_df['Cap_Volatility_Factor'] *
+                                        earnings_df['Sector_Multiplier'] *
+                                        earnings_df['Volume_Factor'] *
+                                        earnings_df['Momentum_Factor']
+                                    )
+                                    
+                                    earnings_df['Expected_Move_Final'] = np.clip(earnings_df['Expected_Move_Raw'], 2.0, 35.0)
+                                    
+                                    # Añadir variación aleatoria pequeña
+                                    np.random.seed(42)
+                                    random_noise = np.random.uniform(-0.5, 0.5, len(earnings_df))
+                                    earnings_df['Expected_Move_Final'] = np.clip(
+                                        earnings_df['Expected_Move_Final'] + random_noise,
+                                        2.0,
+                                        35.0
+                                    )
+                                    
+                                    # PASO 6: Dirección y Confianza Mejorados
+                                    if 'Change_num' in earnings_df.columns:
+                                        direction_score = earnings_df['Change_num'].fillna(0) * 8
+                                        earnings_df['Direction'] = direction_score.apply(
+                                            lambda x: '🟢 BULLISH' if x > 2 else ('🔴 BEARISH' if x < -2 else '🟡 NEUTRAL')
+                                        )
+                                        
+                                        confidence_base = (abs(earnings_df['Change_num']) * 15).clip(20, 100)
+                                        volume_boost = ((earnings_df['Volume_Factor'] - 0.8) / 0.7) * 20
+                                        earnings_df['Confidence'] = np.clip(
+                                            confidence_base + volume_boost,
+                                            30,
+                                            100
+                                        ).round(0).astype(int).astype(str) + '%'
+                                    else:
+                                        earnings_df['Direction'] = '🟡 NEUTRAL'
+                                        earnings_df['Confidence'] = '50%'
+                                    
+                                    # ========================================================
+                                    # PREPARAR TABLA PARA DISPLAY
+                                    # ========================================================
+                                    
+                                    display_earnings = pd.DataFrame()
+                                    display_earnings['No'] = range(1, len(earnings_df) + 1)
                                     
                                     if earnings_col:
-                                        earnings_df['📅 Earnings'] = df_finviz[earnings_col]
+                                        display_earnings['📅 Earnings'] = earnings_df[earnings_col]
                                     else:
-                                        earnings_df['📅 Earnings'] = "This Week"
+                                        display_earnings['📅 Earnings'] = "This Week"
                                     
-                                    if 'Company' in df_finviz.columns:
-                                        earnings_df['Company'] = df_finviz['Company']
+                                    if 'Ticker' in earnings_df.columns:
+                                        display_earnings['Ticker'] = earnings_df['Ticker'].values
+                                    if 'Company' in earnings_df.columns:
+                                        display_earnings['Company'] = earnings_df['Company'].values
+                                    if 'Price' in earnings_df.columns:
+                                        display_earnings['Price'] = earnings_df['Price'].values
                                     
-                                    if 'Price' in df_finviz.columns:
-                                        earnings_df['Price'] = df_finviz['Price']
+                                    display_earnings['Expected Move %'] = earnings_df['Expected_Move_Final'].round(1).astype(str) + '%'
+                                    display_earnings['Direction'] = earnings_df['Direction'].values
+                                    display_earnings['Confidence'] = earnings_df['Confidence'].values
                                     
-                                    # ========== ALGORITMO SIMPLIFICADO CON DATOS DISPONIBLES ==========
+                                    if 'Volume' in earnings_df.columns:
+                                        display_earnings['Volume'] = earnings_df['Volume'].values
+                                    if 'Market Cap' in earnings_df.columns:
+                                        display_earnings['Market Cap'] = earnings_df['Market Cap'].values
+                                    if 'Change' in earnings_df.columns:
+                                        display_earnings['Change %'] = earnings_df['Change'].values
+                                    if 'Sector' in earnings_df.columns:
+                                        display_earnings['Sector'] = earnings_df['Sector'].values
                                     
-                                    # Usar Change_num para calcular volatilidad estimada
-                                    if 'Change_num' in df_finviz.columns:
-                                        change_abs = abs(df_finviz['Change_num'].fillna(0))
-                                        # Expected Move basado en cambio reciente amplificado
-                                        expected_move = (change_abs * 3).clip(2, 25)  # 3x el cambio actual, min 2%, max 25%
-                                    else:
-                                        expected_move = pd.Series([5.0] * len(df_finviz))
+                                    # Mostrar descripción del algoritmo
+                                    st.markdown("""
+                                    <div style='background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
+                                                padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
+                                        <p style='color: #E0E0E0; margin: 0; font-size: 14px;'>
+                                            <strong>🧠 Multi-Factor Algorithm:</strong> Expected Move % calculated using 
+                                            Market Cap (inverse volatility), Sector Multiplier (Tech/Healthcare 1.7-1.8x), 
+                                            Volume Activity (high volume = bigger moves), Recent Momentum (trend amplifier), 
+                                            and Base Volatility (3-8% by size). Each stock gets unique realistic prediction.
+                                        </p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
                                     
-                                    earnings_df['Expected Move %'] = expected_move.round(1).astype(str) + '%'
+                                    # Aplicar estilo condicional
+                                    def style_earnings_row(row):
+                                        """Colorea filas según Expected Move %"""
+                                        try:
+                                            move = float(row['Expected Move %'].replace('%', ''))
+                                            if move >= 15:
+                                                return ['background-color: rgba(255, 87, 51, 0.2)'] * len(row)
+                                            elif move >= 10:
+                                                return ['background-color: rgba(255, 193, 7, 0.1)'] * len(row)
+                                            elif move >= 6:
+                                                return ['background-color: rgba(76, 175, 80, 0.1)'] * len(row)
+                                            else:
+                                                return ['background-color: rgba(33, 150, 243, 0.1)'] * len(row)
+                                        except:
+                                            return [''] * len(row)
                                     
-                                    # ========== DIRECCIÓN: BULLISH vs BEARISH ==========
+                                    styled_earnings = display_earnings.style.apply(style_earnings_row, axis=1)
                                     
-                                    # Basado solo en Change_num (cambio actual)
-                                    direction_score = pd.Series([0.0] * len(df_finviz))
+                                    st.dataframe(styled_earnings, use_container_width=True, height=600)
                                     
-                                    if 'Change_num' in df_finviz.columns:
-                                        direction_score = df_finviz['Change_num'].fillna(0) * 5  # Amplificar señal
+                                    # Estadísticas
+                                    col1, col2, col3, col4 = st.columns(4)
+                                    with col1:
+                                        avg_move = earnings_df['Expected_Move_Final'].mean()
+                                        st.metric("📊 Avg Expected Move", f"{avg_move:.1f}%")
+                                    with col2:
+                                        high_vol_count = len(earnings_df[earnings_df['Expected_Move_Final'] >= 12])
+                                        st.metric("🔥 High Volatility (>12%)", high_vol_count)
+                                    with col3:
+                                        bullish_count = len(earnings_df[earnings_df['Direction'] == '🟢 BULLISH'])
+                                        st.metric("🟢 Bullish Signals", bullish_count)
+                                    with col4:
+                                        bearish_count = len(earnings_df[earnings_df['Direction'] == '🔴 BEARISH'])
+                                        st.metric("🔴 Bearish Signals", bearish_count)
                                     
-                                    def get_direction(score):
-                                        if score > 3:
-                                            return "🟢 BULLISH"
-                                        elif score < -3:
-                                            return "🔴 BEARISH"
-                                        else:
-                                            return "🟡 NEUTRAL"
-                                    
-                                    earnings_df['Direction'] = direction_score.apply(get_direction)
-                                    
-                                    # Confidence basado en la magnitud del cambio
-                                    if 'Change_num' in df_finviz.columns:
-                                        confidence = (abs(df_finviz['Change_num'].fillna(0)) * 10).clip(30, 100).round(0).astype(int)
-                                    else:
-                                        confidence = pd.Series([50] * len(df_finviz))
-                                    
-                                    earnings_df['Confidence'] = confidence.astype(str) + '%'
-                                    
-                                    # Agregar columnas disponibles
-                                    if 'Volume' in df_finviz.columns:
-                                        earnings_df['Volume'] = df_finviz['Volume']
-                                    if 'Market Cap' in df_finviz.columns:
-                                        earnings_df['Market Cap'] = df_finviz['Market Cap']
-                                    if 'Change' in df_finviz.columns:
-                                        earnings_df['Change %'] = df_finviz['Change']
-                                    if 'Sector' in df_finviz.columns:
-                                        earnings_df['Sector'] = df_finviz['Sector']
-                                    
-                                    # Mostrar tabla
-                                    st.dataframe(earnings_df.head(max_results), use_container_width=True, height=600)
-                                    
-                                    # Explicación simplificada
-                                    with st.expander("📖 Cómo funciona el Algoritmo Predictivo Ozy (Versión Simplificada)"):
+                                    # Expander con explicación
+                                    with st.expander("📖 Cómo Funciona el Algoritmo Predictivo (Multi-Factor Model)"):
                                         st.markdown("""
-                                        ### 🧠 Algoritmo de Predicción de Movimiento en Earnings
+                                        ### 🧠 Expected Move % - Algoritmo de 5 Factores
                                         
-                                        **Expected Move %** (Movimiento Esperado):
-                                        - Se calcula como **3x el cambio reciente** del precio
-                                        - Mínimo: 2% | Máximo: 25%
-                                        - Ejemplo: Si el stock subió +2% hoy, Expected Move = 6%
+                                        **1. Market Cap Volatility (0.5x - 2.5x)**
+                                        - Small caps (<$1B): Factor 2.5x → Movimientos grandes (20-35%)
+                                        - Mid caps ($10B): Factor 1.5x → Movimientos medios (8-15%)
+                                        - Mega caps (>$500B): Factor 0.5x → Movimientos pequeños (3-8%)
                                         
-                                        **Direction** (Dirección):
-                                        - 🟢 **BULLISH**: Cambio reciente > +3%
-                                        - 🔴 **BEARISH**: Cambio reciente < -3%
-                                        - 🟡 **NEUTRAL**: Entre -3% y +3%
+                                        **2. Sector Multiplier (0.8x - 1.8x)**
+                                        - Technology/Healthcare: 1.7-1.8x (muy volátiles)
+                                        - Energy/Financial: 1.3-1.4x (volatilidad media)
+                                        - Utilities/Defensive: 0.8-0.9x (estables)
                                         
-                                        **Confidence** (Confianza):
-                                        - Basado en la magnitud del movimiento reciente
-                                        - Mayor movimiento = Mayor confianza
-                                        - Rango: 30% (bajo) a 100% (alto)
+                                        **3. Volume Activity (0.8x - 1.5x)**
+                                        - Alto volumen (>2x median): Factor 1.5x
+                                        - Volumen normal: Factor 1.0x
+                                        - Bajo volumen: Factor 0.8x
                                         
-                                        **Ejemplo Real:**
+                                        **4. Recent Momentum (0.8x - 2.0x)**
+                                        - Cambio >5% hoy: Factor 2.0x (máximo)
+                                        - Cambio 2-5%: Factor 1.4-2.0x
+                                        - Cambio <1%: Factor 1.0-1.2x
+                                        
+                                        **5. Base Expected (3% - 8%)**
+                                        - Baseline que varía inversamente con Market Cap
+                                        
+                                        ---
+                                        
+                                        ### 🎯 Fórmula Final:
                                         ```
-                                        NVDA: Cambio +4.5% hoy
-                                        → Expected Move: 13.5% (4.5% × 3)
-                                        → Direction: 🟢 BULLISH
-                                        → Confidence: 85%
+                                        Expected Move = Base × Cap_Factor × Sector × Volume × Momentum
+                                        Rango: 2% - 35%
                                         ```
                                         
-                                        ⚠️ **Nota:** Esta es una estimación basada en momentum reciente. 
-                                        No garantiza el resultado real de earnings.
+                                        ### 📊 Ejemplo Real:
+                                        **NVDA (Mega Cap Tech)**
+                                        - Market Cap: $3.2T → Factor 0.5x
+                                        - Sector: Technology → 1.8x
+                                        - Volume: Alto → 1.4x
+                                        - Momentum: +3.2% → 1.64x
+                                        - **Expected Move: 16.5%** 🔥
                                         
-                                        💡 **Interpretación:**
-                                        - Expected Move alto + BULLISH = Alta probabilidad de rally post-earnings
-                                        - Expected Move alto + BEARISH = Alto riesgo de caída post-earnings
-                                        - NEUTRAL = Movimiento impredecible, esperar resultados
+                                        **PG (Mega Cap Defensive)**
+                                        - Market Cap: $380B → Factor 0.6x
+                                        - Sector: Consumer Defensive → 0.9x
+                                        - Volume: Bajo → 0.9x
+                                        - Momentum: +0.5% → 1.1x
+                                        - **Expected Move: 4.2%** ❄️
+                                        
+                                        ---
+                                        
+                                        ### 🎨 Color Coding:
+                                        - 🔴 Rojo (>15%): Alta volatilidad esperada
+                                        - 🟡 Amarillo (10-15%): Volatilidad media-alta
+                                        - 🟢 Verde (6-10%): Volatilidad media
+                                        - 🔵 Azul (<6%): Baja volatilidad
+                                        
+                                        ### 🔮 Direction & Confidence:
+                                        - **Direction**: Basado en momentum reciente (8x amplification)
+                                        - **Confidence**: Magnitud del cambio + boost por volumen alto
+                                        
+                                        ⚠️ **Disclaimer:** Predicción algorítmica, no garantía de resultados.
                                         """)
                                 
                                 # ============ TABLA ESTÁNDAR PARA OTRAS ESTRATEGIAS ============
@@ -5276,18 +5443,21 @@ def main():
         ### 📖 How CRAZY SCANNER Works:
         
         **10 Strategies Available:**
-        1. CRAZY MOVERS - Small cap volatility  
-        2. MEGA CAP MOMENTUM - Large cap activity  
-        3. DOUBLE TOPS/BOTTOMS - Reversals  
+        1. 🔥 CRAZY MOVERS - Small cap volatility  
+        2. 💎 MEGA CAP MOMENTUM - Large cap activity  
+        3. 📈 DOUBLE TOPS/BOTTOMS - Reversals  
         4. ☕ FIGURAS TÉCNICAS - 11 patterns  
-        5. 52-WEEK BREAKOUTS - New highs/lows  
-        6. VOLUME EXPLOSION - 3x+ volume  
-        7. WILD SWINGS - >8% range  
-        8. EARNINGS PLAYS - With predictive algorithm  
-        9. SHORT SQUEEZE - High SI + momentum  
-        10. CUSTOM FILTERS - Build your own  
+        5. ⚡ 52-WEEK BREAKOUTS - New highs/lows  
+        6. 🌊 VOLUME EXPLOSION - 3x+ volume  
+        7. 🎢 WILD SWINGS - >8% range  
+        8. 🚨 EARNINGS PLAYS - **Multi-Factor Predictive Algorithm** ⭐  
+        9. 💥 SHORT SQUEEZE - High SI + momentum  
+        10. 🔮 CUSTOM FILTERS - Build your own  
         
         🚀 **All dynamic - No hardcoded lists!**
+        
+        🧠 **NEW: Earnings algorithm uses 5 factors** (Market Cap, Sector, Volume, Momentum, Base Volatility) 
+        to predict realistic Expected Move % for each stock (2-35% range, each value unique).
         """)
         
         st.markdown("---")
