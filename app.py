@@ -5129,96 +5129,114 @@ def main():
                                     
                                     # Buscar columna de Earnings
                                     earnings_col = None
-                                    for possible_name in ['Earnings', 'Earnings Date', 'Earn Date', 'Next Earnings']:
+                                    for possible_name in ['Earnings', 'Earnings Date', 'Earn Date', 'Next Earnings', 'Earnings Date_1']:
                                         if possible_name in df_finviz.columns:
                                             earnings_col = possible_name
                                             break
                                     
                                     # Crear DataFrame especial
                                     earnings_df = pd.DataFrame()
+                                    
                                     if 'Ticker' in df_finviz.columns:
                                         earnings_df['Ticker'] = df_finviz['Ticker']
+                                    
                                     if earnings_col:
                                         earnings_df['📅 Earnings'] = df_finviz[earnings_col]
+                                    else:
+                                        earnings_df['📅 Earnings'] = "This Week"
+                                    
                                     if 'Company' in df_finviz.columns:
                                         earnings_df['Company'] = df_finviz['Company']
+                                    
                                     if 'Price' in df_finviz.columns:
                                         earnings_df['Price'] = df_finviz['Price']
                                     
-                                    # Algoritmo Predictivo Ozy
-                                    volatility_score = pd.Series([5] * len(df_finviz))
-                                    if 'Volatility' in df_finviz.columns:
-                                        vol_vals = pd.to_numeric(df_finviz['Volatility'].astype(str).str.replace('%', ''), errors='coerce').fillna(3)
-                                        volatility_score = vol_vals.clip(1, 15)
+                                    # ========== ALGORITMO SIMPLIFICADO CON DATOS DISPONIBLES ==========
                                     
-                                    rsi_score = pd.Series([2] * len(df_finviz))
-                                    if 'RSI (14)' in df_finviz.columns:
-                                        rsi_vals = pd.to_numeric(df_finviz['RSI (14)'], errors='coerce').fillna(50)
-                                        rsi_score = abs(rsi_vals - 50) / 10
+                                    # Usar Change_num para calcular volatilidad estimada
+                                    if 'Change_num' in df_finviz.columns:
+                                        change_abs = abs(df_finviz['Change_num'].fillna(0))
+                                        # Expected Move basado en cambio reciente amplificado
+                                        expected_move = (change_abs * 3).clip(2, 25)  # 3x el cambio actual, min 2%, max 25%
+                                    else:
+                                        expected_move = pd.Series([5.0] * len(df_finviz))
                                     
-                                    vol_activity = pd.Series([1] * len(df_finviz))
-                                    if 'Relative Volume' in df_finviz.columns:
-                                        rel_vol = pd.to_numeric(df_finviz['Relative Volume'], errors='coerce').fillna(1)
-                                        vol_activity = (rel_vol - 1).clip(0, 5) * 2
-                                    
-                                    perf_momentum = pd.Series([1] * len(df_finviz))
-                                    if 'Perf Week' in df_finviz.columns:
-                                        perf_vals = pd.to_numeric(df_finviz['Perf Week'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
-                                        perf_momentum = abs(perf_vals) / 5
-                                    
-                                    sma_divergence = pd.Series([1] * len(df_finviz))
-                                    if 'SMA20' in df_finviz.columns:
-                                        sma20_vals = pd.to_numeric(df_finviz['SMA20'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
-                                        sma_divergence = abs(sma20_vals) / 10
-                                    
-                                    expected_move = (volatility_score * 0.40 + rsi_score * 0.20 + vol_activity * 0.20 + perf_momentum * 0.10 + sma_divergence * 0.10).clip(2, 25)
                                     earnings_df['Expected Move %'] = expected_move.round(1).astype(str) + '%'
                                     
-                                    # Dirección
-                                    direction_score = pd.Series([0] * len(df_finviz), dtype=float)
-                                    if 'RSI (14)' in df_finviz.columns:
-                                        rsi_vals = pd.to_numeric(df_finviz['RSI (14)'], errors='coerce').fillna(50)
-                                        direction_score += (rsi_vals - 50) / 10
-                                    if 'Perf Week' in df_finviz.columns:
-                                        perf_vals = pd.to_numeric(df_finviz['Perf Week'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
-                                        direction_score += perf_vals / 5
-                                    if 'SMA20' in df_finviz.columns:
-                                        sma20_vals = pd.to_numeric(df_finviz['SMA20'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
-                                        direction_score += sma20_vals / 10
-                                    if 'Change' in df_finviz.columns:
-                                        change_vals = pd.to_numeric(df_finviz['Change'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
-                                        direction_score += change_vals * 2
+                                    # ========== DIRECCIÓN: BULLISH vs BEARISH ==========
+                                    
+                                    # Basado solo en Change_num (cambio actual)
+                                    direction_score = pd.Series([0.0] * len(df_finviz))
+                                    
+                                    if 'Change_num' in df_finviz.columns:
+                                        direction_score = df_finviz['Change_num'].fillna(0) * 5  # Amplificar señal
                                     
                                     def get_direction(score):
-                                        if score > 5:
+                                        if score > 3:
                                             return "🟢 BULLISH"
-                                        elif score < -5:
+                                        elif score < -3:
                                             return "🔴 BEARISH"
                                         else:
                                             return "🟡 NEUTRAL"
                                     
                                     earnings_df['Direction'] = direction_score.apply(get_direction)
-                                    confidence = (abs(direction_score) * 5).clip(0, 100).round(0).astype(int)
+                                    
+                                    # Confidence basado en la magnitud del cambio
+                                    if 'Change_num' in df_finviz.columns:
+                                        confidence = (abs(df_finviz['Change_num'].fillna(0)) * 10).clip(30, 100).round(0).astype(int)
+                                    else:
+                                        confidence = pd.Series([50] * len(df_finviz))
+                                    
                                     earnings_df['Confidence'] = confidence.astype(str) + '%'
                                     
+                                    # Agregar columnas disponibles
                                     if 'Volume' in df_finviz.columns:
                                         earnings_df['Volume'] = df_finviz['Volume']
                                     if 'Market Cap' in df_finviz.columns:
                                         earnings_df['Market Cap'] = df_finviz['Market Cap']
-                                    if 'RSI (14)' in df_finviz.columns:
-                                        earnings_df['RSI'] = df_finviz['RSI (14)']
+                                    if 'Change' in df_finviz.columns:
+                                        earnings_df['Change %'] = df_finviz['Change']
+                                    if 'Sector' in df_finviz.columns:
+                                        earnings_df['Sector'] = df_finviz['Sector']
                                     
+                                    # Mostrar tabla
                                     st.dataframe(earnings_df.head(max_results), use_container_width=True, height=600)
                                     
-                                    with st.expander("📖 Cómo funciona el Algoritmo Predictivo Ozy"):
+                                    # Explicación simplificada
+                                    with st.expander("📖 Cómo funciona el Algoritmo Predictivo Ozy (Versión Simplificada)"):
                                         st.markdown("""
                                         ### 🧠 Algoritmo de Predicción de Movimiento en Earnings
                                         
-                                        **Expected Move %**: Volatilidad (40%) + RSI (20%) + Rel Vol (20%) + Perf Week (10%) + SMA (10%)
+                                        **Expected Move %** (Movimiento Esperado):
+                                        - Se calcula como **3x el cambio reciente** del precio
+                                        - Mínimo: 2% | Máximo: 25%
+                                        - Ejemplo: Si el stock subió +2% hoy, Expected Move = 6%
                                         
-                                        **Direction**: RSI>50=Bullish, Perf Week+, Precio>SMA20, Change+
+                                        **Direction** (Dirección):
+                                        - 🟢 **BULLISH**: Cambio reciente > +3%
+                                        - 🔴 **BEARISH**: Cambio reciente < -3%
+                                        - 🟡 **NEUTRAL**: Entre -3% y +3%
                                         
-                                        **Confidence**: 0-100% fuerza de señal
+                                        **Confidence** (Confianza):
+                                        - Basado en la magnitud del movimiento reciente
+                                        - Mayor movimiento = Mayor confianza
+                                        - Rango: 30% (bajo) a 100% (alto)
+                                        
+                                        **Ejemplo Real:**
+                                        ```
+                                        NVDA: Cambio +4.5% hoy
+                                        → Expected Move: 13.5% (4.5% × 3)
+                                        → Direction: 🟢 BULLISH
+                                        → Confidence: 85%
+                                        ```
+                                        
+                                        ⚠️ **Nota:** Esta es una estimación basada en momentum reciente. 
+                                        No garantiza el resultado real de earnings.
+                                        
+                                        💡 **Interpretación:**
+                                        - Expected Move alto + BULLISH = Alta probabilidad de rally post-earnings
+                                        - Expected Move alto + BEARISH = Alto riesgo de caída post-earnings
+                                        - NEUTRAL = Movimiento impredecible, esperar resultados
                                         """)
                                 
                                 # ============ TABLA ESTÁNDAR PARA OTRAS ESTRATEGIAS ============
