@@ -7306,7 +7306,7 @@ def main():
                     call_oi_total = sum(opt.get("open_interest", 0) for opt in options_data_all if opt.get("option_type", "").upper() == "CALL")
                     put_oi_total = sum(opt.get("open_interest", 0) for opt in options_data_all if opt.get("option_type", "").upper() == "PUT")
                     gamma_calls = sum(opt.get("greeks", {}).get("gamma", 0) * opt.get("open_interest", 0) for opt in options_data_all if opt.get("option_type", "").upper() == "CALL")
-                    gamma_puts = sum(opt.get("greeks", {}).get("gamma", 0) * opt.get("open_interest", 0) for opt in options_data_all if opt.get("option_type", "").upper() == "PUT")
+                    gamma_puts = sum(opt.get("greeks", {}).get("gamma", 0) * opt.get("open_interest", 0) for opt in options_data_all if opt is not None and opt.get("option_type", "").upper() == "PUT")
 
                     st.markdown("**Premiums and Contracts (All Expirations)**", unsafe_allow_html=True)
                     if total_call_contracts == 0 and total_put_contracts == 0:
