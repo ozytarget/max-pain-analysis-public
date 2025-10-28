@@ -7574,49 +7574,45 @@ def main():
                 
                 # Value Imbalance (FIX: evitar división por cero)
                 if (call_otm_value + put_otm_value) > 0:
-                    value_imbalance = (call_otm_value - put_otm_value) / (call_otm_value + put_otm_value + 1e-10)
+                    value_imbalance = (call_otm_value - put_otm_value) / (call_otm_value + put_otm_value)
                 else:
                     value_imbalance = 0.0
                 
                 # Delta Pressure (FIX: verificar que strikes, deltas, total_oi existen)
+                delta_pressure = 0.0
                 if strikes and deltas and total_oi and len(strikes) == len(deltas) == len(total_oi):
                     delta_pressure = sum(delta * oi for strike, delta, oi in zip(strikes, deltas, total_oi) if abs(strike - current_price) < daily_range_dollars)
-                else:
-                    delta_pressure = 0.0
                 
                 # Gamma Pressure (FIX: verificar que gammas existe)
+                gamma_pressure = 0.0
                 if strikes and gammas and total_oi and len(strikes) == len(gammas) == len(total_oi):
                     gamma_pressure = sum(gamma * oi for strike, gamma, oi in zip(strikes, gammas, total_oi) if abs(strike - current_price) < daily_range_dollars)
-                else:
-                    gamma_pressure = 0.0
                 
                 # Delta-Gamma Adjustment (FIX: evitar división por cero)
+                delta_gamma_adjustment = 0.0
                 if abs(gamma_pressure) > 1e-10:
                     delta_gamma_adjustment = daily_range_dollars * (delta_pressure / abs(gamma_pressure)) * 0.1
-                else:
-                    delta_gamma_adjustment = 0.0
                 
-                # ITM Values (FIX: verificar que opt existe y tiene option_type)
+                # ITM Values (FIX: verificar que options_data existe)
                 itm_call_value = 0.0
                 itm_put_value = 0.0
                 
-                for strike, oi in zip(strikes, total_oi):
-                    # Buscar opción correspondiente
-                    matching_opts = [opt for opt in options_data if opt.get('strike') == strike]
-                    
-                    for opt in matching_opts:
-                        opt_type = opt.get("option_type", "").upper()
+                if options_data_all and strikes and total_oi:
+                    for strike, oi in zip(strikes, total_oi):
+                        matching_opts = [opt for opt in options_data_all if opt.get('strike') == strike]
                         
-                        if opt_type == "CALL" and strike < current_price:
-                            itm_call_value += max(current_price - strike, 0) * oi * 100
-                        elif opt_type == "PUT" and strike > current_price:
-                            itm_put_value += max(strike - current_price, 0) * oi * 100
+                        for opt in matching_opts:
+                            opt_type = opt.get("option_type", "").upper()
+                            
+                            if opt_type == "CALL" and strike < current_price:
+                                itm_call_value += max(current_price - strike, 0) * oi * 100
+                            elif opt_type == "PUT" and strike > current_price:
+                                itm_put_value += max(strike - current_price, 0) * oi * 100
                 
                 # Intrinsic Bias (FIX: evitar división por cero)
+                intrinsic_bias = 0.0
                 if (itm_call_value + itm_put_value) > 0:
-                    intrinsic_bias = -(itm_call_value - itm_put_value) / (itm_call_value + itm_put_value + 1e-10) * daily_range_dollars * 0.05
-                else:
-                    intrinsic_bias = 0.0
+                    intrinsic_bias = -(itm_call_value - itm_put_value) / (itm_call_value + itm_put_value) * daily_range_dollars * 0.05
                 
                 # MM Target Price Final
                 mm_target_price = base_price + (value_imbalance * daily_range_dollars * 0.5) + delta_gamma_adjustment + intrinsic_bias
