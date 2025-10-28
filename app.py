@@ -1,6 +1,5 @@
 import streamlit as st
-import pandas as pd
-import numpy as np 
+import pandas as pd 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -4945,7 +4944,7 @@ def main():
                                 
                                 # ============ TABLA EARNINGS (ALGORITMO CORREGIDO) ============
                                 if "EARNINGS" in scan_strategy:
-                                    import numpy as np
+                                    
                                     
                                     st.markdown("### 📊 EARNINGS PREDICTIVE ANALYSIS")
                                     
