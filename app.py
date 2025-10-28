@@ -25,6 +25,7 @@ import streamlit.components.v1 as components
 import krakenex
 import base64
 import threading
+import time
 import os
 from datetime import timezone
 import pytz
