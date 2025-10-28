@@ -5203,41 +5203,7 @@ def main():
                                     st.dataframe(earnings_df.head(max_results), use_container_width=True, height=600)
                                     
                                     # Explicación simplificada
-                                    with st.expander("📖 Cómo funciona el Algoritmo Predictivo Ozy (Versión Simplificada)"):
-                                        st.markdown("""
-                                        ### 🧠 Algoritmo de Predicción de Movimiento en Earnings
-                                        
-                                        **Expected Move %** (Movimiento Esperado):
-                                        - Se calcula como **3x el cambio reciente** del precio
-                                        - Mínimo: 2% | Máximo: 25%
-                                        - Ejemplo: Si el stock subió +2% hoy, Expected Move = 6%
-                                        
-                                        **Direction** (Dirección):
-                                        - 🟢 **BULLISH**: Cambio reciente > +3%
-                                        - 🔴 **BEARISH**: Cambio reciente < -3%
-                                        - 🟡 **NEUTRAL**: Entre -3% y +3%
-                                        
-                                        **Confidence** (Confianza):
-                                        - Basado en la magnitud del movimiento reciente
-                                        - Mayor movimiento = Mayor confianza
-                                        - Rango: 30% (bajo) a 100% (alto)
-                                        
-                                        **Ejemplo Real:**
-                                        ```
-                                        NVDA: Cambio +4.5% hoy
-                                        → Expected Move: 13.5% (4.5% × 3)
-                                        → Direction: 🟢 BULLISH
-                                        → Confidence: 85%
-                                        ```
-                                        
-                                        ⚠️ **Nota:** Esta es una estimación basada en momentum reciente. 
-                                        No garantiza el resultado real de earnings.
-                                        
-                                        💡 **Interpretación:**
-                                        - Expected Move alto + BULLISH = Alta probabilidad de rally post-earnings
-                                        - Expected Move alto + BEARISH = Alto riesgo de caída post-earnings
-                                        - NEUTRAL = Movimiento impredecible, esperar resultados
-                                        """)
+
                                 
                                 # ============ TABLA ESTÁNDAR PARA OTRAS ESTRATEGIAS ============
                                 else:
@@ -5271,24 +5237,7 @@ def main():
                 except Exception as e:
                     st.error(f"❌ Scanner Error: {str(e)}")
         
-        st.markdown("---")
-        st.markdown("""
-        ### 📖 How CRAZY SCANNER Works:
-        
-        **10 Strategies Available:**
-        1. CRAZY MOVERS - Small cap volatility  
-        2. MEGA CAP MOMENTUM - Large cap activity  
-        3. DOUBLE TOPS/BOTTOMS - Reversals  
-        4. ☕ FIGURAS TÉCNICAS - 11 patterns  
-        5. 52-WEEK BREAKOUTS - New highs/lows  
-        6. VOLUME EXPLOSION - 3x+ volume  
-        7. WILD SWINGS - >8% range  
-        8. EARNINGS PLAYS - With predictive algorithm  
-        9. SHORT SQUEEZE - High SI + momentum  
-        10. CUSTOM FILTERS - Build your own  
-        
-        🚀 **All dynamic - No hardcoded lists!**
-        """)
+
         
         st.markdown("---")
         st.markdown("*🚀 Developed by Ozy *")
