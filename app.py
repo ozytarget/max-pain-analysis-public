@@ -4676,6 +4676,9 @@ def main():
     # ==================================================================================
     # TAB 2: CRAZY SCANNER (FinViz Elite Integration)
     # ==================================================================================
+    # ==================================================================================
+    # TAB 2: CRAZY SCANNER (FinViz Elite Integration)
+    # ==================================================================================
     with tab2:
         st.markdown("""
         <div style='text-align: center; padding: 20px; background: linear-gradient(90deg, #FF00FF, #FF8C00); border-radius: 10px;'>
@@ -4693,9 +4696,13 @@ def main():
         FINVIZ_BASE_URL = "https://elite.finviz.com/export.ashx"
         
         # Function to fetch data from FinViz Elite API
-        def get_finviz_screener(filters_dict, columns_list=None):
+        def get_finviz_screener(filters_dict, columns_list=None, add_delay=True):
             """Fetch screener data from Ozy"""
             try:
+                # Add delay to avoid rate limiting
+                if add_delay:
+                    time.sleep(2)  # Wait 2 seconds between requests
+                
                 # Build URL parameters
                 params = {
                     "v": "152",  # Custom view with all columns
@@ -4999,11 +5006,20 @@ def main():
                         df_list = []
                         pattern_names = ["HORIZONTAL", "HORIZONTAL2", "TLSUPPORT", "TLRESISTANCE", "WEDGEUP", "WEDGEDOWN", "CHANNELUP", "CHANNELDOWN"]
                         
+                        st.info(f"🔍 Searching {len(pattern_filters_list)} patterns... This may take ~{len(pattern_filters_list)*2} seconds")
+                        
+                        progress_bar = st.progress(0)
                         for idx, pattern_filter in enumerate(pattern_filters_list):
-                            df_temp = get_finviz_screener(pattern_filter, columns_to_fetch)
+                            # Update progress
+                            progress_bar.progress((idx + 1) / len(pattern_filters_list))
+                            
+                            df_temp = get_finviz_screener(pattern_filter, columns_to_fetch, add_delay=True)
                             if not df_temp.empty:
                                 df_temp['Pattern_Detected'] = pattern_names[idx]
                                 df_list.append(df_temp)
+                                st.success(f"✅ Found {len(df_temp)} stocks with {pattern_names[idx]} pattern")
+                        
+                        progress_bar.empty()
                         
                         if df_list:
                             df_finviz = pd.concat(df_list, ignore_index=True)
@@ -5012,11 +5028,11 @@ def main():
                         else:
                             df_finviz = pd.DataFrame()
                     else:
-                        df_finviz = get_finviz_screener(finviz_filters, columns_to_fetch)
+                        df_finviz = get_finviz_screener(finviz_filters, columns_to_fetch, add_delay=False)
                     
                     # Buscar double bottom si es estrategia de double top
                     if "DOUBLE TOP" in scan_strategy and 'finviz_filters_alt' in locals():
-                        df_finviz_alt = get_finviz_screener(finviz_filters_alt, columns_to_fetch)
+                        df_finviz_alt = get_finviz_screener(finviz_filters_alt, columns_to_fetch, add_delay=False)
                         df_finviz = pd.concat([df_finviz, df_finviz_alt], ignore_index=True)
                     
                     if df_finviz.empty:
@@ -5140,8 +5156,6 @@ def main():
         st.markdown("---")
         st.markdown("""
         ### 📖 How CRAZY SCANNER Works:
-        
-       
         
         **10 Strategies Available:**
         1. **CRAZY MOVERS** - Small cap volatility bombs
