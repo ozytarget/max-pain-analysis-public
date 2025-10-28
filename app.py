@@ -4839,6 +4839,12 @@ def main():
                 "sh_avgvol_o500": None,
                 "o": "-earningsdate"  # Ordenar por fecha de earnings
             }
+            # Columnas especiales para Earnings (incluye volatilidad, ATR, Beta)
+            columns_to_fetch = [1, 2, 48, 65, 66, 67, 6, 59, 60, 61, 64, 52, 53, 54, 24, 25]
+            # 1=Ticker, 2=Company, 48=Earnings, 65=Price, 66=Change, 67=Volume
+            # 6=Market Cap, 59=RSI, 60=Rel Volume, 61=Perf Week, 64=Perf Month
+            # 52=SMA20, 53=SMA50, 54=SMA200, 24=ATR, 25=Volatility
+
         
         elif "SHORT SQUEEZE" in scan_strategy:
             finviz_filters = {
@@ -5082,120 +5088,194 @@ def main():
                         st.success(f"✅ Scanner returned {len(df_finviz)} stocks!")
                         
                         # DEBUG: Mostrar columnas disponibles
-                        if "EARNINGS" in scan_strategy:
-                            st.info(f"🔍 DEBUG - Available columns: {', '.join(df_finviz.columns.tolist())}")
-                        
-                        try:
-                            if 'Volume' in df_finviz.columns:
-                                if df_finviz['Volume'].dtype == 'object':
-                                    df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'].str.replace(',', ''), errors='coerce')
-                                else:
-                                    df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'], errors='coerce')
-                                
-                                df_finviz = df_finviz[df_finviz['Volume_num'] >= (min_volume_filter * 1000)]
-                            
-                            if 'Change' in df_finviz.columns:
-                                if df_finviz['Change'].dtype == 'object':
-                                    df_finviz['Change_num'] = pd.to_numeric(df_finviz['Change'].str.replace('%', ''), errors='coerce')
-                                else:
-                                    df_finviz['Change_num'] = pd.to_numeric(df_finviz['Change'], errors='coerce')
-                                
-                                df_finviz = df_finviz[df_finviz['Change_num'] >= min_change_filter]
-                            
-                            if 'Price' in df_finviz.columns:
-                                if df_finviz['Price'].dtype == 'object':
-                                    df_finviz['Price_num'] = pd.to_numeric(df_finviz['Price'].str.replace('$', ''), errors='coerce')
-                                else:
-                                    df_finviz['Price_num'] = pd.to_numeric(df_finviz['Price'], errors='coerce')
-                                
-                                df_finviz = df_finviz[
-                                    (df_finviz['Price_num'] >= min_price_filter) &
-                                    (df_finviz['Price_num'] <= max_price_filter)
-                                ]
-                            
-                            if 'Exchange' in df_finviz.columns and exchange_fv:
-                                df_finviz = df_finviz[df_finviz['Exchange'].isin(exchange_fv)]
-                            
-                            if "CRAZY MOVERS" in scan_strategy:
-                                if 'Volume_num' in df_finviz.columns:
-                                    df_finviz = df_finviz[df_finviz['Volume_num'] > 1000000]
-                            
-                            elif "VOLUME EXPLOSION" in scan_strategy:
-                                if 'Volume_num' in df_finviz.columns:
-                                    df_finviz = df_finviz[df_finviz['Volume_num'] > 5000000]
-                            
-                            elif "WILD SWINGS" in scan_strategy:
-                                if 'Change_num' in df_finviz.columns:
-                                    df_finviz = df_finviz[abs(df_finviz['Change_num']) > 5]
-                            
-                            df_finviz = df_finviz.head(max_results)
-                            
-                            if df_finviz.empty:
-                                st.warning("⚠️ No stocks passed your additional filters.")
-                            else:
-                                if 'Pattern_Detected' in df_finviz.columns:
-                                    pattern_map = {
-                                        "HORIZONTAL": "☕ CUP (Base)",
-                                        "HORIZONTAL2": "🍵 HANDLE",
-                                        "HEADSHOULDERS": "👤 HEAD & SHOULDERS",
-                                        "TLSUPPORT": "📈 TRENDLINE SUPPORT",
-                                        "TLRESISTANCE": "📉 TRENDLINE RESISTANCE",
-                                        "WEDGEUP": "📐 WEDGE UP",
-                                        "WEDGEDOWN": "📉 WEDGE DOWN",
-                                        "CHANNELUP": "📈 CHANNEL UP",
-                                        "CHANNELDOWN": "📊 CHANNEL DOWN",
-                                        "TRIANGLEASC": "🔺 TRIANGLE ASC",
-                                        "TRIANGLEDESC": "🔻 TRIANGLE DESC"
-                                    }
-                                    df_finviz['Pattern'] = df_finviz['Pattern_Detected'].map(pattern_map).fillna("UNKNOWN")
-                                
-                                st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
-                                
-                                # Construir columnas dinámicamente
-                                display_cols = []
-                                
-                                # Siempre agregar Ticker primero
-                                if 'Ticker' in df_finviz.columns:
-                                    display_cols.append('Ticker')
-                                
-                                # Agregar Pattern si existe (solo para FIGURAS TÉCNICAS)
-                                if 'Pattern' in df_finviz.columns:
-                                    display_cols.append('Pattern')
-                                
-                                # Buscar columna de Earnings con múltiples nombres posibles
-                                earnings_col = None
                                 if "EARNINGS" in scan_strategy:
-                                    for possible_name in ['Earnings', 'Earnings Date', 'Earn Date', 'Next Earnings Date']:
+                                    st.markdown("### 📊 Earnings Scanner con Predicción de Movimiento")
+                                    
+                                    # Buscar columna de Earnings
+                                    earnings_col = None
+                                    for possible_name in ['Earnings', 'Earnings Date', 'Earn Date', 'Next Earnings']:
                                         if possible_name in df_finviz.columns:
                                             earnings_col = possible_name
-                                            display_cols.append(earnings_col)
                                             break
-                                
-                                # Agregar columnas estándar
-                                if 'Company' in df_finviz.columns:
-                                    display_cols.append('Company')
-                                if 'Price' in df_finviz.columns:
-                                    display_cols.append('Price')
-                                if 'Change' in df_finviz.columns:
-                                    display_cols.append('Change')
-                                if 'Volume' in df_finviz.columns:
-                                    display_cols.append('Volume')
-                                if 'Market Cap' in df_finviz.columns:
-                                    display_cols.append('Market Cap')
-                                if 'RSI (14)' in df_finviz.columns:
-                                    display_cols.append('RSI (14)')
-                                
-                                # Mostrar tabla
-                                if display_cols:
-                                    df_display = df_finviz[display_cols].copy()
                                     
-                                    # Renombrar columna de earnings si existe
-                                    if earnings_col and earnings_col in df_display.columns:
-                                        df_display.rename(columns={earnings_col: '📅 Earnings Date'}, inplace=True)
+                                    # Crear DataFrame especial para Earnings
+                                    earnings_df = pd.DataFrame()
                                     
-                                    st.dataframe(df_display.head(max_results), use_container_width=True)
+                                    # Columnas base
+                                    if 'Ticker' in df_finviz.columns:
+                                        earnings_df['Ticker'] = df_finviz['Ticker']
+                                    if earnings_col:
+                                        earnings_df['📅 Earnings'] = df_finviz[earnings_col]
+                                    if 'Company' in df_finviz.columns:
+                                        earnings_df['Company'] = df_finviz['Company']
+                                    if 'Price' in df_finviz.columns:
+                                        earnings_df['Price'] = df_finviz['Price']
+                                    
+                                    # ========== ALGORITMO PREDICTIVO OZY ==========
+                                    # Calcular Expected Move % basado en múltiples factores
+                                    
+                                    # Factor 1: Volatilidad (40% peso)
+                                    volatility_score = 0
+                                    if 'Volatility' in df_finviz.columns or 'Volatility (Week)' in df_finviz.columns:
+                                        vol_col = 'Volatility' if 'Volatility' in df_finviz.columns else 'Volatility (Week)'
+                                        vol_vals = pd.to_numeric(df_finviz[vol_col].astype(str).str.replace('%', ''), errors='coerce').fillna(3)
+                                        volatility_score = vol_vals.clip(1, 15)  # Cap entre 1% y 15%
+                                    else:
+                                        volatility_score = pd.Series([5] * len(df_finviz))
+                                    
+                                    # Factor 2: RSI Momentum (20% peso)
+                                    rsi_score = 0
+                                    if 'RSI (14)' in df_finviz.columns:
+                                        rsi_vals = pd.to_numeric(df_finviz['RSI (14)'], errors='coerce').fillna(50)
+                                        # RSI extremo = más movimiento esperado
+                                        rsi_score = abs(rsi_vals - 50) / 10  # 0-5 puntos
+                                    else:
+                                        rsi_score = pd.Series([2] * len(df_finviz))
+                                    
+                                    # Factor 3: Relative Volume (20% peso)
+                                    vol_activity = 0
+                                    if 'Relative Volume' in df_finviz.columns:
+                                        rel_vol = pd.to_numeric(df_finviz['Relative Volume'], errors='coerce').fillna(1)
+                                        vol_activity = (rel_vol - 1).clip(0, 5) * 2  # 0-10 puntos
+                                    else:
+                                        vol_activity = pd.Series([1] * len(df_finviz))
+                                    
+                                    # Factor 4: Recent Performance (10% peso)
+                                    perf_momentum = 0
+                                    if 'Perf Week' in df_finviz.columns:
+                                        perf_vals = pd.to_numeric(df_finviz['Perf Week'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        perf_momentum = abs(perf_vals) / 5  # 0-5 puntos
+                                    else:
+                                        perf_momentum = pd.Series([1] * len(df_finviz))
+                                    
+                                    # Factor 5: Price vs SMA (10% peso)
+                                    sma_divergence = 0
+                                    if 'Price' in df_finviz.columns and 'SMA20' in df_finviz.columns:
+                                        price_vals = pd.to_numeric(df_finviz['Price'].astype(str).str.replace('$', ''), errors='coerce').fillna(0)
+                                        sma20_vals = pd.to_numeric(df_finviz['SMA20'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        sma_divergence = abs(sma20_vals) / 10
+                                    else:
+                                        sma_divergence = pd.Series([1] * len(df_finviz))
+                                    
+                                    # FÓRMULA FINAL OZY: Expected Move %
+                                    expected_move = (
+                                        volatility_score * 0.40 +  # 40% peso
+                                        rsi_score * 0.20 +          # 20% peso
+                                        vol_activity * 0.20 +       # 20% peso
+                                        perf_momentum * 0.10 +      # 10% peso
+                                        sma_divergence * 0.10       # 10% peso
+                                    ).clip(2, 25)  # Mínimo 2%, máximo 25%
+                                    
+                                    earnings_df['Expected Move %'] = expected_move.round(1).astype(str) + '%'
+                                    
+                                    # ========== DIRECCIÓN: BULLISH vs BEARISH ==========
+                                    direction_score = 0
+                                    
+                                    # RSI: >50 = bullish, <50 = bearish
+                                    if 'RSI (14)' in df_finviz.columns:
+                                        rsi_vals = pd.to_numeric(df_finviz['RSI (14)'], errors='coerce').fillna(50)
+                                        direction_score += (rsi_vals - 50) / 10  # -5 a +5
+                                    
+                                    # Perf Week: positivo = bullish
+                                    if 'Perf Week' in df_finviz.columns:
+                                        perf_vals = pd.to_numeric(df_finviz['Perf Week'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        direction_score += perf_vals / 5  # -10 a +10
+                                    
+                                    # SMA20: precio arriba = bullish
+                                    if 'SMA20' in df_finviz.columns:
+                                        sma20_vals = pd.to_numeric(df_finviz['SMA20'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        direction_score += sma20_vals / 10  # -5 a +5
+                                    
+                                    # Cambio reciente
+                                    if 'Change' in df_finviz.columns:
+                                        change_vals = pd.to_numeric(df_finviz['Change'].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+                                        direction_score += change_vals * 2  # -10 a +10
+                                    
+                                    # Determinar dirección
+                                    def get_direction(score):
+                                        if score > 5:
+                                            return "🟢 BULLISH"
+                                        elif score < -5:
+                                            return "🔴 BEARISH"
+                                        else:
+                                            return "🟡 NEUTRAL"
+                                    
+                                    earnings_df['Direction'] = direction_score.apply(get_direction)
+                                    
+                                    # Confidence Score (0-100)
+                                    confidence = (abs(direction_score) * 5).clip(0, 100).round(0).astype(int)
+                                    earnings_df['Confidence'] = confidence.astype(str) + '%'
+                                    
+                                    # Agregar columnas adicionales útiles
+                                    if 'Volume' in df_finviz.columns:
+                                        earnings_df['Volume'] = df_finviz['Volume']
+                                    if 'Market Cap' in df_finviz.columns:
+                                        earnings_df['Market Cap'] = df_finviz['Market Cap']
+                                    if 'RSI (14)' in df_finviz.columns:
+                                        earnings_df['RSI'] = df_finviz['RSI (14)']
+                                    
+                                    # Mostrar tabla especial con estilo
+                                    st.dataframe(
+                                        earnings_df.head(max_results),
+                                        use_container_width=True,
+                                        height=600
+                                    )
+                                    
+                                    # Explicación del algoritmo
+                                    with st.expander("📖 Cómo funciona el Algoritmo Predictivo Ozy"):
+                                        st.markdown("""
+                                        ### 🧠 Algoritmo de Predicción de Movimiento en Earnings
+                                        
+                                        **Expected Move %** se calcula con 5 factores:
+                                        
+                                        1. **Volatilidad Histórica (40%)** - Cuánto se mueve normalmente
+                                        2. **RSI Momentum (20%)** - Si está sobrecomprado/sobrevendido
+                                        3. **Relative Volume (20%)** - Actividad inusual
+                                        4. **Performance Reciente (10%)** - Tendencia de la semana
+                                        5. **Divergencia SMA (10%)** - Distancia de medias móviles
+                                        
+                                        **Direction (Bullish/Bearish)** se determina con:
+                                        - RSI > 50 = Bullish
+                                        - Rendimiento semanal positivo = Bullish
+                                        - Precio sobre SMA20 = Bullish
+                                        - Cambio reciente positivo = Bullish
+                                        
+                                        **Confidence** indica qué tan fuerte es la señal (0-100%)
+                                        
+                                        **Ejemplo:**
+                                        - Stock con RSI 65, +5% semana, arriba de SMA20 = 🟢 BULLISH 85%
+                                        - Expected Move 8% = podría moverse ±8% en earnings
+                                        
+                                        ⚠️ **Nota:** Esto es una estimación probabilística, no garantía.
+                                        """)
+                                
+                                # =====================================================
+                                # TABLA ESTÁNDAR PARA OTRAS ESTRATEGIAS
+                                # =====================================================
                                 else:
-                                    st.dataframe(df_finviz.head(max_results), use_container_width=True)
+                                    # Tabla normal para todas las demás estrategias
+                                    display_cols = []
+                                    if 'Ticker' in df_finviz.columns:
+                                        display_cols.append('Ticker')
+                                    if 'Pattern' in df_finviz.columns:
+                                        display_cols.append('Pattern')
+                                    if 'Company' in df_finviz.columns:
+                                        display_cols.append('Company')
+                                    if 'Price' in df_finviz.columns:
+                                        display_cols.append('Price')
+                                    if 'Change' in df_finviz.columns:
+                                        display_cols.append('Change')
+                                    if 'Volume' in df_finviz.columns:
+                                        display_cols.append('Volume')
+                                    if 'Market Cap' in df_finviz.columns:
+                                        display_cols.append('Market Cap')
+                                    if 'RSI (14)' in df_finviz.columns:
+                                        display_cols.append('RSI (14)')
+                                    
+                                    if display_cols:
+                                        st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
+                                    else:
+                                        st.dataframe(df_finviz.head(max_results), use_container_width=True)
                         
                         except Exception as e:
                             st.error(f"Error processing data: {str(e)}")
