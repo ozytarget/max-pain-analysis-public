@@ -4235,7 +4235,7 @@ def main():
         # GAMMA EXPOSURE + MM ADAPTIVE BURN TRACKER
         # ==============================================
         st.markdown("---")
-        st.subheader(f"🎲 Gamma Exposure + MM Adaptive Burn Tracker - {ticker}")
+        st.subheader(f"MM Adaptive Burn Tracker - {ticker}")
         
         try:
             # 1. PROCESAR OPTIONS DATA
