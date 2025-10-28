@@ -4673,6 +4673,9 @@ def main():
 
 
     
+    # ==================================================================================
+    # TAB 2: CRAZY SCANNER (FinViz Elite Integration)
+    # ==================================================================================
     with tab2:
         st.markdown("""
         <div style='text-align: center; padding: 20px; background: linear-gradient(90deg, #FF00FF, #FF8C00); border-radius: 10px;'>
@@ -4691,7 +4694,7 @@ def main():
         
         # Function to fetch data from FinViz Elite API
         def get_finviz_screener(filters_dict, columns_list=None):
-            """Fetch screener data """
+            """Fetch screener data from Ozy"""
             try:
                 # Build URL parameters
                 params = {
@@ -4731,6 +4734,7 @@ def main():
                     "🔥 CRAZY MOVERS (High Vol + Small Cap)",
                     "💎 MEGA CAP MOMENTUM (>$200B)",
                     "📈 DOUBLE TOP/BOTTOM REVERSAL",
+                    "☕ FIGURAS TÉCNICAS (Cup & Handle, H&S)",
                     "⚡ 52-WEEK BREAKOUTS",
                     "🌊 VOLUME EXPLOSION (>3x Avg)",
                     "🎢 WILD SWINGS (>8% Intraday)",
@@ -4746,6 +4750,7 @@ def main():
         
         # ===== MAPEO DE ESTRATEGIAS A FILTROS FINVIZ =====
         finviz_filters = {}
+        pattern_filters_list = []
         columns_to_fetch = [1, 2, 65, 66, 67, 6, 59, 64, 50, 51, 61, 42, 52, 53, 54]  # Ticker, Company, Price, Change, Volume, Market Cap, RSI, Rel Vol, Vol Week, Vol Month, Gap, Perf Week, SMA20, SMA50, SMA200
         
         if "CRAZY MOVERS" in scan_strategy:
@@ -4773,6 +4778,25 @@ def main():
                 "ta_pattern_doublebottom": None,
                 "sh_avgvol_o500": None
             }
+        
+        elif "FIGURAS TÉCNICAS" in scan_strategy:
+            # Buscar múltiples patrones: Cup & Handle, Head & Shoulders, etc.
+            finviz_filters = {
+                "ta_pattern_horizontal": None,
+                "sh_avgvol_o500": None
+            }
+            
+            # Lista de patrones a buscar en paralelo
+            pattern_filters_list = [
+                {"ta_pattern_horizontal": None, "sh_avgvol_o500": None},  # Cup base
+                {"ta_pattern_horizontal2": None, "sh_avgvol_o500": None},  # Handle
+                {"ta_pattern_tlsupport": None, "sh_avgvol_o500": None},   # Head & Shoulders izq
+                {"ta_pattern_tlresistance": None, "sh_avgvol_o500": None}, # Head & Shoulders der
+                {"ta_pattern_wedgeup": None, "sh_avgvol_o500": None},      # Ascending wedge
+                {"ta_pattern_wedgedown": None, "sh_avgvol_o500": None},    # Descending wedge
+                {"ta_pattern_channelup": None, "sh_avgvol_o500": None},    # Channel Up
+                {"ta_pattern_channeldown": None, "sh_avgvol_o500": None}   # Channel Down
+            ]
         
         elif "52-WEEK BREAKOUT" in scan_strategy:
             finviz_filters = {
@@ -4807,9 +4831,7 @@ def main():
             }
         
         elif "CUSTOM" in scan_strategy:
-            st.markdown("### 🔧 Custom Filters")
-           
-                finviz_filters = {"sh_avgvol_o500": None}
+            finviz_filters = {"sh_avgvol_o500": None}
         
         # ===== FILTROS ADICIONALES (SIEMPRE VISIBLES) =====
         st.markdown("### 🔧 Filter Settings")
@@ -4842,7 +4864,7 @@ def main():
         # ===== CUSTOM FILTERS (FUNCIONAL CUANDO SE SELECCIONA) =====
         if "CUSTOM" in scan_strategy:
             st.markdown("---")
-            st.markdown("### Filters")
+            st.markdown("### 🎛️ Custom Filters")
             
             col_c1, col_c2, col_c3 = st.columns(3)
             
@@ -4965,12 +4987,32 @@ def main():
             
             st.info(f"🎯 **Active Custom Filters:** {len(custom_finviz_filters)} criteria selected")
         
+        st.markdown("---")
+        
         # ===== BOTÓN DE ESCANEO =====
         if st.button("🔍 START CRAZY SCAN", key="start_fv_scan", use_container_width=True):
             with st.spinner(f"🔥 Scanning with Ozy Files: {scan_strategy}..."):
                 try:
                     # Obtener datos de FinViz
-                    df_finviz = get_finviz_screener(finviz_filters, columns_to_fetch)
+                    if "FIGURAS TÉCNICAS" in scan_strategy:
+                        # Buscar múltiples patrones y combinarlos
+                        df_list = []
+                        pattern_names = ["HORIZONTAL", "HORIZONTAL2", "TLSUPPORT", "TLRESISTANCE", "WEDGEUP", "WEDGEDOWN", "CHANNELUP", "CHANNELDOWN"]
+                        
+                        for idx, pattern_filter in enumerate(pattern_filters_list):
+                            df_temp = get_finviz_screener(pattern_filter, columns_to_fetch)
+                            if not df_temp.empty:
+                                df_temp['Pattern_Detected'] = pattern_names[idx]
+                                df_list.append(df_temp)
+                        
+                        if df_list:
+                            df_finviz = pd.concat(df_list, ignore_index=True)
+                            # Eliminar duplicados manteniendo el primer patrón detectado
+                            df_finviz = df_finviz.drop_duplicates(subset=['Ticker'], keep='first')
+                        else:
+                            df_finviz = pd.DataFrame()
+                    else:
+                        df_finviz = get_finviz_screener(finviz_filters, columns_to_fetch)
                     
                     # Buscar double bottom si es estrategia de double top
                     if "DOUBLE TOP" in scan_strategy and 'finviz_filters_alt' in locals():
@@ -5043,6 +5085,20 @@ def main():
                             if df_finviz.empty:
                                 st.warning("⚠️ No stocks passed your additional filters.")
                             else:
+                                # Mapear nombres técnicos a nombres legibles para FIGURAS TÉCNICAS
+                                if 'Pattern_Detected' in df_finviz.columns:
+                                    pattern_map = {
+                                        "HORIZONTAL": "☕ CUP (Base)",
+                                        "HORIZONTAL2": "🍵 HANDLE",
+                                        "TLSUPPORT": "👤 H&S (Left)",
+                                        "TLRESISTANCE": "🙍 H&S (Right)",
+                                        "WEDGEUP": "📐 WEDGE UP",
+                                        "WEDGEDOWN": "📉 WEDGE DOWN",
+                                        "CHANNELUP": "📈 CHANNEL UP",
+                                        "CHANNELDOWN": "📊 CHANNEL DOWN"
+                                    }
+                                    df_finviz['Pattern'] = df_finviz['Pattern_Detected'].map(pattern_map).fillna("UNKNOWN")
+                                
                                 # Display results
                                 st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
                                 
@@ -5050,6 +5106,8 @@ def main():
                                 display_cols = []
                                 if 'Ticker' in df_finviz.columns:
                                     display_cols.append('Ticker')
+                                if 'Pattern' in df_finviz.columns:
+                                    display_cols.append('Pattern')
                                 if 'Company' in df_finviz.columns:
                                     display_cols.append('Company')
                                 if 'Price' in df_finviz.columns:
@@ -5083,18 +5141,26 @@ def main():
         st.markdown("""
         ### 📖 How CRAZY SCANNER Works:
         
+       
         
-        
-        **9 Strategies Available:**
+        **10 Strategies Available:**
         1. **CRAZY MOVERS** - Small cap volatility bombs
         2. **MEGA CAP MOMENTUM** - Large cap unusual activity
         3. **DOUBLE TOPS/BOTTOMS** - Technical reversal patterns
-        4. **52-WEEK BREAKOUTS** - New highs/lows momentum
-        5. **VOLUME EXPLOSION** - 3x+ average volume spikes
-        6. **WILD SWINGS** - >8% intraday range moves
-        7. **EARNINGS PLAYS** - This week's earnings reports
-        8. **SHORT SQUEEZE** - High short interest + momentum
-        9. **CUSTOM FILTERS** - Build your own criteria
+        4. **☕ FIGURAS TÉCNICAS** - Cup & Handle, Head & Shoulders, Wedges, Channels
+        5. **52-WEEK BREAKOUTS** - New highs/lows momentum
+        6. **VOLUME EXPLOSION** - 3x+ average volume spikes
+        7. **WILD SWINGS** - >8% intraday range moves
+        8. **EARNINGS PLAYS** - This week's earnings reports
+        9. **SHORT SQUEEZE** - High short interest + momentum
+        10. **CUSTOM FILTERS** - Build your own criteria
+        
+        **Pattern Detection (FIGURAS TÉCNICAS):**
+        - ☕ **CUP (Base)** - Rounded bottom formation
+        - 🍵 **HANDLE** - Consolidation after cup
+        - 👤 **H&S (Left/Right)** - Head & Shoulders pattern
+        - 📐 **WEDGE UP/DOWN** - Converging trend lines
+        - 📈 **CHANNEL UP/DOWN** - Parallel trend lines
         
         **All filters are dynamic** - No hardcoded lists, fresh data every scan! 🚀
         """)
