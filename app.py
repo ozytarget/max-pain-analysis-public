@@ -74,8 +74,7 @@ PRIVATE_KEY = "7xbaBIp902rSBVdIvtfrUNbRHEHMkfMHPEf4rssz+ZwSwjUZFegjdyyYZzcE5DbBr
 kraken = krakenex.API(key=API_KEY, secret=PRIVATE_KEY)
 
 # ===== FINVIZ ELITE API CONFIGURATION =====
-FINVIZ_API_TOKEN = "cf06a092-db38-4840-b106-cf5bf03c3269"
-FINVIZ_BASE_URL = "https://elite.finviz.com/export.ashx"
+
 
 
 FMP_API_KEY = "bQ025fPNVrYcBN4KaExd1N3Xczyk44wM"
@@ -631,43 +630,7 @@ def get_options_data(ticker: str, expiration_date: str) -> List[Dict]:
 
 
 
-def get_finviz_screener(filters_dict, columns=None):
-    """
-    Obtiene datos del screener de FinViz Elite
-    
-    Args:
-        filters_dict: Diccionario con filtros (ej: {"fa_div_pos": None, "sec_technology": None})
-        columns: Lista de números de columnas a incluir (0-149), None = todas
-    
-    Returns:
-        DataFrame con los resultados
-    """
-    try:
-        # Construir filtros
-        filter_string = ",".join(filters_dict.keys())
-        
-        # Construir columnas (si se especifican)
-        column_string = ""
-        if columns:
-            column_string = f"&c={','.join(map(str, columns))}"
-        
-        # URL completa
-        url = f"{FINVIZ_BASE_URL}?v=152{column_string}&f={filter_string}&auth={FINVIZ_API_TOKEN}"
-        
-        # Hacer request
-        response = requests.get(url, timeout=15)
-        response.raise_for_status()
-        
-        # Parsear CSV
-        from io import StringIO
-        df = pd.read_csv(StringIO(response.text))
-        
-        logger.info(f"FinViz returned {len(df)} stocks")
-        return df
-    
-    except Exception as e:
-        logger.error(f"FinViz API error: {str(e)}")
-        return pd.DataFrame()
+
 
 
 
@@ -4703,6 +4666,12 @@ def main():
             st.write(traceback.format_exc())
 
         st.markdown("*Developed by Ozy | © 2025*")
+
+
+
+
+
+    
     with tab2:
         st.markdown("""
         <div style='text-align: center; padding: 20px; background: linear-gradient(90deg, #FF00FF, #FF8C00); border-radius: 10px;'>
@@ -4714,6 +4683,42 @@ def main():
         """, unsafe_allow_html=True)
         
         st.markdown("---")
+        
+        # FinViz Elite Configuration
+        FINVIZ_API_TOKEN = "cf06a092-db38-4840-b106-cf5bf03c3269"
+        FINVIZ_BASE_URL = "https://elite.finviz.com/export.ashx"
+        
+        # Function to fetch data from FinViz Elite API
+        def get_finviz_screener(filters_dict, columns_list=None):
+            """Fetch screener data from FinViz Elite API"""
+            try:
+                # Build URL parameters
+                params = {
+                    "v": "152",  # Custom view with all columns
+                    "auth": FINVIZ_API_TOKEN
+                }
+                
+                # Add filter string if provided
+                if filters_dict:
+                    filter_str = ",".join([k for k in filters_dict.keys()])
+                    params["f"] = filter_str
+                
+                # Make request
+                response = requests.get(FINVIZ_BASE_URL, params=params, timeout=10)
+                response.raise_for_status()
+                
+                # Parse CSV response
+                from io import StringIO
+                df = pd.read_csv(StringIO(response.text))
+                
+                return df
+                
+            except requests.exceptions.RequestException as e:
+                st.error(f"❌ FinViz API Error: {str(e)}")
+                return pd.DataFrame()
+            except Exception as e:
+                st.error(f"❌ Error processing FinViz data: {str(e)}")
+                return pd.DataFrame()
         
         # ===== SELECTOR DE ESTRATEGIA =====
         col_scan, col_max = st.columns([3, 1])
@@ -4840,71 +4845,10 @@ def main():
                     
                     if df_finviz.empty:
                         st.error("❌ No stocks found with these filters. Try a different strategy.")
-                        st.stop()
-                    
-                    st.success(f"✅ FinViz returned {len(df_finviz)} stocks!")
-                    
-                    # Aplicar filtros adicionales
-                    if 'Price' in df_finviz.columns:
-                        df_finviz = df_finviz[
-                            (df_finviz['Price'] >= min_price_filter) &
-                            (df_finviz['Price'] <= max_price_filter)
-                        ]
-                    
-                    if 'Change' in df_finviz.columns:
-                        df_finviz['Change_pct'] = df_finviz['Change'].str.rstrip('%').astype(float)
-                        df_finviz = df_finviz[df_finviz['Change_pct'] >= min_change_filter]
-                    
-                    if 'Volume' in df_finviz.columns:
-                        df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'].str.replace(',', ''), errors='coerce')
-                        df_finviz = df_finviz[df_finviz['Volume_num'] >= (min_volume_filter * 1000)]
-                    
-                    # Filtrar por exchange
-                    if 'Exchange' in df_finviz.columns and exchange_fv:
-                        df_finviz = df_finviz[df_finviz['Exchange'].isin(exchange_fv)]
-                    
-                    # Limitar resultados
-                    df_finviz = df_finviz.head(max_results)
-                    
-                    if df_finviz.empty:
-                        st.warning("⚠️ No stocks passed your additional filters.")
-                        st.stop()
-                    
-                    # Calcular métricas adicionales
-                    df_finviz['FMS'] = 0
-                    df_finviz['GCF'] = 0
-                    
-                    if 'RSI' in df_finviz.columns and 'Rel Volume' in df_finviz.columns:
-                        rsi_vals = pd.to_numeric(df_finviz['RSI'], errors='coerce').fillna(50)
-                        rel_vol_vals = pd.to_numeric(df_finviz['Rel Volume'], errors='coerce').fillna(1)
-                        change_vals = df_finviz.get('Change_pct', pd.Series([0]*len(df_finviz)))
+                    else:
+                        st.success(f"✅ FinViz returned {len(df_finviz)} stocks!")
                         
-                        df_finviz['FMS'] = (
-                            abs(change_vals) * 5 +
-                            rel_vol_vals * 20 +
-                            abs(rsi_vals - 50) * 1.5
-                        )
-                        
-                        df_finviz['GCF'] = (
-                            (rel_vol_vals > 1.5).astype(int) * 30 +
-                            (abs(rsi_vals - 50) < 20).astype(int) * 30 +
-                            (abs(change_vals) > 3).astype(int) * 40
-                        ).clip(0, 100)
-                    
-                    # Determinar dirección
-                    df_finviz['Direction'] = 'Neutral'
-                    if 'Change_pct' in df_finviz.columns:
-                        df_finviz.loc[df_finviz['Change_pct'] > 2, 'Direction'] = 'Up'
-                        df_finviz.loc[df_finviz['Change_pct'] < -2, 'Direction'] = 'Down'
-                    
-                    # Ordenar por FMS
-                    df_finviz = df_finviz.sort_values('FMS', ascending=False)
-                    
-                    # Mostrar resultados
-                    st.markdown(f"### 📊 {scan_strategy} Results")
-                    
-                    # Top Pick
-                    if not df_finviz.empty:
+                        # Aplicar filtros adicionales
                         try:
                             # Handle Volume column - check if it's already numeric
                             if 'Volume' in df_finviz.columns:
@@ -4914,6 +4858,9 @@ def main():
                                 else:
                                     # Already numeric, just convert to ensure proper type
                                     df_finviz['Volume_num'] = pd.to_numeric(df_finviz['Volume'], errors='coerce')
+                                
+                                # Apply volume filter
+                                df_finviz = df_finviz[df_finviz['Volume_num'] >= (min_volume_filter * 1000)]
                             
                             # Handle Change column - same logic
                             if 'Change' in df_finviz.columns:
@@ -4922,6 +4869,9 @@ def main():
                                     df_finviz['Change_num'] = pd.to_numeric(df_finviz['Change'].str.replace('%', ''), errors='coerce')
                                 else:
                                     df_finviz['Change_num'] = pd.to_numeric(df_finviz['Change'], errors='coerce')
+                                
+                                # Apply change filter
+                                df_finviz = df_finviz[df_finviz['Change_num'] >= min_change_filter]
                             
                             # Handle Price column
                             if 'Price' in df_finviz.columns:
@@ -4929,24 +4879,39 @@ def main():
                                     df_finviz['Price_num'] = pd.to_numeric(df_finviz['Price'].str.replace('$', ''), errors='coerce')
                                 else:
                                     df_finviz['Price_num'] = pd.to_numeric(df_finviz['Price'], errors='coerce')
+                                
+                                # Apply price filters
+                                df_finviz = df_finviz[
+                                    (df_finviz['Price_num'] >= min_price_filter) &
+                                    (df_finviz['Price_num'] <= max_price_filter)
+                                ]
                             
-                            # Now apply strategy-specific filters using numeric columns
-                            if scanner_preset == "CRAZY MOVERS (High Vol + Small Cap)":
+                            # Filter by exchange
+                            if 'Exchange' in df_finviz.columns and exchange_fv:
+                                df_finviz = df_finviz[df_finviz['Exchange'].isin(exchange_fv)]
+                            
+                            # Apply strategy-specific filters using numeric columns
+                            if "CRAZY MOVERS" in scan_strategy:
                                 if 'Volume_num' in df_finviz.columns:
                                     df_finviz = df_finviz[df_finviz['Volume_num'] > 1000000]
                             
-                            elif scanner_preset == "VOLUME EXPLOSION (3x Average)":
+                            elif "VOLUME EXPLOSION" in scan_strategy:
                                 if 'Volume_num' in df_finviz.columns:
                                     df_finviz = df_finviz[df_finviz['Volume_num'] > 5000000]
                             
-                            elif scanner_preset == "WILD SWINGS (>8% Range)":
+                            elif "WILD SWINGS" in scan_strategy:
                                 if 'Change_num' in df_finviz.columns:
                                     df_finviz = df_finviz[abs(df_finviz['Change_num']) > 5]
                             
-                            # Display results
-                            st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
+                            # Limitar resultados
+                            df_finviz = df_finviz.head(max_results)
                             
-                            if not df_finviz.empty:
+                            if df_finviz.empty:
+                                st.warning("⚠️ No stocks passed your additional filters.")
+                            else:
+                                # Display results
+                                st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
+                                
                                 # Show top results
                                 display_cols = []
                                 if 'Ticker' in df_finviz.columns:
@@ -4961,23 +4926,47 @@ def main():
                                     display_cols.append('Volume')
                                 if 'Market Cap' in df_finviz.columns:
                                     display_cols.append('Market Cap')
+                                if 'RSI (14)' in df_finviz.columns:
+                                    display_cols.append('RSI (14)')
                                 
                                 if display_cols:
                                     st.dataframe(df_finviz[display_cols].head(50), use_container_width=True)
                                 else:
                                     st.dataframe(df_finviz.head(50), use_container_width=True)
-                            else:
-                                st.warning("No stocks passed the additional filters.")
                         
                         except Exception as e:
                             st.error(f"Error processing data: {str(e)}")
                             st.write("Debug - DataFrame columns:", df_finviz.columns.tolist() if not df_finviz.empty else "Empty")
-                            st.write("Debug - Volume dtype:", df_finviz['Volume'].dtype if 'Volume' in df_finviz.columns else "N/A")
-                    else:
-                        st.warning("❌ No stocks returned from FinViz.")
+                            if 'Volume' in df_finviz.columns:
+                                st.write("Debug - Volume dtype:", df_finviz['Volume'].dtype)
+                                st.write("Debug - Volume sample:", df_finviz['Volume'].head())
+                
+                except Exception as e:
+                    st.error(f"❌ Scanner Error: {str(e)}")
         
-                        st.markdown("---")
-                        st.markdown("*🚀 Developed by Ozy*")
+        # Info section
+        st.markdown("---")
+        st.markdown("""
+        ### 📖 How CRAZY SCANNER Works:
+        
+        **Data Source:** FinViz Elite API (Real-time screening)
+        
+        **9 Strategies Available:**
+        1. **CRAZY MOVERS** - Small cap volatility bombs
+        2. **MEGA CAP MOMENTUM** - Large cap unusual activity
+        3. **DOUBLE TOPS/BOTTOMS** - Technical reversal patterns
+        4. **52-WEEK BREAKOUTS** - New highs/lows momentum
+        5. **VOLUME EXPLOSION** - 3x+ average volume spikes
+        6. **WILD SWINGS** - >8% intraday range moves
+        7. **EARNINGS PLAYS** - This week's earnings reports
+        8. **SHORT SQUEEZE** - High short interest + momentum
+        9. **CUSTOM FILTERS** - Build your own criteria
+        
+        **All filters are dynamic** - No hardcoded lists, fresh data every scan! 🚀
+        """)
+        
+        st.markdown("---")
+        st.markdown("*🚀 Developed by Ozy*")
     # Tab 3: News Scanner
     with tab3:
         st.subheader("News Scanner")
