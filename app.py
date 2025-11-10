@@ -1901,7 +1901,7 @@ def fetch_coingecko_data(ticker: str) -> dict:
             "volatility": volatility
         }
     except Exception as e:
-        logger.error(f"Error fetching  data for {ticker}: {str(e)}")
+        logger.error(f"Error fetching CoinGecko data for {ticker}: {str(e)}")
         return {}
 
 def calculate_crypto_max_pain(bids: pd.DataFrame, asks: pd.DataFrame) -> float:
@@ -3978,7 +3978,7 @@ def main():
     """, unsafe_allow_html=True)
 
     # Definición de los tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8,tab9, tab10,tab11 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |", "| Stock Insights |",
         "| Options Order Flow |", "| Analyst Rating Flow |", "| Elliott Pulse® |", "| Crypto Insights |",
         "| Projection |", "| Performance Map |", "| Options Signals |"
