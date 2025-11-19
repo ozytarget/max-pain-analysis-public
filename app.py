@@ -78,7 +78,7 @@ kraken = krakenex.API(key=API_KEY, secret=PRIVATE_KEY)
 
 
 
-FMP_API_KEY = "uWA3ovpz0MPvzOZlC1jU9CC6Ri4hPIeH"
+FMP_API_KEY = "tng3tSJKgtwzYSDNcylDZKYfb60QOHRW"
 FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
 TRADIER_API_KEY = "Mys3Hsfg4oG5G6qi9PF7ZfInDDVf"
 TRADIER_BASE_URL = "https://api.tradier.com/v1"
