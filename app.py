@@ -4690,7 +4690,7 @@ def main():
         st.markdown("---")
         
         # FinViz Elite Configuration
-        FINVIZ_API_TOKEN = "cf06a092-db38-4840-b106-cf5bf03c3269"
+        FINVIZ_API_TOKEN = "69d5c83f-1e60-4fc6-9c5d-3b37c08a0531"
         FINVIZ_BASE_URL = "https://elite.finviz.com/export.ashx"
         
         # Function to fetch data from FinViz Elite API
