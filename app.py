@@ -49,7 +49,7 @@ DB_RETRY_DELAY = 2  # Segundos de espera entre reintentos
 # Configurar zona horaria del mercado
 MARKET_TIMEZONE = pytz.timezone("America/New_York")
 
-# Funciones para obtener fecha y hora en la zona horaria del mercado
+# Funciones para obtener fecha y hora en la zona horaria del mercadOS
 def get_current_date():
     return datetime.now(MARKET_TIMEZONE).date()
 
