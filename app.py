@@ -74,7 +74,7 @@ API_KEY = "kyFpw+5fbrFIMDuWJmtkbbbr/CgH/MS63wv7dRz3rndamK/XnjNOVkgP"
 PRIVATE_KEY = "7xbaBIp902rSBVdIvtfrUNbRHEHMkfMHPEf4rssz+ZwSwjUZFegjdyyYZzcE5DbBrUbtFdGRRGRjTuTnEblZWA=="
 kraken = krakenex.API(key=API_KEY, secret=PRIVATE_KEY)
 
-# ===== FINVIZ ELITE API CONFIGURATION =====
+# ===== FINVIZ ELITE API CONFIGURATIONS =====
 
 
 
