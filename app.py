@@ -4238,7 +4238,7 @@ def main():
                 else:
                     st.warning(f"No data available from FMP API for {ticker}.")
             else:
-                st.error(f"API Error - Historical: {tab1_hist_response.status_code}, Targets: {tab1_targets_response.status_code}")
+                st.error(f"time Hosting Transfer: {tab1_hist_response.status_code}, Targets: {tab1_targets_response.status_code}")
         
         except Exception as e:
             st.error(f"Error loading Price Target chart: {str(e)}")
