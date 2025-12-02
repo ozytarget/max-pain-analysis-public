@@ -4018,7 +4018,7 @@ def main():
                 else:
                     st.warning(f"No data available from FMP API for {ticker}.")
             else:
-                st.error(f"time Hosting Transfer: {tab1_hist_response.status_code}, Targets: {tab1_targets_response.status_code}")
+                st.warning(f"⚠️ Price Target data unavailable (FMP API: {tab1_hist_response.status_code}/{tab1_targets_response.status_code}). Your plan may have limited access to v4 endpoints.")
         
         except Exception as e:
             st.error(f"Error loading Price Target chart: {str(e)}")
