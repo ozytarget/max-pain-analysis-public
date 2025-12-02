@@ -12,16 +12,12 @@ from time import sleep
 from typing import List, Dict, Optional, Tuple
 import plotly.graph_objects as go
 import plotly.express as px
-from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import multiprocessing
-from threading import Lock, Thread
-from contextlib import contextmanager
-from scipy import stats
+from threading import Lock
 from scipy.stats import norm
 import bcrypt
 import sqlite3
-from sklearn.linear_model import LinearRegression
 from bs4 import BeautifulSoup
 import socket
 import base64
