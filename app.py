@@ -501,6 +501,7 @@ metrics_container = st.empty()
 gamma_chart_container = st.empty()
 
 # Sección 1: Información del Precio Actual
+expiration_date = None  # Inicializar variable
 
 if ticker:
     expiration_dates = get_expiration_dates(ticker)
