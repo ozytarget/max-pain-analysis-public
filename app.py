@@ -130,8 +130,8 @@ def initialize_passwords_db():
 def load_passwords():
     conn = sqlite3.connect(PASSWORDS_DB, timeout=10)
     c = conn.cursor()
-    c.execute("SELECT password, usage_count, ip1, ip2, created_at, last_used FROM passwords")
-    passwords = {row[0]: {"usage_count": row[1], "ip1": row[2], "ip2": row[3], "created_at": row[4], "last_used": row[5]} for row in c.fetchall()}
+    c.execute("SELECT password, usage_count, ip1, ip2 FROM passwords")
+    passwords = {row[0]: {"usage_count": row[1], "ip1": row[2], "ip2": row[3]} for row in c.fetchall()}
     conn.close()
     return passwords
 
@@ -140,8 +140,8 @@ def save_passwords(passwords):
     c = conn.cursor()
     try:
         c.execute("DELETE FROM passwords")
-        c.executemany("INSERT INTO passwords VALUES (?, ?, ?, ?, ?, ?)", 
-                      [(pwd, data.get("usage_count", 0), data.get("ip1", ""), data.get("ip2", ""), data.get("created_at", datetime.now()), data.get("last_used", None)) for pwd, data in passwords.items()])
+        c.executemany("INSERT INTO passwords VALUES (?, ?, ?, ?)", 
+                      [(pwd, data.get("usage_count", 0), data.get("ip1", ""), data.get("ip2", "")) for pwd, data in passwords.items()])
         conn.commit()
     except Exception as e:
         logger.error(f"Error saving passwords: {e}")
