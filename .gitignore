@@ -1,0 +1,62 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+
+# API Keys and credentials
+auth_data/
+credentials/
+secrets/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Streamlit
+.streamlit/
+streamlit_cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,21 @@
+# Core de la App y Visualización
+streamlit
+pandas
+numpy
+plotly
+scipy
+matplotlib
+
+# Conectividad y APIs
+requests
+urllib3
+krakenex
+yfinance
+
+# Utilidades y Herramientas
+pytz
+bcrypt
+scikit-learn
+beautifulsoup4
+lxml
+python-dotenv
