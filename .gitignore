@@ -1,19 +1,17 @@
-# Environment variables and secrets
+# Environment variables
 .env
 .env.local
 .env.*.local
 
-# API Keys and credentials
-auth_data/
-credentials/
-secrets/
-
-# Python cache
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+env/
+venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -30,33 +28,49 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-venv/
-ENV/
-env/
-.venv
-
-# IDE
+# IDE & Editor
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+.VS/
+.vim/
+
+# Cache & Temp Files
+.pytest_cache/
+.mypy_cache/
+.cache/
+*.cache
+*.tmp
+*.log
+
+# OS Files
+Thumbs.db
+.AppleDouble
+.LSOverride
 
 # Streamlit
 .streamlit/
-streamlit_cache/
+.streamlit_cache/
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
+auth_data/
 
-# Logs
-logs/
-*.log
+# Testing
+.coverage
+htmlcov/
 
-# OS
-.DS_Store
-Thumbs.db
+# Node (if applicable)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Credentials & Secrets
+secrets/
+credentials/
+tokens/
