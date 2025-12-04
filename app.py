@@ -336,20 +336,53 @@ if not st.session_state["authenticated"]:
         # TABS: Login vs Registro
         auth_tab1, auth_tab2 = st.tabs(["🔐 Login", "📝 Registrarse"])
         
-        # TAB 1: LOGIN CON CONTRASEÑA ANTIGUA (BLOQUEADA)
+        # TAB 1: LOGIN - NUEVO SISTEMA (Usuario/Contraseña)
         with auth_tab1:
-            st.markdown("### 🔐 Acceso Existente")
-            with st.form(key="login_form"):
-                password = st.text_input("", type="password", key="login_input", placeholder="Password")
-                submit_button = st.form_submit_button(label="Log In")
+            st.markdown("### 🔐 Acceso a la Plataforma")
+            
+            login_subtabs = st.tabs(["👤 Usuario Nuevo", "🔑 Acceso Antiguo"])
+            
+            # SUBTAB: Nuevo usuario (usuario/contraseña)
+            with login_subtabs[0]:
+                st.markdown("**Inicia sesión con tu usuario y contraseña:**")
+                
+                with st.form(key="new_user_login_form"):
+                    login_username = st.text_input("👤 Usuario", placeholder="Tu nombre de usuario", key="login_username")
+                    login_password = st.text_input("🔐 Contraseña", type="password", placeholder="Tu contraseña", key="login_password")
+                    login_submit = st.form_submit_button(label="🔓 Ingresar", use_container_width=True)
+                    
+                    if login_submit:
+                        if not login_username or not login_password:
+                            st.error("❌ Completa usuario y contraseña")
+                        else:
+                            success, msg = authenticate_user(login_username, login_password)
+                            if success:
+                                st.session_state["authenticated"] = True
+                                st.session_state["current_user"] = login_username
+                                st.success(f"✅ {msg}")
+                                time.sleep(0.3)
+                                st.rerun()
+                            else:
+                                # Mensaje de error con número de administración
+                                st.error(f"❌ {msg}")
+                                st.warning("⚠️ Si tu cuenta está bloqueada o necesitas ayuda:\n\n📞 **Contacta al administrador:**\n\n☎️ **6789789414** (Facturación y Soporte)")
+            
+            # SUBTAB: Acceso antiguo (contraseña)
+            with login_subtabs[1]:
+                st.markdown("**Sistema antiguo (bloqueado para nuevos usuarios):**")
+                with st.form(key="login_form"):
+                    password = st.text_input("", type="password", key="login_input", placeholder="Password")
+                    submit_button = st.form_submit_button(label="Log In")
 
-            if submit_button:
-                if not password:
-                    st.error("❌ Please enter a password.")
-                elif authenticate_password(password):
-                    st.session_state["authenticated"] = True
-                    time.sleep(0.3)
-                    st.rerun()        # TAB 2: REGISTRO NUEVO USUARIO
+                if submit_button:
+                    if not password:
+                        st.error("❌ Please enter a password.")
+                    elif authenticate_password(password):
+                        st.session_state["authenticated"] = True
+                        time.sleep(0.3)
+                        st.rerun()
+        
+        # TAB 2: REGISTRO NUEVO USUARIO
         with auth_tab2:
             st.markdown("### 📝 Crear Nueva Cuenta")
             st.markdown("**Completa los datos para registrarte:**")
@@ -375,7 +408,7 @@ if not st.session_state["authenticated"]:
                         # Intentar crear usuario (sin plan, será "Pending")
                         success, message = create_user(new_username, new_email, new_password)
                         if success:
-                            st.success(f"✅ {message}\n\n📋 Estado: PENDIENTE DE ASIGNACIÓN\n\n🔔 El administrador asignará tu plan en breve.\n\n🔐 Cuando esté listo, inicia sesión en la pestaña Login")
+                            st.success(f"✅ {message}\n\n📋 Estado: PENDIENTE DE ASIGNACIÓN\n\n🔔 El administrador asignará tu plan en breve.\n\n🔐 Cuando esté listo, ve a la pestaña '👤 Usuario Nuevo' en Login para ingresar")
                             logger.info(f"New user registered: {new_username} - Pending admin assignment")
                         else:
                             st.error(f"❌ {message}")
@@ -4183,6 +4216,56 @@ def main():
                 if st.button("🔒 Admin Logout", use_container_width=True, key="admin_logout"):
                     st.session_state["admin_authenticated"] = False
                     st.rerun()
+    
+    # ===== VALIDATION: CHECK USER STATUS =====
+    if "current_user" in st.session_state and st.session_state["current_user"] != "admin":
+        current_user = st.session_state["current_user"]
+        user_info = get_user_info(current_user)
+        
+        if user_info:
+            username, email, active, tier, expiration_date, usage_today, daily_limit = user_info
+            
+            # Validación 1: Usuario inactivo
+            if not active:
+                st.error("❌ **TU CUENTA HA SIDO BLOQUEADA**")
+                st.warning("⚠️ Si crees que es un error o necesitas reactivar tu cuenta:")
+                st.markdown("""
+                **📞 CONTACTA AL ADMINISTRADOR:**
+                ☎️ **6789789414** (Facturación y Soporte)
+                
+                📧 Menciona tu usuario y correo para que podamos ayudarte.
+                """)
+                st.stop()
+            
+            # Validación 2: Licencia expirada (excepto Pending)
+            if tier != "Pending":
+                try:
+                    exp_date = datetime.fromisoformat(expiration_date)
+                    if datetime.now(MARKET_TIMEZONE) > exp_date:
+                        st.error("❌ **TU LICENCIA HA EXPIRADO**")
+                        st.warning(f"⚠️ Tu plan expiró el {exp_date.strftime('%Y-%m-%d')}")
+                        st.markdown(f"""
+                        **Para renovar tu acceso:**
+                        ☎️ **6789789414** (Facturación)
+                        
+                        **Tu información:**
+                        - Usuario: {username}
+                        - Email: {email}
+                        """)
+                        st.stop()
+                except:
+                    pass
+            
+            # Validación 3: Daily limit exceeded (excepto Pending y Unlimited)
+            if tier not in ["Pending", "Unlimited"] and daily_limit > 0:
+                if usage_today >= daily_limit:
+                    st.error("❌ **LIMITE DIARIO ALCANZADO**")
+                    st.warning(f"⚠️ Has utilizado tus {daily_limit} escaneos del día")
+                    st.markdown("""
+                    **Vuelve a intentar mañana** o contacta al administrador para aumentar tu límite:
+                    ☎️ **6789789414**
+                    """)
+                    st.stop()
     
     # Definición de los tabs
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
