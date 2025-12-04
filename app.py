@@ -6060,179 +6060,285 @@ def main():
             st.markdown("---")
             st.markdown("*Developed by Ozy | © 2025*")
 
-    # Tab 6: Elliott Pulse
+    # Tab 6: MM Flow Dynamics
     with tab6:
-        st.subheader("Elliott Pulse")
-        ticker = st.text_input("Ticker Symbol (e.g., SPY)", "SPY", key="elliott_ticker").upper()
-        expiration_dates = get_expiration_dates(ticker)
-        if not expiration_dates:
-            st.error(f"No expiration dates found for '{ticker}'. Try a valid ticker (e.g., SPY).")
-            return
-        selected_expiration = st.selectbox("Select Expiration Date", expiration_dates, key="elliott_exp_date")
-
-        with st.spinner(f"Fetching data for {ticker} on {selected_expiration}..."):
+        st.subheader("📊 MM Flow Dynamics - Market Maker Positioning Analysis")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            ticker = st.text_input("Stock Ticker", "SPY", key="mm_flow_ticker").upper()
+        with col2:
+            expiration_dates = get_expiration_dates(ticker)
+            if not expiration_dates:
+                st.error(f"No expiration dates found for '{ticker}'.")
+                st.stop()
+            selected_expiration = st.selectbox("Expiration Date", expiration_dates, key="mm_flow_expiration")
+        
+        with st.spinner(f"Analyzing MM flow for {ticker} on {selected_expiration}..."):
             current_price = get_current_price(ticker)
             if current_price == 0.0:
-                st.error(f"Unable to fetch current price for '{ticker}'.")
-                return
+                st.error(f"Unable to fetch price for {ticker}.")
+                st.stop()
+            
             options_data = get_options_data(ticker, selected_expiration)
             if not options_data:
                 st.error(f"No options data available for {selected_expiration}.")
-                return
-
-            total_oi_all = sum(int(opt.get("open_interest", 0)) for opt in options_data)
-            num_strikes = len(set(opt.get("strike", 0) for opt in options_data))
-            avg_oi = total_oi_all / num_strikes if num_strikes > 0 else 0
-            st.markdown(f"**Avg OI per Strike:** {avg_oi:,.0f}")
-
-            default_volume = max(0.0001, min(5.0, avg_oi / 2_000_000))
-            # Round default_volume to nearest step (0.0001) to avoid slider conflicts
-            default_volume = round(default_volume / 0.0001) * 0.0001
-            volume_threshold = st.slider("Min Open Interest (millions)", 0.0001, 5.0, value=default_volume, step=0.0001, key="elliott_vol") * 1_000_000
-
-            strikes_data = {}
-            for opt in options_data:
-                strike = float(opt.get("strike", 0))
-                opt_type = opt.get("option_type", "").upper()
-                oi = int(opt.get("open_interest", 0))
-                greeks = opt.get("greeks", {})
-                gamma = float(greeks.get("gamma", 0)) if isinstance(greeks, dict) else 0
-                if strike not in strikes_data:
-                    strikes_data[strike] = {"CALL": {"OI": 0, "Gamma": 0}, "PUT": {"OI": 0, "Gamma": 0}}
-                strikes_data[strike][opt_type]["OI"] += oi
-                strikes_data[strike][opt_type]["Gamma"] += gamma * oi
-
-            strikes = sorted(strikes_data.keys())
-            call_gamma = []
-            put_gamma = []
-            net_gamma = []
-            total_oi = []
-            for strike in strikes:
-                call_oi = strikes_data[strike]["CALL"]["OI"]
-                put_oi = strikes_data[strike]["PUT"]["OI"]
-                if call_oi >= volume_threshold or put_oi >= volume_threshold:
-                    cg = strikes_data[strike]["CALL"]["Gamma"]
-                    pg = strikes_data[strike]["PUT"]["Gamma"]
-                    call_gamma.append(cg)
-                    put_gamma.append(-pg)
-                    net_gamma.append(cg - pg)
-                    total_oi.append(call_oi + put_oi)
-                else:
-                    call_gamma.append(0)
-                    put_gamma.append(0)
-                    net_gamma.append(0)
-                    total_oi.append(0)
-
-            significant_strikes = [(strike, ng, oi) for strike, ng, oi in zip(strikes, net_gamma, total_oi) if oi > volume_threshold]
-            if not significant_strikes:
-                st.warning(f"No significant strikes found above volume threshold ({volume_threshold/1_000_000:.4f}M).")
-                return
-
-            total_volume = sum(oi for _, _, oi in significant_strikes)
-            volume_cutoff = total_volume * 0.1
-            high_volume_strikes = [(strike, oi) for strike, _, oi in significant_strikes if oi >= volume_cutoff]
-
-            max_pain = None
-            min_loss = float('inf')
-            for strike in [s[0] for s in high_volume_strikes]:
-                call_loss = sum(max(0, s - strike) * strikes_data[s]["CALL"]["OI"] for s, _ in high_volume_strikes)
-                put_loss = sum(max(0, strike - s) * strikes_data[s]["PUT"]["OI"] for s, _ in high_volume_strikes)
-                total_loss = call_loss + put_loss
-                if total_loss < min_loss:
-                    min_loss = total_loss
-                    max_pain = strike
-            max_pain_gamma = strikes_data.get(max_pain, {"CALL": {"Gamma": 0}, "PUT": {"Gamma": 0}})["CALL"]["Gamma"] - \
-                            strikes_data.get(max_pain, {"CALL": {"Gamma": 0}, "PUT": {"Gamma": 0}})["PUT"]["Gamma"] if max_pain else 0
-
-            sorted_by_volume = sorted(significant_strikes, key=lambda x: x[2], reverse=True)
-            sorted_by_low_volume = sorted(significant_strikes, key=lambda x: x[2])
-
-            a_point = min(significant_strikes, key=lambda x: abs(x[0] - current_price)) if significant_strikes else (current_price, 0, 0)
-            b_point = sorted_by_volume[0] if sorted_by_volume else (current_price + 1, 0, 0)
-            c_point = sorted_by_low_volume[0] if sorted_by_low_volume else (current_price - 1, 0, 0)
-            d_point = (max_pain, max_pain_gamma, strikes_data.get(max_pain, {"CALL": {"OI": 0}, "PUT": {"OI": 0}})["CALL"]["OI"] + 
-                      strikes_data.get(max_pain, {"CALL": {"OI": 0}, "PUT": {"OI": 0}})["PUT"]["OI"]) if max_pain else (current_price, 0, 0)
-            e_point = max(significant_strikes, key=lambda x: abs(x[1])) if significant_strikes else (current_price + 2, 0, 0)
-
-            wave_points = [a_point, b_point, c_point, d_point, e_point]
-            wave_strikes = [point[0] for point in wave_points]
-            wave_gamma = [point[1] for point in wave_points]
-            wave_oi = [point[2] for point in wave_points]
-
-            max_pain_divisions = [max_pain / s if s != 0 and max_pain is not None else 0 for s in wave_strikes]
-            pressure = [oi / abs(s - max_pain) if max_pain is not None and s != max_pain and abs(s - max_pain) > 0 else 0 
-                        for s, oi in zip(wave_strikes, wave_oi)]
-            max_pressure = max(pressure) if pressure and max(pressure) > 0 else 1
-            pressure_normalized = [p / max_pressure * 100 for p in pressure]
-
-            fig = go.Figure()
-            fig.add_trace(go.Bar(x=strikes, y=call_gamma, name="CALL Gamma", marker_color="#32CD32", width=0.8, opacity=0.4))
-            fig.add_trace(go.Bar(x=strikes, y=put_gamma, name="PUT Gamma", marker_color="#FF4500", width=0.8, opacity=0.4))
-            fig.add_trace(go.Scatter(x=[current_price, current_price], y=[min(put_gamma) * 1.1, max(call_gamma) * 1.1], 
-                                    mode="lines", line=dict(color="#FFFFFF", dash="dash", width=2), name="Current Price"))
-
-            for i in range(len(wave_strikes) - 1):
-                start_strike = wave_strikes[i]
-                end_strike = wave_strikes[i + 1]
-                start_gamma = wave_gamma[i]
-                end_gamma = wave_gamma[i + 1]
-                if start_strike is not None and end_strike is not None:
-                    if (start_strike > current_price and end_strike < current_price) or \
-                       (start_strike < current_price and end_strike > current_price):
-                        line_color = "#FF4500" if start_strike > end_strike else "#32CD32"
-                    else:
-                        line_color = "#FFD700"
-                    fig.add_trace(go.Scatter(x=[start_strike, end_strike], y=[start_gamma, end_gamma], 
-                                            mode="lines", line=dict(color=line_color, width=1), showlegend=False))
-
-            fig.add_trace(go.Scatter(x=wave_strikes, y=wave_gamma, mode="markers+text", name="Elliott Pulse",
-                                    marker=dict(size=8, symbol="circle", color="#FFD700"),
-                                    text=[f"${s:.2f}\n{letter}\n<span style='color:{'#FF4500' if p > 50 else '#32CD32'}'>{p:.0f}</span>" 
-                                          for s, letter, p in zip(wave_strikes, ["A", "B", "C", "D", "E"], pressure_normalized)],
-                                    textposition="top center",
-                                    textfont=dict(size=12),
-                                    customdata=[(s, g, o, mpd, p) for s, g, o, mpd, p in zip(wave_strikes, wave_gamma, wave_oi, max_pain_divisions, pressure_normalized)],
-                                    hovertemplate="Strike: $%{customdata[0]:.2f}<br>Gamma: %{customdata[1]:.2f}<br>OI: %{customdata[2]:,d}<br>Max Pain / Strike: %{customdata[3]:.2f}<br>MM Pressure: %{customdata[4]:.0f"))
-            fig.add_trace(go.Scatter(x=[max_pain], y=[max_pain_gamma], mode="markers+text", name="Max Pain",
-                                    marker=dict(size=13, color="white", symbol="star"), text=[f"${max_pain:.2f}" if max_pain else "N/A"], 
-                                    textposition="bottom center"))
-
-            fig.update_layout(
-                title=f"Elliott Pulse {ticker} (Exp: {selected_expiration})",
-                xaxis_title="Strike Price",
-                yaxis_title="Gamma Exposure",
-                barmode="relative",
-                template="plotly_dark",
-                hovermode="x unified",
-                height=600,
-                legend=dict(yanchor="top", y=1.1, xanchor="right", x=1.0, bgcolor="rgba(0,0,0,0.5)"),
-                plot_bgcolor="#000000",
-                paper_bgcolor="#000000",
-                font=dict(color="#FFFFFF"),
-                xaxis=dict(gridcolor="rgba(255,255,255,0.1)"),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.1)")
-            )
-            st.plotly_chart(fig, config={'staticPlot': False, 'displayModeBar': True}, use_container_width=True)
-            elliott_df = pd.DataFrame({
-                "Strike": strikes,
-                "CALL_Gamma": call_gamma,
-                "PUT_Gamma": put_gamma,
-                "Net_Gamma": net_gamma,
-                "Total_OI": total_oi,
-                "Wave_Point": ["A" if s == wave_strikes[0] else "B" if s == wave_strikes[1] else "C" if s == wave_strikes[2] else "D" if s == wave_strikes[3] else "E" if s == wave_strikes[4] else "" for s in strikes],
-                "Max_Pain_Division": [max_pain / s if s != 0 and max_pain is not None else 0 for s in strikes],
-                "MM_Pressure": [oi / abs(s - max_pain) if max_pain is not None and s != max_pain and abs(s - max_pain) > 0 else 0 for s, oi in zip(strikes, total_oi)]
-            })
-            elliott_csv = elliott_df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Elliott Pulse Data",
-                data=elliott_csv,
-                file_name=f"{ticker}_elliott_pulse_{selected_expiration}.csv",
-                mime="text/csv",
-                key="download_tab7"
-            )
+                st.stop()
+            
+            # Calculate MM dynamics
+            mm_analysis = calculate_mm_dynamics(options_data, current_price)
+            if not mm_analysis:
+                st.error("Unable to calculate MM dynamics.")
+                st.stop()
+            
+            # Key metrics
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total_call_oi = sum(opt.get("open_interest", 0) for opt in options_data if opt.get("option_type", "").upper() == "CALL")
+            total_put_oi = sum(opt.get("open_interest", 0) for opt in options_data if opt.get("option_type", "").upper() == "PUT")
+            call_put_ratio = total_call_oi / total_put_oi if total_put_oi > 0 else 0
+            
+            with col1:
+                st.metric("Current Price", f"${current_price:.2f}")
+            with col2:
+                st.metric("Call/Put Ratio", f"{call_put_ratio:.2f}x", delta="Bullish" if call_put_ratio > 1 else "Bearish")
+            with col3:
+                st.metric("Total Call OI", f"{total_call_oi:,.0f}")
+            with col4:
+                st.metric("Total Put OI", f"{total_put_oi:,.0f}")
+            
             st.markdown("---")
-            st.markdown("*Developed by Ozy | © 2025*")
+            
+            # Section 1: MM Pressure Heatmap
+            st.subheader("🔥 MM Pressure Heatmap - Where MMs Will Push Price")
+            
+            strikes_list = sorted(mm_analysis.keys())
+            pressure_data = []
+            
+            for strike in strikes_list:
+                data = mm_analysis[strike]
+                total_pressure = data["call_pressure"] + data["put_pressure"]
+                pressure_pct = (total_pressure / max([mm_analysis[s]["call_pressure"] + mm_analysis[s]["put_pressure"] for s in strikes_list])) * 100 if strikes_list else 0
+                
+                pressure_data.append({
+                    "Strike": strike,
+                    "MM Pressure": pressure_pct,
+                    "Call Pressure": data["call_pressure"],
+                    "Put Pressure": data["put_pressure"],
+                    "Distance %": data["distance_pct"],
+                    "Attraction Score": data["attraction_score"]
+                })
+            
+            pressure_df = pd.DataFrame(pressure_data)
+            
+            # Create pressure heatmap chart
+            fig_pressure = go.Figure()
+            
+            colors = []
+            for val in pressure_df["MM Pressure"]:
+                if val >= 75:
+                    colors.append("#FF0000")  # Red - Very high pressure
+                elif val >= 50:
+                    colors.append("#FF6600")  # Orange - High pressure
+                elif val >= 25:
+                    colors.append("#FFFF00")  # Yellow - Medium pressure
+                else:
+                    colors.append("#00FF00")  # Green - Low pressure
+            
+            fig_pressure.add_trace(go.Bar(
+                x=pressure_df["Strike"],
+                y=pressure_df["MM Pressure"],
+                marker=dict(color=colors),
+                text=[f"{v:.1f}%" for v in pressure_df["MM Pressure"]],
+                textposition="outside",
+                hovertemplate="<b>Strike: $%{x:.2f}</b><br>MM Pressure: %{y:.1f}%<extra></extra>",
+                showlegend=False
+            ))
+            
+            # Add current price line
+            fig_pressure.add_vline(x=current_price, line_dash="dash", line_color="#39FF14", 
+                                 annotation_text=f"Price: ${current_price:.2f}", 
+                                 annotation_position="top right")
+            
+            fig_pressure.update_layout(
+                title="MM Pressure Distribution Across Strikes",
+                xaxis_title="Strike Price",
+                yaxis_title="MM Pressure (%)",
+                template="plotly_dark",
+                height=400,
+                hovermode="x unified",
+                plot_bgcolor="#0a0a0a",
+                paper_bgcolor="#0a0a0a"
+            )
+            st.plotly_chart(fig_pressure, use_container_width=True)
+            
+            st.markdown("---")
+            
+            # Section 2: Call vs Put Pressure
+            st.subheader("⚖️ Call vs Put Pressure - Market Sentiment")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Call pressure by strike
+                fig_calls = go.Figure()
+                fig_calls.add_trace(go.Bar(
+                    x=pressure_df["Strike"],
+                    y=pressure_df["Call Pressure"],
+                    marker_color="#00FF00",
+                    name="Call Pressure",
+                    text=[f"{v:.0f}" for v in pressure_df["Call Pressure"]],
+                    textposition="auto",
+                ))
+                fig_calls.add_vline(x=current_price, line_dash="dash", line_color="#FFFFFF", opacity=0.5)
+                fig_calls.update_layout(
+                    title="Call Pressure (Bullish Bias)",
+                    xaxis_title="Strike",
+                    yaxis_title="Pressure",
+                    template="plotly_dark",
+                    height=350,
+                    plot_bgcolor="#0a0a0a",
+                    paper_bgcolor="#0a0a0a",
+                    showlegend=False
+                )
+                st.plotly_chart(fig_calls, use_container_width=True)
+            
+            with col2:
+                # Put pressure by strike
+                fig_puts = go.Figure()
+                fig_puts.add_trace(go.Bar(
+                    x=pressure_df["Strike"],
+                    y=pressure_df["Put Pressure"],
+                    marker_color="#FF0000",
+                    name="Put Pressure",
+                    text=[f"{v:.0f}" for v in pressure_df["Put Pressure"]],
+                    textposition="auto",
+                ))
+                fig_puts.add_vline(x=current_price, line_dash="dash", line_color="#FFFFFF", opacity=0.5)
+                fig_puts.update_layout(
+                    title="Put Pressure (Bearish Bias)",
+                    xaxis_title="Strike",
+                    yaxis_title="Pressure",
+                    template="plotly_dark",
+                    height=350,
+                    plot_bgcolor="#0a0a0a",
+                    paper_bgcolor="#0a0a0a",
+                    showlegend=False
+                )
+                st.plotly_chart(fig_puts, use_container_width=True)
+            
+            st.markdown("---")
+            
+            # Section 3: Top MM Pressure Zones (Tarjetas)
+            st.subheader("🎯 Top MM Pressure Zones - Where MMs Are Positioning")
+            
+            top_pressure = pressure_df.nlargest(3, "MM Pressure")
+            
+            cols = st.columns(3)
+            for idx, (col, (_, row)) in enumerate(zip(cols, top_pressure.iterrows())):
+                with col:
+                    # Dynamic gradient color based on pressure
+                    pressure_val = row["MM Pressure"]
+                    if pressure_val >= 75:
+                        color_hex = "#FF0000"
+                        intensity = "🔴 CRITICAL"
+                    elif pressure_val >= 50:
+                        color_hex = "#FF6600"
+                        intensity = "🟠 HIGH"
+                    elif pressure_val >= 25:
+                        color_hex = "#FFFF00"
+                        intensity = "🟡 MEDIUM"
+                    else:
+                        color_hex = "#00FF00"
+                        intensity = "🟢 LOW"
+                    
+                    st.markdown(f"""
+                    <div style="
+                        background: linear-gradient(135deg, {color_hex}22 0%, {color_hex}11 100%);
+                        border: 2px solid {color_hex};
+                        border-radius: 8px;
+                        padding: 15px;
+                        text-align: center;
+                        box-shadow: 0 0 20px {color_hex}44;
+                    ">
+                        <h3 style="color: {color_hex}; margin: 0;">${row['Strike']:.2f}</h3>
+                        <p style="color: #FFFFFF; font-size: 14px; margin: 5px 0;">
+                            <b>MM Pressure:</b> {pressure_val:.1f}%<br>
+                            {intensity}
+                        </p>
+                        <p style="color: #39FF14; font-size: 12px; margin: 5px 0;">
+                            Distance: {row['Distance %']:.2f}%<br>
+                            Attraction: {row['Attraction Score']:.0f}
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # Section 4: MM Flow Analysis Table
+            st.subheader("📋 MM Flow Analysis - Detailed Strike Data")
+            
+            display_df = pressure_df.copy()
+            display_df["Strike"] = display_df["Strike"].apply(lambda x: f"${x:.2f}")
+            display_df["MM Pressure"] = display_df["MM Pressure"].apply(lambda x: f"{x:.1f}%")
+            display_df["Call Pressure"] = display_df["Call Pressure"].apply(lambda x: f"{x:.0f}")
+            display_df["Put Pressure"] = display_df["Put Pressure"].apply(lambda x: f"{x:.0f}")
+            display_df["Distance %"] = display_df["Distance %"].apply(lambda x: f"{x:.2f}%")
+            display_df["Attraction Score"] = display_df["Attraction Score"].apply(lambda x: f"{x:.0f}")
+            
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            
+            # Download button
+            csv_data = pressure_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download MM Flow Data",
+                data=csv_data,
+                file_name=f"{ticker}_mm_flow_{selected_expiration}.csv",
+                mime="text/csv",
+                key="download_mm_flow"
+            )
+            
+            st.markdown("---")
+            
+            # Section 5: MM Logic Explanation
+            st.subheader("📚 How MM Flow Works")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("""
+                **🔥 MM Pressure**
+                
+                Calculated as:
+                ```
+                Pressure = (OI + VOL) × Spread × IV
+                ```
+                
+                Higher pressure = MMs will fight harder to reach that strike
+                """)
+            
+            with col2:
+                st.markdown("""
+                **📊 Attraction Score**
+                
+                Shows probability of price moving to that zone:
+                ```
+                Attraction = Pressure / (Distance + 1)
+                ```
+                
+                Closer + Higher Pressure = More likely
+                """)
+            
+            with col3:
+                st.markdown("""
+                **⚖️ Call/Put Ratio**
+                
+                - **> 1.0** = Bullish (more call buying)
+                - **< 1.0** = Bearish (more put buying)
+                - **= 1.0** = Balanced
+                
+                MMs profit from imbalances!
+                """)
 
     # Tab 7: Trade Targets & MM Logic
     with tab7:
