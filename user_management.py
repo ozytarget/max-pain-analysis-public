@@ -378,5 +378,19 @@ def set_unlimited_access(username: str, days: int = 365) -> bool:
     except:
         return False
 
+def is_legacy_password_blocked(password: str) -> bool:
+    """
+    BLOQUEA COMPLETAMENTE CONTRASEÑAS ANTIGUAS
+    Retorna True si la contraseña es una contraseña antigua y debe ser bloqueada
+    """
+    # Lista de contraseñas antiguas que NO deben funcionar más
+    LEGACY_BLOCKED_PASSWORDS = [
+        "fabi125", "twmmpro", "sandrira1", "mark123", "nonu12", "mary123",
+        "alexis1", "sofia2023", "diego123", "carlos456", "laura789",
+        "juan_pro", "maria_scan", "antonio22", "rosa2024", "pablo1"
+    ]
+    
+    return password in LEGACY_BLOCKED_PASSWORDS
+
 # Initialize on import
 initialize_users_db()

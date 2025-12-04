@@ -31,7 +31,7 @@ from user_management import (
     get_all_users, get_activity_log, deactivate_user, extend_license, 
     get_user_info, USER_TIERS, initialize_users_db,
     authenticate_admin, get_user_stats, change_user_tier, reset_user_daily_limit,
-    set_unlimited_access
+    set_unlimited_access, is_legacy_password_blocked
 )
 
 db_lock = Lock()
@@ -169,6 +169,12 @@ def get_local_ip():
         return None
 
 def authenticate_password(input_password):
+    # BLOQUEAR CONTRASEÑAS ANTIGUAS - FORZAR NUEVO SISTEMA DE AUTENTICACIÓN
+    if is_legacy_password_blocked(input_password):
+        st.error("❌ **Las contraseñas antiguas ya NO son válidas.**\n\nDebes usar el **NUEVO SISTEMA** de autenticación:\n\n1. Haz clic en '📝 Registrarse' (arriba)\n2. Crea tu cuenta con usuario y contraseña nueva\n3. Elige tu plan (Free/Pro/Premium)\n\nContacta al admin si necesitas ayuda: ozytargetcom@gmail.com")
+        logger.warning(f"BLOCKED: Attempted login with legacy password: {input_password}")
+        return False
+    
     local_ip = get_local_ip()
     if not local_ip:
         st.error("Could not obtain local IP.")
