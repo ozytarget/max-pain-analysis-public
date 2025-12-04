@@ -3854,8 +3854,14 @@ def main():
         
         contraction_zones = []
         for strike, data in sorted_strikes[:top_n]:
-            # Dirección probable basada en presión neta
-            direction = "UP" if data["net_pressure"] > 0 else "DOWN" if data["net_pressure"] < 0 else "SIDEWAYS"
+            # Dirección basada en la posición del strike respecto al precio actual
+            if strike > current_price:
+                direction = "UP"
+            elif strike < current_price:
+                direction = "DOWN"
+            else:
+                direction = "SIDEWAYS"
+            
             distance = abs(strike - current_price)
             
             contraction_zones.append({
@@ -3899,6 +3905,14 @@ def main():
         
         total_value = (pressure_score * 30 + spread_score * 20 + max_pain_score * 50) / 100
         
+        # Dirección basada en la posición del strike respecto al precio actual
+        if strike > current_price:
+            direction_bias = "UP"
+        elif strike < current_price:
+            direction_bias = "DOWN"
+        else:
+            direction_bias = "NEUTRAL"
+        
         return {
             "strike": strike,
             "value_score": min(100, total_value),
@@ -3906,7 +3920,7 @@ def main():
             "spread_score": spread_score,
             "max_pain_affinity": max_pain_score,
             "combined_oi": data["combined_oi"],
-            "direction_bias": "UP" if data["net_pressure"] > 0 else "DOWN" if data["net_pressure"] < 0 else "NEUTRAL"
+            "direction_bias": direction_bias
         }
     
     @st.cache_data(ttl=CACHE_TTL)
@@ -5725,7 +5739,7 @@ def main():
             """)
         
         st.divider()
-        st.markdown("*Developed by Ozy | MM Analysis © 2025*")
+        st.markdown("*Developed by Ozy | © 2025*")
 
     # Tab 5: Analyst Rating Flow
         # Tab 5: Analyst Rating Flow
