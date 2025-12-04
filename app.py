@@ -64,8 +64,11 @@ FMP_API_KEY = os.getenv("FMP_API_KEY", "")
 FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
 TRADIER_API_KEY = os.getenv("TRADIER_API_KEY", "")
 TRADIER_BASE_URL = "https://api.tradier.com/v1"
+FINVIZ_API_TOKEN = os.getenv("FINVIZ_API_TOKEN", "")
+FINVIZ_BASE_URL = "https://elite.finviz.com"
 HEADERS_FMP = {"Accept": "application/json"}
 HEADERS_TRADIER = {"Authorization": f"Bearer {TRADIER_API_KEY}", "Accept": "application/json"}
+HEADERS_FINVIZ = {"User-Agent": "Mozilla/5.0"}
 
 # Constantes
 PASSWORDS_DB = "auth_data/passwords.db"
@@ -461,6 +464,160 @@ def get_expiration_dates(ticker: str) -> List[str]:
         logger.error(f"Error fetching expiration dates for {ticker}: {str(e)}")
         return []
 
+# --- Finviz Elite Options Functions ---
+@st.cache_data(ttl=CACHE_TTL)
+def get_finviz_options_data(ticker: str, expiration: str = "", strike_filter: str = "") -> Optional[pd.DataFrame]:
+    """
+    Fetch options data from Finviz Elite export API.
+    
+    Args:
+        ticker: Stock ticker symbol (e.g., 'MSFT')
+        expiration: Expiration date filter (e.g., '2025-07-18', optional)
+        strike_filter: Strike filter (optional, e.g., 'OTM', 'ATM', 'ITM')
+    
+    Returns:
+        DataFrame with options data or None if failed
+    
+    Example:
+        df = get_finviz_options_data('SPY', '2025-01-17')
+    """
+    try:
+        # Build Finviz Elite export URL with authentication
+        # Base URL: https://elite.finviz.com/export/options
+        url = f"{FINVIZ_BASE_URL}/export/options"
+        
+        params = {
+            "t": ticker,  # Ticker
+            "ty": "oc",   # Type: oc = options chain
+            "auth": FINVIZ_API_TOKEN
+        }
+        
+        # Add optional filters
+        if expiration:
+            params["e"] = expiration  # e.g., "2025-07-18"
+        
+        if strike_filter:
+            params["sf"] = strike_filter  # Strike filter
+        
+        response = requests.get(url, params=params, headers=HEADERS_FINVIZ, timeout=15)
+        response.raise_for_status()
+        
+        # Parse CSV response
+        from io import StringIO
+        df = pd.read_csv(StringIO(response.text))
+        
+        if df.empty:
+            logger.warning(f"No options data from Finviz for {ticker}")
+            return None
+        
+        logger.info(f"Fetched {len(df)} options from Finviz Elite for {ticker} (Expiration: {expiration or 'All'})")
+        return df
+    
+    except Exception as e:
+        logger.warning(f"Finviz Elite options fetch failed for {ticker}: {str(e)}")
+        return None
+
+@st.cache_data(ttl=86400)
+def get_finviz_expiration_dates(ticker: str) -> List[str]:
+    """
+    Get available option expiration dates from Finviz Elite.
+    
+    Uses the full options chain export and extracts unique expiration dates.
+    
+    Args:
+        ticker: Stock ticker symbol
+    
+    Returns:
+        List of expiration dates in YYYY-MM-DD format, sorted
+    
+    Example:
+        dates = get_finviz_expiration_dates('SPY')
+        # Returns: ['2025-01-17', '2025-01-24', ...]
+    """
+    try:
+        url = f"{FINVIZ_BASE_URL}/export/options"
+        params = {
+            "t": ticker,
+            "ty": "oc",
+            "auth": FINVIZ_API_TOKEN
+        }
+        
+        response = requests.get(url, params=params, headers=HEADERS_FINVIZ, timeout=15)
+        response.raise_for_status()
+        
+        from io import StringIO
+        df = pd.read_csv(StringIO(response.text))
+        
+        if df.empty or "Expiration" not in df.columns:
+            logger.warning(f"No expiration dates from Finviz for {ticker}")
+            return []
+        
+        # Extract and sort unique expiration dates
+        expirations = sorted(df["Expiration"].unique().tolist())
+        logger.info(f"Finviz found {len(expirations)} expiration dates for {ticker}")
+        return expirations
+    
+    except Exception as e:
+        logger.warning(f"Finviz expiration dates fetch failed for {ticker}: {str(e)}")
+        return []
+
+@st.cache_data(ttl=CACHE_TTL)
+def get_options_data_hybrid(ticker: str, expiration_date: str = "", prefer_source: str = "tradier") -> Optional[pd.DataFrame]:
+    """
+    Fetch options data from Tradier or Finviz Elite with intelligent fallback.
+    
+    This function automatically switches between data sources for maximum reliability.
+    
+    Args:
+        ticker: Stock ticker symbol
+        expiration_date: Expiration date in YYYY-MM-DD format (optional)
+        prefer_source: "tradier" (default) or "finviz" (preferred API source)
+    
+    Returns:
+        DataFrame with options data, or None if both sources fail
+    
+    Fallback Logic:
+        1. Try preferred source first
+        2. If that fails, try the other source
+        3. If both fail, log error and return None
+    
+    Example:
+        # Prefer Finviz
+        df = get_options_data_hybrid('SPY', '2025-01-17', prefer_source='finviz')
+        
+        # Prefer Tradier (default)
+        df = get_options_data_hybrid('SPY', '2025-01-17')
+    """
+    
+    if prefer_source == "finviz":
+        logger.info(f"Attempting Finviz Elite for {ticker}...")
+        df_finviz = get_finviz_options_data(ticker, expiration_date)
+        if df_finviz is not None and not df_finviz.empty:
+            logger.info(f"✅ Using Finviz Elite ({len(df_finviz)} options) for {ticker}")
+            return df_finviz
+        
+        logger.warning(f"Finviz unavailable, falling back to Tradier for {ticker}")
+        tradier_data = get_options_data(ticker, expiration_date)
+        if tradier_data:
+            logger.info(f"✅ Using Tradier fallback ({len(tradier_data)} options) for {ticker}")
+            # Convert to DataFrame for consistency
+            return pd.DataFrame(tradier_data)
+    
+    else:  # prefer_source == "tradier" (default)
+        logger.info(f"Attempting Tradier for {ticker}...")
+        tradier_data = get_options_data(ticker, expiration_date)
+        if tradier_data:
+            logger.info(f"✅ Using Tradier ({len(tradier_data)} options) for {ticker}")
+            return pd.DataFrame(tradier_data)
+        
+        logger.warning(f"Tradier unavailable, falling back to Finviz Elite for {ticker}")
+        df_finviz = get_finviz_options_data(ticker, expiration_date)
+        if df_finviz is not None and not df_finviz.empty:
+            logger.info(f"✅ Using Finviz Elite fallback ({len(df_finviz)} options) for {ticker}")
+            return df_finviz
+    
+    logger.error(f"❌ Both Tradier and Finviz failed for {ticker}")
+    return None
          
 @st.cache_data(ttl=60)
 def get_current_prices(tickers: List[str]) -> Dict[str, float]:
