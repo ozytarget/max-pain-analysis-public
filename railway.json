@@ -1,11 +1,21 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "nixpacks"
+    "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "streamlit run app.py --server.port=8000 --server.address=0.0.0.0",
-    "restartPolicyType": "on_failure",
-    "restartPolicyMaxRetries": 5
+    "startCommand": "streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --logger.level=error",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3,
+    "healthcheck": {
+      "interval": 60,
+      "timeout": 5,
+      "path": "/"
+    }
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "STREAMLIT_CLIENT_TOOLBARMODE": "viewer",
+    "STREAMLIT_SERVER_MAXUPLOADSIZE": "10"
   }
 }
