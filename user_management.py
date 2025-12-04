@@ -357,5 +357,26 @@ def reset_user_daily_limit(username: str) -> bool:
     except:
         return False
 
+def set_unlimited_access(username: str, days: int = 365) -> bool:
+    """Asignar acceso ILIMITADO a usuario específico"""
+    try:
+        conn = sqlite3.connect(USERS_DB)
+        c = conn.cursor()
+        
+        # Crear tier "Unlimited" con límite muy alto (999999)
+        # Extender expiration_date
+        new_expiration = (datetime.now(MARKET_TIMEZONE) + timedelta(days=days)).date().isoformat()
+        
+        c.execute("UPDATE users SET tier = ?, daily_limit = ?, expiration_date = ? WHERE username = ?", 
+                  ("Unlimited", 999999, new_expiration, username))
+        
+        log_admin_action(username, f"Unlimited access assigned for {days} days")
+        
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
+
 # Initialize on import
 initialize_users_db()

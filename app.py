@@ -30,7 +30,8 @@ from user_management import (
     authenticate_user, create_user, check_daily_limit, increment_usage,
     get_all_users, get_activity_log, deactivate_user, extend_license, 
     get_user_info, USER_TIERS, initialize_users_db,
-    authenticate_admin, get_user_stats, change_user_tier, reset_user_daily_limit
+    authenticate_admin, get_user_stats, change_user_tier, reset_user_daily_limit,
+    set_unlimited_access
 )
 
 db_lock = Lock()
@@ -4063,6 +4064,8 @@ def main():
                 with admin_tab3:
                     st.markdown("#### 🛠️ Admin Tools")
                     
+                    # EXTEND LICENSE SECTION
+                    st.markdown("**📅 Extend License**")
                     extend_col1, extend_col2 = st.columns(2)
                     with extend_col1:
                         extend_user = st.selectbox("Extend License", get_all_users()["username"].tolist() if not get_all_users().empty else [], key="extend_user")
@@ -4075,6 +4078,23 @@ def main():
                             st.rerun()
                         else:
                             st.error("❌ Failed to extend")
+                    
+                    st.divider()
+                    
+                    # UNLIMITED ACCESS SECTION
+                    st.markdown("**♾️ Assign Unlimited Access**")
+                    unlimited_col1, unlimited_col2 = st.columns(2)
+                    with unlimited_col1:
+                        unlimited_user = st.selectbox("Select User", get_all_users()["username"].tolist() if not get_all_users().empty else [], key="unlimited_user")
+                    with unlimited_col2:
+                        unlimited_days = st.number_input("Days Valid", min_value=1, max_value=3650, value=365, key="unlimited_days", help="Duración de acceso ilimitado")
+                    
+                    if st.button("🚀 Assign Unlimited Access", use_container_width=True, key="unlimited_btn"):
+                        if set_unlimited_access(unlimited_user, unlimited_days):
+                            st.success(f"✅ {unlimited_user} now has UNLIMITED access for {unlimited_days} days! ♾️")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to assign unlimited access")
                 
                 st.divider()
                 if st.button("🔒 Admin Logout", use_container_width=True, key="admin_logout"):
