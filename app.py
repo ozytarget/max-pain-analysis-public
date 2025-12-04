@@ -323,18 +323,68 @@ if not st.session_state["authenticated"]:
     with col2:
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
         st.markdown('<div class="login-logo">ℙℝ𝕆 𝔼𝕊ℂ𝔸ℕℕ𝔼ℝ®</div>', unsafe_allow_html=True)
+        
+        # TABS: Login vs Registro
+        auth_tab1, auth_tab2 = st.tabs(["🔐 Login", "📝 Registrarse"])
+        
+        # TAB 1: LOGIN CON CONTRASEÑA ANTIGUA (BLOQUEADA)
+        with auth_tab1:
+            st.markdown("### 🔐 Acceso Existente")
+            with st.form(key="login_form"):
+                password = st.text_input("", type="password", key="login_input", placeholder="Password")
+                submit_button = st.form_submit_button(label="Log In")
 
-        with st.form(key="login_form"):
-            password = st.text_input("", type="password", key="login_input", placeholder="Password")
-            submit_button = st.form_submit_button(label="Log In")
-
-            if submit_button:
-                if not password:
-                    st.error("❌ Please enter a password.")
-                elif authenticate_password(password):
-                    st.session_state["authenticated"] = True
-                    time.sleep(0.5)  # Reduced from 1s to 0.5s
-                    st.rerun()
+                if submit_button:
+                    if not password:
+                        st.error("❌ Please enter a password.")
+                    elif authenticate_password(password):
+                        st.session_state["authenticated"] = True
+                        time.sleep(0.5)
+                        st.rerun()
+        
+        # TAB 2: REGISTRO NUEVO USUARIO
+        with auth_tab2:
+            st.markdown("### 📝 Crear Nueva Cuenta")
+            st.markdown("**Completa los datos para registrarte:**")
+            
+            with st.form(key="register_form"):
+                new_username = st.text_input("👤 Usuario", placeholder="Tu nombre de usuario", key="reg_username")
+                new_email = st.text_input("📧 Email", placeholder="tu@email.com", key="reg_email")
+                new_password = st.text_input("🔐 Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password")
+                confirm_password = st.text_input("🔐 Confirmar Contraseña", type="password", placeholder="Repite tu contraseña", key="reg_confirm")
+                
+                st.markdown("**Elige tu plan:**")
+                tier_col1, tier_col2, tier_col3 = st.columns(3)
+                with tier_col1:
+                    free_selected = st.radio("", options=["Free"], label_visibility="collapsed", key="tier_free")
+                    st.markdown('<div style="text-align:center"><small>10 scans/día<br/>30 días</small></div>', unsafe_allow_html=True)
+                with tier_col2:
+                    st.markdown("---")
+                    st.markdown('<div style="text-align:center; color:#39FF14"><b>PRO</b><br/><small>100 scans/día<br/>365 días</small></div>', unsafe_allow_html=True)
+                with tier_col3:
+                    st.markdown("---")
+                    st.markdown('<div style="text-align:center; color:#FFD700"><b>PREMIUM</b><br/><small>♾️ Ilimitado<br/>365 días</small></div>', unsafe_allow_html=True)
+                
+                selected_tier = st.selectbox("Plan", ["Free", "Pro", "Premium"], label_visibility="collapsed", key="tier_select")
+                
+                register_button = st.form_submit_button(label="✅ Registrarse", use_container_width=True)
+                
+                if register_button:
+                    # Validaciones
+                    if not new_username or not new_email or not new_password:
+                        st.error("❌ Completa todos los campos")
+                    elif len(new_password) < 6:
+                        st.error("❌ La contraseña debe tener mínimo 6 caracteres")
+                    elif new_password != confirm_password:
+                        st.error("❌ Las contraseñas no coinciden")
+                    else:
+                        # Intentar crear usuario
+                        success, message = create_user(new_username, new_email, new_password, selected_tier)
+                        if success:
+                            st.success(f"✅ {message}\n\n🎉 ¡Cuenta creada! Ahora inicia sesión en la pestaña 🔐 Login")
+                            logger.info(f"New user registered: {new_username} with tier {selected_tier}")
+                        else:
+                            st.error(f"❌ {message}")
 
         st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
