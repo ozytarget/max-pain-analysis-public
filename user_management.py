@@ -22,6 +22,7 @@ ADMIN_EMAIL = "ozytargetcom@gmail.com"
 ADMIN_PASSWORD_HASH = None  # Set during init
 
 USER_TIERS = {
+    "Pending": {"daily_limit": 0, "days_valid": 999999, "color": "#FFA500"},  # Orange - awaiting admin
     "Free": {"daily_limit": 10, "days_valid": 30, "color": "#808080"},
     "Pro": {"daily_limit": 100, "days_valid": 365, "color": "#39FF14"},
     "Premium": {"daily_limit": 999, "days_valid": 365, "color": "#FFD700"}
@@ -69,8 +70,11 @@ def get_local_ip():
     except:
         return "Unknown"
 
-def create_user(username: str, email: str, password: str, tier: str = "Free") -> tuple:
-    """Create new user with automatic license"""
+def create_user(username: str, email: str, password: str, tier: str = "Pending") -> tuple:
+    """Create new user - automatically set to Pending tier (admin will assign plan)"""
+    # Force tier to "Pending" - admin assigns tier later
+    tier = "Pending"
+    
     if tier not in USER_TIERS:
         return False, "Invalid tier"
     
@@ -90,7 +94,7 @@ def create_user(username: str, email: str, password: str, tier: str = "Free") ->
         conn.commit()
         conn.close()
         
-        return True, f"User {username} created with {tier} tier (valid {USER_TIERS[tier]['days_valid']} days)"
+        return True, f"User {username} created. Pending admin tier assignment."
     
     except sqlite3.IntegrityError:
         return False, "Username or email already exists"
@@ -110,6 +114,10 @@ def authenticate_user(username: str, password: str) -> tuple:
             return False, "User not found"
         
         password_hash, expiration_date, active, tier = result
+        
+        # CHECK: Usuario en estado PENDING
+        if tier == "Pending":
+            return False, "Your account is PENDING admin approval. Plan will be assigned shortly. Please wait."
         
         if not active:
             return False, "Account is deactivated"

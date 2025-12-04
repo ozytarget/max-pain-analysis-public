@@ -353,26 +353,13 @@ if not st.session_state["authenticated"]:
         with auth_tab2:
             st.markdown("### 📝 Crear Nueva Cuenta")
             st.markdown("**Completa los datos para registrarte:**")
+            st.info("⚠️ Tu plan será asignado por el administrador después del registro")
             
             with st.form(key="register_form"):
                 new_username = st.text_input("👤 Usuario", placeholder="Tu nombre de usuario", key="reg_username")
                 new_email = st.text_input("📧 Email", placeholder="tu@email.com", key="reg_email")
                 new_password = st.text_input("🔐 Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password")
                 confirm_password = st.text_input("🔐 Confirmar Contraseña", type="password", placeholder="Repite tu contraseña", key="reg_confirm")
-                
-                st.markdown("**Elige tu plan:**")
-                tier_col1, tier_col2, tier_col3 = st.columns(3)
-                with tier_col1:
-                    free_selected = st.radio("", options=["Free"], label_visibility="collapsed", key="tier_free")
-                    st.markdown('<div style="text-align:center"><small>10 scans/día<br/>30 días</small></div>', unsafe_allow_html=True)
-                with tier_col2:
-                    st.markdown("---")
-                    st.markdown('<div style="text-align:center; color:#39FF14"><b>PRO</b><br/><small>100 scans/día<br/>365 días</small></div>', unsafe_allow_html=True)
-                with tier_col3:
-                    st.markdown("---")
-                    st.markdown('<div style="text-align:center; color:#FFD700"><b>PREMIUM</b><br/><small>♾️ Ilimitado<br/>365 días</small></div>', unsafe_allow_html=True)
-                
-                selected_tier = st.selectbox("Plan", ["Free", "Pro", "Premium"], label_visibility="collapsed", key="tier_select")
                 
                 register_button = st.form_submit_button(label="✅ Registrarse", use_container_width=True)
                 
@@ -385,11 +372,11 @@ if not st.session_state["authenticated"]:
                     elif new_password != confirm_password:
                         st.error("❌ Las contraseñas no coinciden")
                     else:
-                        # Intentar crear usuario
-                        success, message = create_user(new_username, new_email, new_password, selected_tier)
+                        # Intentar crear usuario (sin plan, será "Pending")
+                        success, message = create_user(new_username, new_email, new_password)
                         if success:
-                            st.success(f"✅ {message}\n\n🎉 ¡Cuenta creada! Ahora inicia sesión en la pestaña 🔐 Login")
-                            logger.info(f"New user registered: {new_username} with tier {selected_tier}")
+                            st.success(f"✅ {message}\n\n📋 Estado: PENDIENTE DE ASIGNACIÓN\n\n🔔 El administrador asignará tu plan en breve.\n\n🔐 Cuando esté listo, inicia sesión en la pestaña Login")
+                            logger.info(f"New user registered: {new_username} - Pending admin assignment")
                         else:
                             st.error(f"❌ {message}")
 
@@ -4067,6 +4054,39 @@ def main():
                 st.metric("📈 Total Logins", stats["total_logins"])
                 
                 st.markdown("---")
+                
+                # PENDING USERS SECTION
+                users_df = get_all_users()
+                if not users_df.empty:
+                    pending_users = users_df[users_df['tier'] == 'Pending']
+                    if not pending_users.empty:
+                        st.markdown("### ⏳ PENDING USERS (Awaiting Tier Assignment)")
+                        st.warning(f"⚠️ {len(pending_users)} user(s) pending admin tier assignment")
+                        
+                        pending_display = pending_users[['username', 'email', 'created_date']].copy()
+                        pending_display['created_date'] = pd.to_datetime(pending_display['created_date']).dt.strftime("%Y-%m-%d")
+                        st.dataframe(pending_display, use_container_width=True, hide_index=True)
+                        
+                        # Quick assign for pending users
+                        st.markdown("#### ⚡ Quick Assign Tier")
+                        pending_col1, pending_col2, pending_col3 = st.columns(3)
+                        
+                        with pending_col1:
+                            pending_user = st.selectbox("Select Pending User", pending_users['username'].tolist(), key="pending_user_select")
+                        
+                        with pending_col2:
+                            assign_tier = st.selectbox("Assign Tier", ["Free", "Pro", "Premium"], key="pending_tier_select")
+                        
+                        with pending_col3:
+                            if st.button("✅ Assign Tier", use_container_width=True, key="assign_pending_btn"):
+                                if change_user_tier(pending_user, assign_tier):
+                                    st.success(f"✅ {pending_user} assigned to {assign_tier} plan")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to assign tier")
+                        
+                        st.markdown("---")
+                
                 st.markdown("### 👤 Manage Users")
                 
                 admin_tab1, admin_tab2, admin_tab3 = st.tabs(["All Users", "Activity Log", "Tools"])
