@@ -3944,8 +3944,8 @@ def main():
         }
 
     # Definición de los tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |", "| Stock Insights |",
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",
         "| MM Market Analysis |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
         "| Target Generator |"
     ])
@@ -5544,244 +5544,8 @@ def main():
     # Tab 4: Institutional Holders
 
 
-
+    # Tab 4: MM Market Analysis
     with tab4:
-        # Estilo CSS para un diseño limpio y consistente
-        st.markdown("""
-            <style>
-            .stApp {
-                background-color: #000000;
-            }
-            .tab4-container {
-                padding: 20px;
-                background: #1E1E1E;
-                border-radius: 10px;
-                border: 1px solid #39FF14;
-                box-shadow: 0 0 15px rgba(57, 255, 20, 0.3);
-            }
-            .section-title {
-                font-size: 22px;
-                font-weight: 600;
-                color: #00FFFF;
-                text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
-                margin-bottom: 15px;
-                font-family: 'Courier New', Courier, monospace;
-            }
-            .sub-section {
-                font-size: 18px;
-                font-weight: 500;
-                color: #39FF14;
-                margin-top: 20px;
-                margin-bottom: 10px;
-            }
-            .data-text {
-                font-size: 14px;
-                color: #E0E0E0;
-                font-family: 'Arial', sans-serif;
-            }
-            .stDataFrame {
-                border: 1px solid #39FF14;
-                border-radius: 5px;
-                background: #0F1419;
-            }
-            .stTextInput input, .stSelectbox select, .stNumberInput input, .stDateInput input {
-                background-color: #2D2D2D;
-                color: #FFFFFF;
-                border: 1px solid #39FF14;
-                border-radius: 5px;
-                font-family: 'Arial', sans-serif;
-            }
-            .stButton button {
-                background: linear-gradient(90deg, #39FF14, #00FFFF);
-                color: #0A0A0A;
-                border: none;
-                border-radius: 5px;
-                padding: 8px 16px;
-                font-family: 'Courier New', Courier, monospace;
-                font-weight: 600;
-                transition: all 0.3s ease;
-            }
-            .stButton button:hover {
-                box-shadow: 0 0 10px rgba(57, 255, 20, 0.8);
-            }
-            .divider {
-                border-top: 1px dashed #00FFFF;
-                margin: 20px 0;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-
-        # Contenedor principal
-        with st.container():
-            # Market Movers (Gainers, Losers, Actives)
-            st.markdown('<div class="sub-section">Market Movers</div>', unsafe_allow_html=True)
-            movers = fetch_fmp_market_movers()
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown('<p class="data-text"><b>Top Gainers</b></p>', unsafe_allow_html=True)
-                if movers["gainers"]:
-                    gainers_df = pd.DataFrame(movers["gainers"]).rename(columns={"symbol": "Ticker", "name": "Name", "price": "Price", "changePercentage": "Change (%)"})
-                    st.dataframe(
-                        gainers_df[["Ticker", "Price", "Change (%)"]].style.format({"Price": "${:.2f}", "Change (%)": "{:.2f}%"}, na_rep="N/A"),
-                        use_container_width=True,
-                        height=150
-                    )
-                else:
-                    st.markdown('<p class="data-text">No gainers data available. Check logs for API response.</p>', unsafe_allow_html=True)
-            with col2:
-                st.markdown('<p class="data-text"><b>Top Losers</b></p>', unsafe_allow_html=True)
-                if movers["losers"]:
-                    losers_df = pd.DataFrame(movers["losers"]).rename(columns={"symbol": "Ticker", "name": "Name", "price": "Price", "changePercentage": "Change (%)"})
-                    st.dataframe(
-                        losers_df[["Ticker", "Price", "Change (%)"]].style.format({"Price": "${:.2f}", "Change (%)": "{:.2f}%"}, na_rep="N/A"),
-                        use_container_width=True,
-                        height=150
-                    )
-                else:
-                    st.markdown('<p class="data-text">No losers data available. Check logs for API response.</p>', unsafe_allow_html=True)
-            with col3:
-                st.markdown('<p class="data-text"><b>Most Active</b></p>', unsafe_allow_html=True)
-                if movers["actives"]:
-                    actives_df = pd.DataFrame(movers["actives"]).rename(columns={"symbol": "Ticker", "name": "Name", "price": "Price", "changePercentage": "Change (%)"})
-                    st.dataframe(
-                        actives_df[["Ticker", "Price", "Change (%)"]].style.format({"Price": "${:.2f}", "Change (%)": "{:.2f}%"}, na_rep="N/A"),
-                        use_container_width=True,
-                        height=150
-                    )
-                else:
-                    st.markdown('<p class="data-text">No active stocks data available. Check logs for API response.</p>', unsafe_allow_html=True)
-            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-            # Actividad de Trading Político
-            st.markdown('<div class="sub-section">Political Trading Activity</div>', unsafe_allow_html=True)
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown('<p class="data-text"><b>Recent Senate Trades</b></p>', unsafe_allow_html=True)
-                senate_trades = fetch_fmp_senate_trades()
-                if senate_trades:
-                    senate_df = pd.DataFrame(senate_trades).rename(columns={
-                        "senator": "Senator",
-                        "ticker": "Ticker",
-                        "transaction_date": "Date",
-                        "transaction_type": "Type",
-                        "amount_range": "Amount Range"
-                    })
-                    st.dataframe(
-                        senate_df[["Senator", "Ticker", "Date", "Type", "Amount Range"]].style.set_properties(**{
-                            "background-color": "#0F1419",
-                            "color": "#E0E0E0",
-                            "border-color": "#39FF14",
-                            "font-family": "'Arial', sans-serif",
-                            "text-align": "center"
-                        }),
-                        use_container_width=True,
-                        height=150
-                    )
-                else:
-                    st.markdown('<p class="data-text">No recent Senate trades available. Check logs or FMP plan.</p>', unsafe_allow_html=True)
-            with col2:
-                st.markdown('<p class="data-text"><b>Recent House Trades</b></p>', unsafe_allow_html=True)
-                house_trades = fetch_fmp_house_trades()
-                if house_trades:
-                    house_df = pd.DataFrame(house_trades).rename(columns={
-                        "representative": "Representative",
-                        "ticker": "Ticker",
-                        "transaction_date": "Date",
-                        "transaction_type": "Type",
-                        "amount_range": "Amount Range"
-                    })
-                    st.dataframe(
-                        house_df[["Representative", "Ticker", "Date", "Type", "Amount Range"]].style.set_properties(**{
-                            "background-color": "#0F1419",
-                            "color": "#E0E0E0",
-                            "border-color": "#39FF14",
-                            "font-family": "'Arial', sans-serif",
-                            "text-align": "center"
-                        }),
-                        use_container_width=True,
-                        height=150
-                    )
-                else:
-                    st.markdown('<p class="data-text">No recent House trades available. Check logs or FMP plan.</p>', unsafe_allow_html=True)
-           
-            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-            # Búsqueda por Nombre de Empresa
-            st.markdown('<div class="sub-section">Search by Company Name</div>', unsafe_allow_html=True)
-            search_query = st.text_input("Enter company name (e.g., Apple)", key="company_search", help="Search for companies by name")
-            if search_query:
-                with st.spinner("Searching companies..."):
-                    search_results = fetch_fmp_company_search(search_query)
-                    if search_results:
-                        search_df = pd.DataFrame(search_results)
-                        if "symbol" in search_df.columns and "name" in search_df.columns and "exchange" in search_df.columns:
-                            st.dataframe(
-                                search_df[["symbol", "name", "exchange"]].rename(
-                                    columns={"symbol": "Ticker", "name": "Company Name", "exchange": "Exchange"}
-                                ).style.set_properties(**{
-                                    "background-color": "#0F1419",
-                                    "color": "#E0E0E0",
-                                    "border-color": "#39FF14",
-                                    "font-family": "'Arial', sans-serif",
-                                    "text-align": "center"
-                                }),
-                                use_container_width=True,
-                                height=200
-                            )
-                        else:
-                            logger.warning(f"Company search DataFrame missing required columns: {search_df.columns}")
-                            st.warning("No valid results found. Try a different company name.")
-                    else:
-                        st.warning("No results found. Try a different company name.")
-            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-            # Screener de Acciones
-            st.markdown('<div class="sub-section">Stock Screener</div>', unsafe_allow_html=True)
-            with st.expander("Filter Stocks"):
-                screener_col1, screener_col2 = st.columns(2)
-                with screener_col1:
-                    min_market_cap = st.number_input("Min Market Cap (USD)", min_value=0, value=1000000000, step=100000000)
-                    sector = st.selectbox("Sector", ["All", "Technology", "Financial Services", "Healthcare", "Consumer Cyclical", "Industrials", "Energy", "Communication Services"])
-                with screener_col2:
-                    max_beta = st.number_input("Max Beta", min_value=0.0, value=2.0, step=0.1)
-                    exchange = st.selectbox("Exchange", ["All", "NASDAQ", "NYSE", "WSE"])
-                if st.button("Apply Filters"):
-                    with st.spinner("Filtering stocks..."):
-                        screener_results = fetch_fmp_stock_screener(
-                            min_market_cap=min_market_cap,
-                            max_beta=max_beta,
-                            sector=sector if sector != "All" else None,
-                            exchange=exchange if exchange != "All" else None
-                        )
-                        if screener_results:
-                            screener_df = pd.DataFrame(screener_results)
-                            if all(col in screener_df.columns for col in ["symbol", "companyName", "marketCap", "sector", "beta"]):
-                                st.dataframe(
-                                    screener_df[["symbol", "companyName", "marketCap", "sector", "beta"]].rename(
-                                        columns={
-                                            "symbol": "Ticker",
-                                            "companyName": "Company Name",
-                                            "marketCap": "Market Cap",
-                                            "sector": "Sector",
-                                            "beta": "Beta"
-                                        }
-                                    ).style.format({"Market Cap": "${:,.2f}", "Beta": "{:.2f}"}),
-                                    use_container_width=True,
-                                    height=200
-                                )
-                            else:
-                                logger.warning(f"Stock screener DataFrame missing required columns: {screener_df.columns}")
-                                st.warning("No stocks match the selected criteria.")
-                        else:
-                            st.warning("No stocks match the selected criteria.")
-            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-            st.markdown('<p style="text-align: center; color: #778DA9; font-family: \'Arial\', sans-serif;">*Developed by Ozy | © 2025*</p>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            
-    # Tab 5: MM Market Analysis
-    with tab5:
         st.subheader("📊 Market Maker Analysis - Smart Strike Valuation")
         
         # Input fields
@@ -5963,9 +5727,9 @@ def main():
         st.divider()
         st.markdown("*Developed by Ozy | MM Analysis © 2025*")
 
-    # Tab 6: Analyst Rating Flow
-        # Tab 6: Analyst Rating Flow
-    with tab6:
+    # Tab 5: Analyst Rating Flow
+        # Tab 5: Analyst Rating Flow
+    with tab5:
         st.subheader("Rating Flow")
         
         # Estilos personalizados
@@ -6282,8 +6046,8 @@ def main():
             st.markdown("---")
             st.markdown("*Developed by Ozy | © 2025*")
 
-    # Tab 7: Elliott Pulse
-    with tab7:
+    # Tab 6: Elliott Pulse
+    with tab6:
         st.subheader("Elliott Pulse")
         ticker = st.text_input("Ticker Symbol (e.g., SPY)", "SPY", key="elliott_ticker").upper()
         expiration_dates = get_expiration_dates(ticker)
@@ -6456,8 +6220,8 @@ def main():
             st.markdown("---")
             st.markdown("*Developed by Ozy | © 2025*")
 
-    # Tab 8: Trade Targets & MM Logic
-    with tab8:
+    # Tab 7: Trade Targets & MM Logic
+    with tab7:
         st.subheader("🎯 Trade Targets & MM Logic")
         
         # Configuración inicial
