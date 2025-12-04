@@ -3761,7 +3761,7 @@ def main():
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |", "| Stock Insights |",
         "| Options Order Flow |", "| Analyst Rating Flow |", "| Elliott Pulse® |", "| Crypto Insights |",
-        "| Trade Targets & MM Logic |"
+        "| Target Generator |"
     ])
 
     # Tab 1: Gummy Data Bubbles®
