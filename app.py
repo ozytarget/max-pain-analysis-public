@@ -5032,28 +5032,194 @@ def main():
                                 
                                 # ============ TABLA ESTÁNDAR PARA OTRAS ESTRATEGIAS ============
                                 else:
+                                    # ========== ALGORITMO BULLISH & SHORT SQUEEZE DETECTOR ==========
+                                    def calculate_bullish_short_squeeze_score(df):
+                                        """
+                                        Calcula puntuación para detectar:
+                                        1. Potencial Bullish: Presión de compra, volumen alto, momentum positivo
+                                        2. Short Squeeze: Alto interés corto + volumen explosivo + reversión alcista
+                                        """
+                                        scores = []
+                                        
+                                        for idx, row in df.iterrows():
+                                            score = 0
+                                            signals = []
+                                            
+                                            # ===== BULLISH SIGNALS =====
+                                            change = 0
+                                            if 'Change' in df.columns:
+                                                change_str = str(row['Change']).replace('%', '').replace(',', '')
+                                                try:
+                                                    change = float(change_str)
+                                                except:
+                                                    change = 0
+                                            
+                                            # Signal 1: Cambio positivo (bullish momentum)
+                                            if change > 1:
+                                                score += 15
+                                                signals.append("📈 Positive Momentum")
+                                            elif change > 3:
+                                                score += 25
+                                                signals.append("📈📈 Strong Momentum")
+                                            
+                                            # Signal 2: Volumen alto (actividad institucional)
+                                            volume = 0
+                                            if 'Volume' in df.columns:
+                                                vol_str = str(row['Volume']).replace(',', '')
+                                                try:
+                                                    volume = float(vol_str)
+                                                except:
+                                                    volume = 0
+                                            
+                                            if volume > 2_000_000:
+                                                score += 15
+                                                signals.append("📊 High Volume")
+                                            elif volume > 5_000_000:
+                                                score += 20
+                                                signals.append("📊📊 Extreme Volume")
+                                            
+                                            # Signal 3: RSI (si está disponible)
+                                            if 'RSI (14)' in df.columns:
+                                                try:
+                                                    rsi = float(row['RSI (14)'])
+                                                    if 50 < rsi < 70:  # Momentum positivo sin sobreventa
+                                                        score += 10
+                                                        signals.append("⚡ Positive RSI")
+                                                    elif rsi < 30:  # Oversold (buena entrada)
+                                                        score += 15
+                                                        signals.append("🟢 RSI Oversold (Entry)")
+                                                except:
+                                                    pass
+                                            
+                                            # ===== SHORT SQUEEZE SIGNALS =====
+                                            
+                                            # Signal 4: Reversión desde resistencia
+                                            if change > 5:
+                                                score += 20
+                                                signals.append("🚀 Strong Reversal")
+                                            
+                                            # Signal 5: Volumen explosivo + cambio positivo (squeeze activación)
+                                            if volume > 3_000_000 and change > 2:
+                                                score += 25
+                                                signals.append("💥 Squeeze Activation")
+                                            
+                                            # Signal 6: Patrones técnicos si existen
+                                            if 'Pattern' in df.columns:
+                                                pattern = str(row['Pattern']).upper()
+                                                if 'BOTTOM' in pattern or 'SUPPORT' in pattern:
+                                                    score += 12
+                                                    signals.append("📍 Support Bounce")
+                                                if 'BREAKOUT' in pattern:
+                                                    score += 15
+                                                    signals.append("⬆️ Breakout")
+                                            
+                                            # Signal 7: Market Cap (Small cap = más volatilidad para squeeze)
+                                            if 'Market Cap' in df.columns:
+                                                mcap_str = str(row['Market Cap']).replace(',', '').replace('B', '').replace('M', '')
+                                                try:
+                                                    mcap = float(mcap_str)
+                                                    if mcap < 2:  # Menos de $2B
+                                                        score += 10
+                                                        signals.append("🎯 Small Cap (High Volatility)")
+                                                except:
+                                                    pass
+                                            
+                                            # ===== RESULTADO FINAL =====
+                                            is_highlight = score >= 40  # Threshold para resaltar
+                                            
+                                            scores.append({
+                                                'highlight': is_highlight,
+                                                'score': score,
+                                                'signals': ' | '.join(signals) if signals else 'Monitor',
+                                                'type': 'BULLISH' if change > 0 else ('SHORT SQUEEZE' if score >= 50 else 'NEUTRAL')
+                                            })
+                                        
+                                        return scores
+                                    
+                                    # Calcular scores
+                                    df_scores = calculate_bullish_short_squeeze_score(df_finviz)
+                                    
+                                    # Agregar columnas de análisis al DataFrame
+                                    df_finviz['_Score'] = [s['score'] for s in df_scores]
+                                    df_finviz['_Type'] = [s['type'] for s in df_scores]
+                                    df_finviz['📊 Signals'] = [s['signals'] for s in df_scores]
+                                    df_finviz['_Highlight'] = [s['highlight'] for s in df_scores]
+                                    
+                                    # Ordenar por score (mayor primero)
+                                    df_display = df_finviz.sort_values('_Score', ascending=False)
+                                    
+                                    # Preparar columnas a mostrar
                                     display_cols = []
-                                    if 'Ticker' in df_finviz.columns:
+                                    if 'Ticker' in df_display.columns:
                                         display_cols.append('Ticker')
-                                    if 'Pattern' in df_finviz.columns:
+                                    if 'Pattern' in df_display.columns:
                                         display_cols.append('Pattern')
-                                    if 'Company' in df_finviz.columns:
+                                    if 'Company' in df_display.columns:
                                         display_cols.append('Company')
-                                    if 'Price' in df_finviz.columns:
+                                    if 'Price' in df_display.columns:
                                         display_cols.append('Price')
-                                    if 'Change' in df_finviz.columns:
+                                    if 'Change' in df_display.columns:
                                         display_cols.append('Change')
-                                    if 'Volume' in df_finviz.columns:
+                                    if 'Volume' in df_display.columns:
                                         display_cols.append('Volume')
-                                    if 'Market Cap' in df_finviz.columns:
+                                    if 'Market Cap' in df_display.columns:
                                         display_cols.append('Market Cap')
-                                    if 'RSI (14)' in df_finviz.columns:
+                                    if 'RSI (14)' in df_display.columns:
                                         display_cols.append('RSI (14)')
                                     
+                                    display_cols.extend(['_Type', '📊 Signals', '_Score'])
+                                    
+                                    # Crear tabla con highlight amarillo
+                                    df_table = df_display[display_cols].head(max_results).reset_index(drop=True)
+                                    
+                                    # Crear HTML para tabla estilizada
+                                    def style_table_with_highlights(df, highlight_column='_Highlight'):
+                                        """Crea tabla HTML con filas amarillas para highlights"""
+                                        html = '<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse;">'
+                                        html += '<thead><tr style="background-color: #1a1a1a; color: #39FF14; font-weight: bold;">'
+                                        
+                                        for col in df.columns:
+                                            if col != '_Highlight':
+                                                html += f'<th style="padding: 10px; text-align: left; border: 1px solid #333;">{col}</th>'
+                                        html += '</tr></thead><tbody>'
+                                        
+                                        for idx, row in df.iterrows():
+                                            bg_color = '#FFD700' if (highlight_column in df.columns and row[highlight_column]) else '#0a0a0a'
+                                            text_color = '#000' if bg_color == '#FFD700' else '#fff'
+                                            html += f'<tr style="background-color: {bg_color}; color: {text_color};">'
+                                            
+                                            for col in df.columns:
+                                                if col != '_Highlight':
+                                                    value = str(row[col])
+                                                    # Bold para tickers y tipo
+                                                    if col in ['Ticker', '_Type']:
+                                                        html += f'<td style="padding: 10px; border: 1px solid #333; font-weight: bold;">{value}</td>'
+                                                    else:
+                                                        html += f'<td style="padding: 10px; border: 1px solid #333;">{value}</td>'
+                                            html += '</tr>'
+                                        
+                                        html += '</tbody></table></div>'
+                                        return html
+                                    
+                                    # Mostrar tabla
                                     if display_cols:
-                                        st.dataframe(df_finviz[display_cols].head(max_results), use_container_width=True)
+                                        # Crear versión sin la columna _Highlight para mostrar
+                                        df_to_display = df_table.copy()
+                                        
+                                        # Mostrar con HTML personalizado
+                                        html_table = style_table_with_highlights(df_to_display)
+                                        st.markdown(html_table, unsafe_allow_html=True)
+                                        
+                                        # Leyenda
+                                        col_legend1, col_legend2, col_legend3 = st.columns(3)
+                                        with col_legend1:
+                                            st.markdown("🟨 **FONDO AMARILLO** = Potencial Bullish / Short Squeeze")
+                                        with col_legend2:
+                                            st.markdown("📊 **Signals** = Razones detectadas")
+                                        with col_legend3:
+                                            st.markdown(f"**Score** = Puntuación (40+ = Highlight)")
                                     else:
-                                        st.dataframe(df_finviz.head(max_results), use_container_width=True)
+                                        st.dataframe(df_finviz[['Ticker', '_Type', '📊 Signals', '_Score']].head(max_results), use_container_width=True)
                         
                         except Exception as e:
                             st.error(f"Error processing data: {str(e)}")
