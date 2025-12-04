@@ -618,6 +618,92 @@ def get_options_data_hybrid(ticker: str, expiration_date: str = "", prefer_sourc
     
     logger.error(f"❌ Both Tradier and Finviz failed for {ticker}")
     return None
+
+@st.cache_data(ttl=CACHE_TTL)
+def get_finviz_screener_elite(filters: Dict[str, any] = None, columns: List[str] = None, view_id: str = "111") -> Optional[pd.DataFrame]:
+    """
+    Fetch screener data from Finviz Elite export API.
+    
+    Uses the official Finviz Elite screener export endpoint with proper authentication.
+    
+    Args:
+        filters: Dictionary of filters (e.g., {"fa_div_pos": None, "sec_technology": None})
+        columns: Optional list of column IDs to export
+        view_id: View ID (111 = default screener, 152 = compact, etc.)
+    
+    Returns:
+        pandas.DataFrame with screener results or None if failed
+    
+    Official Finviz URL Structure:
+        https://elite.finviz.com/export.ashx?v=[view]&f=[filters]&c=[columns]&auth=[token]
+    
+    Parameters:
+        v = View ID (111 = default, 152 = compact, etc.)
+        f = Comma-separated filters (fa_div_pos,sec_technology)
+        c = Optional columns to export
+        auth = API Token (required)
+        r = Max results (1000)
+    
+    Example:
+        filters = {"fa_div_pos": None, "sec_technology": None}
+        df = get_finviz_screener_elite(filters, view_id="111")
+    
+    Typical Filters:
+        • fa_div_pos = Positive dividend yield
+        • sec_technology = Technology sector
+        • ta_volatility_wo5 = Volatility > 5%
+        • ta_changeopen_u5 = Change from open > 5%
+        • cap_mega = Market cap > $200B
+        • sh_avgvol_o500 = Average volume > 500k
+        • ta_perf_1wup = 1-week performance up
+        • ta_pattern_doubletop = Double top pattern
+    """
+    try:
+        # Build URL parameters following official Finviz Elite API
+        params = {
+            "v": view_id,              # View ID
+            "auth": FINVIZ_API_TOKEN,  # API Token
+            "r": "1000"                # Request up to 1000 results per call
+        }
+        
+        # Add filters if provided
+        if filters:
+            # Build filter string: comma-separated filter names
+            # Example: "fa_div_pos,sec_technology,ta_volatility_wo5"
+            filter_names = [k for k in filters.keys() if k not in ["o", "r"]]
+            if filter_names:
+                params["f"] = ",".join(filter_names)
+            
+            # Handle ordering parameter if present
+            if "o" in filters:
+                params["o"] = filters["o"]
+        
+        # Add columns if specified (optional customization)
+        if columns:
+            columns_str = ",".join([str(c) for c in columns])
+            params["c"] = columns_str
+        
+        # Construct the URL: https://elite.finviz.com/export.ashx
+        url = f"{FINVIZ_BASE_URL}/export.ashx"
+        
+        # Make request to Finviz Elite screener export endpoint
+        response = requests.get(url, params=params, headers=HEADERS_FINVIZ, timeout=15)
+        response.raise_for_status()
+        
+        # Parse CSV response into DataFrame
+        from io import StringIO
+        df = pd.read_csv(StringIO(response.text))
+        
+        if df.empty:
+            logger.warning(f"Finviz screener returned no results with filters: {params.get('f', 'none')}")
+            return None
+        
+        logger.info(f"Finviz Screener: {len(df)} results (View: {view_id}, Filters: {params.get('f', 'none')})")
+        return df
+        
+    except Exception as e:
+        logger.warning(f"Finviz screener fetch failed: {str(e)}")
+        return None
          
 @st.cache_data(ttl=60)
 def get_current_prices(tickers: List[str]) -> Dict[str, float]:
@@ -4372,7 +4458,31 @@ def main():
         
         # Function to fetch data from FinViz Elite API
         def get_finviz_screener(filters_dict, columns_list=None, add_delay=True):
-            """Fetch screener data from Ozy"""
+            """
+            Fetch screener data from Finviz Elite export API.
+            
+            Uses the official Finviz Elite screener export endpoint with proper authentication.
+            
+            Args:
+                filters_dict: Dictionary of filters (e.g., {"fa_div_pos": None, "sec_technology": None})
+                columns_list: Optional list of column IDs to export
+                add_delay: Add 2-second delay to avoid rate limiting
+            
+            Returns:
+                pandas.DataFrame with screener results
+            
+            Official Finviz URL Structure:
+                https://elite.finviz.com/export.ashx?v=[view]&f=[filters]&c=[columns]&auth=[token]
+            
+            Parameters:
+                v = View ID (111 = default screener view, 152 = compact, etc.)
+                f = Comma-separated filters (fa_div_pos,sec_technology)
+                c = Optional columns to export
+                auth = API Token (69d5c83f-1e60-4fc6-9c5d-3b37c08a0531)
+            
+            Example:
+                https://elite.finviz.com/export.ashx?v=111&f=fa_div_pos,sec_technology&auth=TOKEN
+            """
             import time
             from io import StringIO
             
@@ -4381,11 +4491,11 @@ def main():
                 if add_delay:
                     time.sleep(2)
                 
-                # Build URL parameters
+                # Build URL parameters following official Finviz Elite API
                 params = {
-                    "v": "152",
+                    "v": "111",      # View ID (111 = default screener view)
                     "auth": FINVIZ_API_TOKEN,
-                    "r": "1000"  # Request up to 1000 results per call
+                    "r": "1000"      # Request up to 1000 results per call
                 }
                 
                 # Add filter string if provided
@@ -4393,6 +4503,8 @@ def main():
                     # Separate ordering parameter from filters
                     order_by = filters_dict.pop("o", None)
                     
+                    # Build filter string: comma-separated filter names
+                    # Example: "fa_div_pos,sec_technology,ta_volatility_wo5"
                     filter_str = ",".join([k for k in filters_dict.keys()])
                     if filter_str:
                         params["f"] = filter_str
@@ -4401,19 +4513,31 @@ def main():
                     if order_by:
                         params["o"] = order_by
                 
-                # Make request
-                response = requests.get(FINVIZ_BASE_URL, params=params, timeout=15)
+                # Add columns if specified (optional customization)
+                if columns_list:
+                    columns_str = ",".join([str(c) for c in columns_list])
+                    params["c"] = columns_str
+                
+                # Construct the URL
+                # Base: https://elite.finviz.com/export.ashx
+                url = f"{FINVIZ_BASE_URL}/export.ashx"
+                
+                # Make request to Finviz Elite export endpoint
+                response = requests.get(url, params=params, headers=HEADERS_FINVIZ, timeout=15)
                 response.raise_for_status()
                 
-                # Parse CSV response
+                # Parse CSV response into DataFrame
                 df = pd.read_csv(StringIO(response.text))
                 
+                logger.info(f"Finviz Screener: {len(df)} results with filters: {filter_str if filters_dict else 'None'}")
                 return df
                 
             except requests.exceptions.RequestException as e:
+                logger.warning(f"Finviz screener request failed: {str(e)}")
                 st.error("⏳ Data retrieval in progress. Please refresh.")
                 return pd.DataFrame()
             except Exception as e:
+                logger.error(f"Finviz screener parsing error: {str(e)}")
                 st.error("⏳ Processing data. Please refresh.")
                 return pd.DataFrame()
         
