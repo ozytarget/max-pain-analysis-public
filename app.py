@@ -752,7 +752,7 @@ def analyze_contracts(ticker, expiration, current_price):
     try:
         response = requests.get(url, headers=HEADERS_TRADIER, params=params, timeout=10)
         if response.status_code != 200:
-            st.error(f"Error retrieving option contracts: {response.status_code}")
+            st.info("Option data is being processed. Please refresh the page.")
             return pd.DataFrame()
         options = response.json().get("options", {}).get("option", [])
         if not options:
@@ -768,10 +768,10 @@ def analyze_contracts(ticker, expiration, current_price):
         df['break_even'] = df.apply(lambda row: row['strike'] + row['bid'] if row['option_type'] == 'call' else row['strike'] - row['bid'], axis=1)
         return df
     except requests.exceptions.ReadTimeout:
-        st.error(f"Timeout retrieving option contracts for {ticker}. Tradier API did not respond.")
+        st.info(f"Option data for {ticker} is temporarily unavailable. Please try again shortly.")
         return pd.DataFrame()
     except requests.RequestException as e:
-        st.error(f"Error retrieving option contracts for {ticker}: {str(e)}")
+        st.info(f"Option data for {ticker} is temporarily unavailable. Please try again shortly.")
         return pd.DataFrame()
 
 def style_and_sort_table(df):
@@ -1357,7 +1357,7 @@ def fetch_batch_stock_data(tickers):
                  "Volume": item.get("volume", 0), "Average Volume": item.get("average_volume", 1),
                  "IV": item.get("implied_volatility", None), "HV": item.get("historical_volatility", None),
                  "Previous Close": item.get("prev_close", 0)} for item in data]
-    st.error(f"Error fetching batch data: {response.status_code}")
+    st.error("⏳ Batch data is being retrieved. Please refresh to try again.")
     return []
 
 
@@ -1530,7 +1530,7 @@ def get_option_data(symbol: str, expiration_date: str) -> pd.DataFrame:
     try:
         response = requests.get(url, headers=HEADERS_TRADIER, params=params, timeout=10)
         if response.status_code != 200:
-            st.error(f"Error al obtener los datos de opciones. Código de estado: {response.status_code}")
+            st.info("Option data is being synchronized. Please refresh to retry.")
             logger.error(f"API request failed for {symbol} with expiration {expiration_date}: Status {response.status_code}")
             return pd.DataFrame()
         
@@ -1555,11 +1555,11 @@ def get_option_data(symbol: str, expiration_date: str) -> pd.DataFrame:
         return pd.DataFrame()
     
     except requests.RequestException as e:
-        st.error(f"Error de red al obtener datos de opciones para {symbol}: {str(e)}")
+        st.error(f"⏳ Datos de opciones para {symbol} siendo procesados. Por favor refresca.")
         logger.error(f"Network error fetching options for {symbol}: {str(e)}")
         return pd.DataFrame()
     except ValueError as e:
-        st.error(f"Error al procesar la respuesta JSON para {symbol}: {str(e)}")
+        st.error(f"⏳ Procesando datos de opciones para {symbol}. Por favor refresca.")
         logger.error(f"JSON parsing error for {symbol}: {str(e)}")
         return pd.DataFrame()
 
@@ -1578,10 +1578,10 @@ def fetch_data(endpoint: str, ticker: str = None, additional_params: dict = None
                 st.warning(f"No Data: {endpoint}")
                 return None
             return data
-        st.error(f"Error al obtener datos: {response.status_code} - {response.text}")
+        st.error("⏳ Datos siendo sincronizados. Por favor, refresca la página e intenta de nuevo.")
         return None
     except Exception as e:
-        st.error(f"Error  HTTP: {str(e)}")
+        st.error("⏳ Data is being retrieved. Please refresh to try again.")
         return None
 
 def get_institutional_holders_list(ticker: str):
@@ -3848,7 +3848,7 @@ def main():
         with st.spinner("Fetching price..."):
             current_price = get_current_price(ticker)
             if current_price == 0.0:
-                st.error(f"Unable to fetch current price for '{ticker}'. Check ticker validity, API keys, or internet connection.")
+                st.error(f"⏳ Price data for '{ticker}' is temporarily unavailable. Please try again shortly.")
                 logger.error(f"Price fetch failed for {ticker}")
                 st.stop()
         
@@ -4083,9 +4083,9 @@ def main():
                     else:
                         st.info("No analyst price targets available for the last 12 months.")
                 else:
-                    st.warning(f"No data available from FMP API for {ticker}.")
+                    st.info("Price target data is currently being processed. Please refresh to check again.")
             else:
-                st.warning(f"⚠️ Price Target data unavailable (FMP API: {tab1_hist_response.status_code}/{tab1_targets_response.status_code}). Your plan may have limited access to v4 endpoints.")
+                st.info("⏳ Price target analysis is temporarily unavailable. Data sync in progress.")
         
         except Exception as e:
             st.error(f"Error loading Price Target chart: {str(e)}")
@@ -4581,10 +4581,10 @@ def main():
                 return df
                 
             except requests.exceptions.RequestException as e:
-                st.error(f"❌ Ozy API Error: {str(e)}")
+                st.error("⏳ Data retrieval in progress. Please refresh.")
                 return pd.DataFrame()
             except Exception as e:
-                st.error(f"❌ Error processing Ozy data: {str(e)}")
+                st.error("⏳ Processing data. Please refresh.")
                 return pd.DataFrame()
         
         # ===== SELECTOR DE ESTRATEGIA =====
@@ -5446,7 +5446,7 @@ def main():
             with st.spinner("Fetching data..."):
                 current_price = get_current_price(stock)
                 if current_price == 0.0:
-                    st.error(f"❌ No se pudo obtener el precio actual para {stock}. Verifica el ticker o la conexión a la API.")
+                    st.error(f"❌ No se pudo obtener el precio para {stock}. Por favor, intenta de nuevo en un momento.")
                     return
                 
                 order_flow_df, total_call_oi, total_put_oi, net_gamma, direction_mm = process_order_flow_data(stock, selected_expiration, current_price)
@@ -6115,14 +6115,14 @@ def main():
                     # Obtener datos de mercado de CoinGecko
                     market_data = fetch_coingecko_data(ticker)
                     if not market_data:
-                        st.error(f"Failed to fetch market data for {ticker} from  Data.")
+                        st.error(f"⏳ Market data for {ticker} is being synced. Please try again shortly.")
                         logger.error(f"No market data returned for {ticker} from Data")
                     else:
                         # Obtener libro de órdenes de Kraken
                         logger.info(f"Attempting to fetch order book for {selected_pair}")
                         bids, asks, current_price = fetch_order_book(ticker, depth=500)
                         if bids.empty or asks.empty:
-                            st.error(f"Failed to fetch order book for {selected_pair}. Verify the ticker or check Kraken API status.")
+                            st.error(f"⏳ Order book data is temporarily unavailable. Please refresh to retry.")
                             logger.error(f"Order book fetch failed: bids={len(bids)}, asks={len(asks)} for {selected_pair}")
                         else:
                             # Mostrar datos en el placeholder
