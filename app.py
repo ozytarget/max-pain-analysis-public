@@ -4500,12 +4500,15 @@ def main():
                 
                 # Add filter string if provided
                 if filters_dict:
+                    # Create a copy to avoid modifying the original dictionary
+                    filters_copy = filters_dict.copy()
+                    
                     # Separate ordering parameter from filters
-                    order_by = filters_dict.pop("o", None)
+                    order_by = filters_copy.pop("o", None)
                     
                     # Build filter string: comma-separated filter names
                     # Example: "fa_div_pos,sec_technology,ta_volatility_wo5"
-                    filter_str = ",".join([k for k in filters_dict.keys()])
+                    filter_str = ",".join([k for k in filters_copy.keys() if k != "o"])
                     if filter_str:
                         params["f"] = filter_str
                     
@@ -4522,23 +4525,44 @@ def main():
                 # Base: https://elite.finviz.com/export.ashx
                 url = f"{FINVIZ_BASE_URL}/export.ashx"
                 
+                # Log request details for debugging
+                logger.info(f"Finviz Request: URL={url}, Params={params}")
+                
                 # Make request to Finviz Elite export endpoint
                 response = requests.get(url, params=params, headers=HEADERS_FINVIZ, timeout=15)
                 response.raise_for_status()
                 
+                # Check if response is valid
+                if not response.text or response.text.strip() == "":
+                    logger.warning("Finviz screener returned empty response")
+                    st.warning("⚠️ No data returned from Finviz. Try different filters.")
+                    return pd.DataFrame()
+                
                 # Parse CSV response into DataFrame
                 df = pd.read_csv(StringIO(response.text))
                 
-                logger.info(f"Finviz Screener: {len(df)} results with filters: {filter_str if filters_dict else 'None'}")
+                if df.empty:
+                    logger.info(f"Finviz Screener: 0 results with current filters")
+                else:
+                    filter_str = params.get("f", "None")
+                    logger.info(f"Finviz Screener: {len(df)} results with filters: {filter_str}")
+                
                 return df
                 
             except requests.exceptions.RequestException as e:
-                logger.warning(f"Finviz screener request failed: {str(e)}")
-                st.error("⏳ Data retrieval in progress. Please refresh.")
+                logger.error(f"Finviz API Request Error: {str(e)}")
+                if hasattr(e, 'response') and e.response is not None:
+                    logger.error(f"Status Code: {e.response.status_code}")
+                    logger.error(f"Response: {e.response.text[:500]}")
+                st.error(f"🚨 API Connection Error: {str(e)[:100]}")
+                return pd.DataFrame()
+            except pd.errors.ParserError as e:
+                logger.error(f"Finviz CSV Parsing Error: {str(e)}")
+                st.warning("⚠️ Invalid response format from Finviz. Endpoint may have changed.")
                 return pd.DataFrame()
             except Exception as e:
-                logger.error(f"Finviz screener parsing error: {str(e)}")
-                st.error("⏳ Processing data. Please refresh.")
+                logger.error(f"Finviz screener error: {str(e)}", exc_info=True)
+                st.error(f"❌ Error processing data: {str(e)[:100]}")
                 return pd.DataFrame()
         
         # ===== SELECTOR DE ESTRATEGIA =====
