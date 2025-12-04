@@ -28,6 +28,9 @@ from dotenv import load_dotenv
 import krakenex
 import yfinance as yf
 
+# Import API backend client
+from api_client import api_client
+
 
 db_lock = Lock()
 AUTO_UPDATE_INTERVAL = 15
@@ -415,160 +418,37 @@ def fetch_api_data(url: str, params: Dict, headers: Dict, source: str, max_retri
 @st.cache_data(ttl=60)
 def get_current_price(ticker: str) -> float:
     """
-    Obtiene el precio actual de un ticker - Polygon primero, fallback a Tradier/FMP
+    Get current price from centralized API backend
     """
-    # Intentar Polygon primero (tiempo real) - solo si API key está configurada
-    if POLYGON_API_KEY:
-        try:
-            url_polygon = f"{POLYGON_BASE_URL}/v2/snapshot/locale/us/markets/stocks/tickers/{ticker.upper()}"
-            params = {"apiKey": POLYGON_API_KEY}
-            response = POLYGON_SESSION.get(url_polygon, params=params, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            if data and data.get("status") == "OK" and "results" in data:
-                price = data["results"].get("prevDay", {}).get("c") or data["results"].get("lastQuote", {}).get("p")
-                if price and price > 0:
-                    logger.info(f"Fetched current price for {ticker} from Polygon: ${price:.2f}")
-                    return float(price)
-        except Exception as e:
-            logger.warning(f"Polygon fetch failed for {ticker}: {str(e)}")
-    
-    # Fallback a Tradier
-    url_tradier = f"{TRADIER_BASE_URL}/markets/quotes"
-    params_tradier = {"symbols": ticker}
     try:
-        response = session_tradier.get(url_tradier, params=params_tradier, headers=HEADERS_TRADIER, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        if data and "quotes" in data and "quote" in data["quotes"]:
-            quote = data["quotes"]["quote"]
-            if isinstance(quote, list):
-                quote = quote[0]
-            price = float(quote.get("last", 0.0))
-            if price > 0:
-                logger.info(f"Fetched current price for {ticker} from Tradier: ${price:.2f}")
-                return price
+        return api_client.get_current_price(ticker)
     except Exception as e:
-        logger.warning(f"Failed to fetch price for {ticker} from Tradier: {str(e)}")
-
-    # Fallback a FMP
-    url_fmp = f"{FMP_BASE_URL}/quote/{ticker}"
-    params_fmp = {"apikey": FMP_API_KEY}
-    try:
-        response = session_fmp.get(url_fmp, params=params_fmp, headers=HEADERS_FMP, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        if data and isinstance(data, list) and len(data) > 0:
-            price = float(data[0].get("price", 0.0))
-            if price > 0:
-                logger.info(f"Fetched current price for {ticker} from FMP: ${price:.2f}")
-                return price
-    except Exception as e:
-        logger.error(f"Failed to fetch price for {ticker} from FMP: {str(e)}")
-
-    logger.error(f"Unable to fetch current price for {ticker} from any API")
-    return 0.0
+        logger.error(f"Failed to get current price for {ticker}: {str(e)}")
+        return 0.0
 
 
 
 
 @st.cache_data(ttl=86400)
 def get_expiration_dates(ticker: str) -> List[str]:
-     url = f"{TRADIER_BASE_URL}/markets/options/expirations"
-     params = {"symbol": ticker}
-     try:
-         response = session_tradier.get(url, params=params, headers=HEADERS_TRADIER, timeout=5)
-         response.raise_for_status()
-         data = response.json()
-         if data and "expirations" in data and "date" in data["expirations"]:
-             expiration_dates = data["expirations"]["date"]
-             current_date = datetime.now().date()
-             valid_dates = [date for date in expiration_dates if datetime.strptime(date, "%Y-%m-%d").date() >= current_date]
-             logger.info(f"Fetched {len(valid_dates)} valid expiration dates for {ticker}")
-             return valid_dates
-         logger.warning(f"No expiration dates found for {ticker}")
-         return []
-     except Exception as e:
-         logger.error(f"Error fetching expiration dates for {ticker}: {str(e)}")
-         return []
+    """Get option expiration dates from centralized API backend"""
+    try:
+        return api_client.get_option_expirations(ticker)
+    except Exception as e:
+        logger.error(f"Error fetching expiration dates for {ticker}: {str(e)}")
+        return []
 
          
 @st.cache_data(ttl=60)
 def get_current_prices(tickers: List[str]) -> Dict[str, float]:
     """
-    Obtiene precios actuales para una lista de tickers - Polygon batch primero
+    Get current prices for multiple tickers from centralized API backend
     """
-    prices_dict = {ticker: 0.0 for ticker in tickers}
-    
-    # Intentar Polygon batch (más eficiente) - solo si API key está configurada
-    if POLYGON_API_KEY:
-        try:
-            url_polygon = f"{POLYGON_BASE_URL}/v2/snapshot/locale/us/markets/stocks/tickers"
-            params = {"apiKey": POLYGON_API_KEY, "limit": 120}
-            response = POLYGON_SESSION.get(url_polygon, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            if data and data.get("status") == "OK" and "results" in data:
-                for result in data["results"]:
-                    ticker = result.get("ticker", "")
-                    if ticker in prices_dict:
-                        price = result.get("lastQuote", {}).get("p") or result.get("prevDay", {}).get("c")
-                        if price and price > 0:
-                            prices_dict[ticker] = float(price)
-                fetched = [t for t, p in prices_dict.items() if p > 0]
-                logger.info(f"Fetched prices for {len(fetched)}/{len(tickers)} tickers from Polygon batch: {fetched}")
-        except Exception as e:
-            logger.warning(f"Polygon batch fetch failed: {str(e)}")
-    
-    # Fallback a Tradier para los faltantes
-    missing_tickers = [t for t, p in prices_dict.items() if p == 0.0]
-    if missing_tickers:
-        tickers_str = ",".join(missing_tickers)
-        url_tradier = f"{TRADIER_BASE_URL}/markets/quotes"
-        params_tradier = {"symbols": tickers_str}
-        try:
-            response = session_tradier.get(url_tradier, params=params_tradier, headers=HEADERS_TRADIER, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            if data and "quotes" in data and "quote" in data["quotes"]:
-                quotes = data["quotes"]["quote"]
-                if isinstance(quotes, dict):
-                    quotes = [quotes]
-                for quote in quotes:
-                    ticker = quote.get("symbol", "")
-                    price = float(quote.get("last", 0.0))
-                    if ticker in prices_dict and price > 0:
-                        prices_dict[ticker] = price
-                fetched = [t for t, p in prices_dict.items() if p > 0 and t in missing_tickers]
-                logger.info(f"Fetched prices for {len(fetched)}/{len(missing_tickers)} missing tickers from Tradier: {fetched}")
-        except Exception as e:
-            logger.warning(f"Tradier failed to fetch prices for batch: {str(e)}")
-
-    # Fallback a FMP para los aún faltantes
-    missing_tickers = [t for t, p in prices_dict.items() if p == 0.0]
-    if missing_tickers:
-        url_fmp = f"{FMP_BASE_URL}/quote/{','.join(missing_tickers)}"
-        params_fmp = {"apikey": FMP_API_KEY}
-        try:
-            response = session_fmp.get(url_fmp, params=params_fmp, headers=HEADERS_FMP, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            if data and isinstance(data, list):
-                for item in data:
-                    ticker = item.get("symbol", "")
-                    price = float(item.get("price", 0.0))
-                    if ticker in prices_dict and price > 0:
-                        prices_dict[ticker] = price
-                fetched = [t for t, p in prices_dict.items() if p > 0 and t in missing_tickers]
-                logger.info(f"Fetched prices for {len(fetched)}/{len(missing_tickers)} missing tickers from FMP: {fetched}")
-        except Exception as e:
-            logger.error(f"FMP failed to fetch prices for batch: {str(e)}")
-
-    failed = [t for t, p in prices_dict.items() if p == 0.0]
-    if failed:
-        logger.error(f"Unable to fetch prices for {len(failed)} tickers: {failed}")
-
-    return prices_dict
+    try:
+        return api_client.get_current_prices(tickers)
+    except Exception as e:
+        logger.error(f"Failed to get current prices: {str(e)}")
+        return {ticker: 0.0 for ticker in tickers}
 
 @st.cache_data(ttl=3600)
 
@@ -672,51 +552,13 @@ def get_options_data(ticker: str, expiration_date: str) -> List[Dict]:
 
 @st.cache_data(ttl=CACHE_TTL)
 def get_historical_prices_combined(symbol, period="daily", limit=30):
-    """Obtener precios históricos - Polygon primero, fallback a Tradier/FMP."""
-    
-    # Intentar Polygon aggregates (datos históricos de alta calidad) - solo si API key está configurada
-    if POLYGON_API_KEY:
-        try:
-            end_date = datetime.now().date()
-            start_date = end_date - timedelta(days=limit * 1.5)  # Buffer para asegurar datos
-            url_polygon = f"{POLYGON_BASE_URL}/v2/aggs/ticker/{symbol.upper()}/range/1/day/{start_date}/{end_date}"
-            params = {"apiKey": POLYGON_API_KEY, "sort": "asc", "limit": 120}
-            response = POLYGON_SESSION.get(url_polygon, params=params, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            if data and data.get("status") == "OK" and "results" in data:
-                results = data["results"][-limit:]  # Últimos 'limit' días
-                prices = [float(day["c"]) for day in results]
-                volumes = [int(day["v"]) for day in results]
-                if prices and volumes:
-                    logger.info(f"Fetched {len(prices)} historical prices for {symbol} from Polygon")
-                    return prices, volumes
-        except Exception as e:
-            logger.warning(f"Polygon historical fetch failed for {symbol}: {str(e)}")
-    
-    # Fallback a FMP
-    url_fmp = f"{FMP_BASE_URL}/historical-price-full/{symbol}"
-    params_fmp = {"apikey": FMP_API_KEY, "timeseries": limit}
-    data_fmp = fetch_api_data(url_fmp, params_fmp, HEADERS_FMP, "")
-    if data_fmp and "historical" in data_fmp:
-        prices = [float(day["close"]) for day in data_fmp["historical"]]
-        volumes = [int(day["volume"]) for day in data_fmp["historical"]]
-        if prices and volumes:
-            logger.info(f"Fetched {len(prices)} historical prices for {symbol} from FMP")
-            return prices, volumes
-
-    # Fallback a Tradier
-    url_tradier = f"{TRADIER_BASE_URL}/markets/history"
-    params_tradier = {"symbol": symbol, "interval": period, "start": (datetime.now().date() - timedelta(days=limit)).strftime("%Y-%m-%d")}
-    data_tradier = fetch_api_data(url_tradier, params_tradier, HEADERS_TRADIER, "Tradier")
-    if data_tradier and "history" in data_tradier and "day" in data_tradier["history"]:
-        prices = [float(day["close"]) for day in data_tradier["history"]["day"]]
-        volumes = [int(day["volume"]) for day in data_tradier["history"]["day"]]
-        logger.info(f"Fetched {len(prices)} historical prices for {symbol} from Tradier")
+    """Get historical prices from centralized API backend"""
+    try:
+        prices, volumes = api_client.get_historical_prices(symbol, days=limit)
         return prices, volumes
-    
-    logger.warning(f"No historical data for {symbol} from any API")
-    return [], []
+    except Exception as e:
+        logger.error(f"Failed to get historical prices for {symbol}: {str(e)}")
+        return [], []
 
 @st.cache_data(ttl=CACHE_TTL)
 def get_stock_list_combined():
@@ -1452,105 +1294,9 @@ def scan_stock_batch(tickers: List[str], scan_type: str, breakout_period=10, vol
     return results
 
 def get_financial_metrics(symbol: str) -> Dict[str, float]:
+    """Get financial metrics from centralized API backend"""
     try:
-        # Intentar obtener datos de Polygon primero - solo si API key está configurada
-        if POLYGON_API_KEY:
-            try:
-                url_polygon = f"{POLYGON_BASE_URL}/v1/snapshot/locale/us/markets/stocks/tickers/{symbol.upper()}"
-                params = {"apiKey": POLYGON_API_KEY}
-                response = POLYGON_SESSION.get(url_polygon, params=params, timeout=5)
-                response.raise_for_status()
-                data = response.json()
-                if data and data.get("status") == "OK" and "results" in data:
-                    results = data["results"]
-                    current_price = results.get("lastQuote", {}).get("p", 0) or results.get("prevDay", {}).get("c", 0)
-                    market_cap = results.get("marketCap", 0)
-                    
-                    # Polygon tiene información limitada, así que también traemos de FMP
-                    income_statement = requests.get(f"{FMP_BASE_URL}/income-statement/{symbol}?apikey={FMP_API_KEY}").json()
-                    balance_sheet = requests.get(f"{FMP_BASE_URL}/balance-sheet-statement/{symbol}?apikey={FMP_API_KEY}").json()
-                    cash_flow = requests.get(f"{FMP_BASE_URL}/cash-flow-statement/{symbol}?apikey={FMP_API_KEY}").json()
-                    key_metrics = requests.get(f"{FMP_BASE_URL}/key-metrics/{symbol}?apikey={FMP_API_KEY}").json()
-                    
-                    if not income_statement or not balance_sheet or not cash_flow or not key_metrics:
-                        return {}
-                    
-                    latest_income = income_statement[0] if income_statement else {}
-                    latest_balance = balance_sheet[0] if balance_sheet else {}
-                    latest_cash_flow = cash_flow[0] if cash_flow else {}
-                    latest_metrics = key_metrics[0] if key_metrics else {}
-                    
-                    return {
-                        "Current Price": current_price,
-                        "EBITDA": latest_income.get("ebitda", 0),
-                        "Revenue": latest_income.get("revenue", 0),
-                        "Net Income": latest_income.get("netIncome", 0),
-                        "ROA": latest_metrics.get("roa", 0),
-                        "ROE": latest_metrics.get("roe", 0),
-                        "Beta": latest_metrics.get("beta", 0),
-                        "PE Ratio": latest_metrics.get("peRatio", 0),
-                        "Debt-to-Equity Ratio": latest_metrics.get("debtToEquity", 0),
-                        "Working Capital": latest_balance.get("totalCurrentAssets", 0) - latest_balance.get("totalCurrentLiabilities", 0),
-                        "Total Assets": latest_balance.get("totalAssets", 0),
-                        "Retained Earnings": latest_balance.get("retainedEarnings", 0),
-                        "EBIT": latest_income.get("ebit", 0),
-                        "Market Cap": market_cap,
-                        "Total Liabilities": latest_balance.get("totalLiabilities", 0),
-                        "Operating Cash Flow": latest_cash_flow.get("operatingCashFlow", 0),
-                        "Current Ratio": latest_metrics.get("currentRatio", 0),
-                        "Long Term Debt": latest_balance.get("longTermDebt", 0),
-                        "Shares Outstanding": latest_metrics.get("sharesOutstanding", 0),
-                        "Gross Margin": latest_metrics.get("grossProfitMargin", 0),
-                        "Asset Turnover": latest_metrics.get("assetTurnover", 0),
-                        "Capital Expenditure": latest_cash_flow.get("capitalExpenditure", 0),
-                        "Free Cash Flow": latest_cash_flow.get("freeCashFlow", 0),
-                        "Weighted Average Shares Diluted": latest_income.get("weightedAverageShsOutDil", 0),
-                        "Property Plant Equipment Net": latest_balance.get("propertyPlantEquipmentNet", 0),
-                        "Cash and Cash Equivalents": latest_balance.get("cashAndCashEquivalents", 0),
-                        "Total Debt": latest_balance.get("totalDebt", 0),
-                        "Interest Expense": latest_income.get("interestExpense", 0),
-                        "Short Term Debt": latest_balance.get("shortTermDebt", 0),
-                        "Intangible Assets": latest_balance.get("intangibleAssets", 0),
-                        "Accounts Receivable": latest_balance.get("accountsReceivable", 0),
-                        "Inventory": latest_balance.get("inventory", 0),
-                        "Accounts Payable": latest_balance.get("accountsPayable", 0),
-                        "COGS": latest_income.get("costOfRevenue", 0),
-                        "Tax Rate": latest_income.get("incomeTaxExpense", 0) / latest_income.get("incomeBeforeTax", 1) if latest_income.get("incomeBeforeTax", 1) != 0 else 0
-                    }
-            except Exception as e:
-                logger.warning(f"Polygon financial metrics failed for {symbol}: {str(e)}")
-        
-        # Fallback a FMP solamente
-        income_statement = requests.get(f"{FMP_BASE_URL}/income-statement/{symbol}?apikey={FMP_API_KEY}").json()
-        balance_sheet = requests.get(f"{FMP_BASE_URL}/balance-sheet-statement/{symbol}?apikey={FMP_API_KEY}").json()
-        cash_flow = requests.get(f"{FMP_BASE_URL}/cash-flow-statement/{symbol}?apikey={FMP_API_KEY}").json()
-        key_metrics = requests.get(f"{FMP_BASE_URL}/key-metrics/{symbol}?apikey={FMP_API_KEY}").json()
-        quote = requests.get(f"{FMP_BASE_URL}/quote/{symbol}?apikey={FMP_API_KEY}").json()
-        if not income_statement or not balance_sheet or not cash_flow or not key_metrics or not quote:
-            return {}
-        latest_income = income_statement[0] if income_statement else {}
-        latest_balance = balance_sheet[0] if balance_sheet else {}
-        latest_cash_flow = cash_flow[0] if cash_flow else {}
-        latest_metrics = key_metrics[0] if key_metrics else {}
-        latest_quote = quote[0] if quote else {}
-        return {
-            "Current Price": latest_quote.get("price", 0), "EBITDA": latest_income.get("ebitda", 0), "Revenue": latest_income.get("revenue", 0),
-            "Net Income": latest_income.get("netIncome", 0), "ROA": latest_metrics.get("roa", 0), "ROE": latest_metrics.get("roe", 0),
-            "Beta": latest_metrics.get("beta", 0), "PE Ratio": latest_metrics.get("peRatio", 0), "Debt-to-Equity Ratio": latest_metrics.get("debtToEquity", 0),
-            "Working Capital": latest_balance.get("totalCurrentAssets", 0) - latest_balance.get("totalCurrentLiabilities", 0),
-            "Total Assets": latest_balance.get("totalAssets", 0), "Retained Earnings": latest_balance.get("retainedEarnings", 0),
-            "EBIT": latest_income.get("ebit", 0), "Market Cap": latest_metrics.get("marketCap", 0), "Total Liabilities": latest_balance.get("totalLiabilities", 0),
-            "Operating Cash Flow": latest_cash_flow.get("operatingCashFlow", 0), "Current Ratio": latest_metrics.get("currentRatio", 0),
-            "Long Term Debt": latest_balance.get("longTermDebt", 0), "Shares Outstanding": latest_metrics.get("sharesOutstanding", 0),
-            "Gross Margin": latest_metrics.get("grossProfitMargin", 0), "Asset Turnover": latest_metrics.get("assetTurnover", 0),
-            "Capital Expenditure": latest_cash_flow.get("capitalExpenditure", 0), "Free Cash Flow": latest_cash_flow.get("freeCashFlow", 0),
-            "Weighted Average Shares Diluted": latest_income.get("weightedAverageShsOutDil", 0), "Property Plant Equipment Net": latest_balance.get("propertyPlantEquipmentNet", 0),
-            "Cash and Cash Equivalents": latest_balance.get("cashAndCashEquivalents", 0), "Total Debt": latest_balance.get("totalDebt", 0),
-            "Interest Expense": latest_income.get("interestExpense", 0), "Short Term Debt": latest_balance.get("shortTermDebt", 0),
-            "Intangible Assets": latest_balance.get("intangibleAssets", 0), "Accounts Receivable": latest_balance.get("accountsReceivable", 0),
-            "Inventory": latest_balance.get("inventory", 0), "Accounts Payable": latest_balance.get("accountsPayable", 0),
-            "COGS": latest_income.get("costOfRevenue", 0), "Tax Rate": latest_income.get("incomeTaxExpense", 0) / latest_income.get("incomeBeforeTax", 1) if latest_income.get("incomeBeforeTax", 1) != 0 else 0
-        }
+        return api_client.get_financial_metrics(symbol)
     except Exception as e:
         logger.error(f"Error getting financial metrics for {symbol}: {str(e)}")
         return {}
