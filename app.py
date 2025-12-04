@@ -3749,35 +3749,36 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
-    # ===== CACHE STATS MONITOR =====
-    with st.sidebar:
-        st.markdown("### 💾 Cache Stats")
-        cache_info = st.cache_data.clear.__doc__  # Placeholder para stats futuros
-        
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            st.metric("⚡ Cache TTL", "10 min", "600s")
-        with col_c2:
-            st.metric("📊 Aggressive Cache", "30 min", "Screener")
-        
-        with st.expander("🔍 How Cache Works"):
-            st.markdown("""
-            **Cache System:**
-            - ⚡ Real-time quotes: 10 min cache
-            - 📈 Screener data: 30 min cache (saves 30% bandwidth)
-            - 📊 Historical data: 1 hour cache
+    # ===== CACHE STATS MONITOR (HIDDEN) =====
+    if False:  # Hidden - uncomment to show cache stats
+        with st.sidebar:
+            st.markdown("### 💾 Cache Stats")
+            cache_info = st.cache_data.clear.__doc__  # Placeholder para stats futuros
             
-            **Bandwidth Savings:**
-            - Same scan within 5 min = **0% new data**
-            - Reusing screener = **~3MB saved per request**
-            - Per month: ~2.5-4 GB typical usage
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                st.metric("⚡ Cache TTL", "10 min", "600s")
+            with col_c2:
+                st.metric("📊 Aggressive Cache", "30 min", "Screener")
             
-            **Example:**
-            - Without cache: 3,000 requests × 5KB = 15 MB/day
-            - With cache: 50% hit rate = 7.5 MB/day saved
-            """)
-        
-        st.divider()
+            with st.expander("🔍 How Cache Works"):
+                st.markdown("""
+                **Cache System:**
+                - ⚡ Real-time quotes: 10 min cache
+                - 📈 Screener data: 30 min cache (saves 30% bandwidth)
+                - 📊 Historical data: 1 hour cache
+                
+                **Bandwidth Savings:**
+                - Same scan within 5 min = **0% new data**
+                - Reusing screener = **~3MB saved per request**
+                - Per month: ~2.5-4 GB typical usage
+                
+                **Example:**
+                - Without cache: 3,000 requests × 5KB = 15 MB/day
+                - With cache: 50% hit rate = 7.5 MB/day saved
+                """)
+            
+            st.divider()
 
     # Definición de los tabs
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
