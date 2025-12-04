@@ -29,7 +29,8 @@ import yfinance as yf
 from user_management import (
     authenticate_user, create_user, check_daily_limit, increment_usage,
     get_all_users, get_activity_log, deactivate_user, extend_license, 
-    get_user_info, USER_TIERS, initialize_users_db
+    get_user_info, USER_TIERS, initialize_users_db,
+    authenticate_admin, get_user_stats, change_user_tier, reset_user_daily_limit
 )
 
 db_lock = Lock()
@@ -3962,6 +3963,124 @@ def main():
             "current_price": current_price
         }
 
+    # ===== ADMIN PANEL IN SIDEBAR =====
+    with st.sidebar:
+        st.markdown("---")
+        
+        # Check if admin is logged in
+        if "admin_authenticated" not in st.session_state:
+            st.session_state["admin_authenticated"] = False
+        
+        if not st.session_state["admin_authenticated"]:
+            with st.expander("🔐 Admin Panel", expanded=False):
+                admin_email = st.text_input("Admin Email", type="default", key="admin_email_input")
+                admin_pass = st.text_input("Admin Password", type="password", key="admin_pass_input")
+                
+                if st.button("🔓 Admin Login", use_container_width=True):
+                    success, msg = authenticate_admin(admin_email, admin_pass)
+                    if success:
+                        st.session_state["admin_authenticated"] = True
+                        st.success("✅ Admin logged in!")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg}")
+        
+        else:
+            with st.expander("⚙️ Admin Dashboard", expanded=True):
+                st.markdown("### 📊 User Statistics")
+                
+                stats = get_user_stats()
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.metric("👥 Total Active", stats["total_active"])
+                    st.metric("🆓 Free Users", stats["free_users"])
+                
+                with col2:
+                    st.metric("⭐ Pro Users", stats["pro_users"])
+                    st.metric("👑 Premium Users", stats["premium_users"])
+                
+                st.metric("📈 Total Logins", stats["total_logins"])
+                
+                st.markdown("---")
+                st.markdown("### 👤 Manage Users")
+                
+                admin_tab1, admin_tab2, admin_tab3 = st.tabs(["All Users", "Activity Log", "Tools"])
+                
+                with admin_tab1:
+                    users_df = get_all_users()
+                    if not users_df.empty:
+                        users_df = users_df.copy()
+                        users_df["expiration_date"] = pd.to_datetime(users_df["expiration_date"]).dt.strftime("%Y-%m-%d")
+                        users_df["created_date"] = pd.to_datetime(users_df["created_date"]).dt.strftime("%Y-%m-%d")
+                        users_df["Status"] = users_df["active"].apply(lambda x: "🟢 Active" if x else "🔴 Inactive")
+                        
+                        display_cols = ["username", "email", "tier", "created_date", "expiration_date", "usage_today", "daily_limit", "Status"]
+                        st.dataframe(users_df[display_cols], use_container_width=True, hide_index=True)
+                        
+                        # User actions
+                        st.markdown("#### User Actions")
+                        selected_user = st.selectbox("Select User", users_df["username"].tolist(), key="admin_select_user")
+                        
+                        action_col1, action_col2, action_col3 = st.columns(3)
+                        
+                        with action_col1:
+                            if st.button("🔄 Reset Daily Limit", use_container_width=True, key="reset_limit_btn"):
+                                if reset_user_daily_limit(selected_user):
+                                    st.success(f"✅ Reset {selected_user}'s daily limit")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to reset")
+                        
+                        with action_col2:
+                            new_tier = st.selectbox("Change Tier", ["Free", "Pro", "Premium"], key="tier_select")
+                            if st.button("✏️ Update Tier", use_container_width=True, key="update_tier_btn"):
+                                if change_user_tier(selected_user, new_tier):
+                                    st.success(f"✅ {selected_user} → {new_tier}")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to update")
+                        
+                        with action_col3:
+                            if st.button("🚫 Deactivate", use_container_width=True, key="deactivate_btn"):
+                                if deactivate_user(selected_user):
+                                    st.success(f"✅ {selected_user} deactivated")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed")
+                    else:
+                        st.info("No users found")
+                
+                with admin_tab2:
+                    activity_df = get_activity_log()
+                    if not activity_df.empty:
+                        activity_df = activity_df.copy()
+                        activity_df["timestamp"] = pd.to_datetime(activity_df["timestamp"]).dt.strftime("%Y-%m-%d %H:%M")
+                        st.dataframe(activity_df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No activity logs")
+                
+                with admin_tab3:
+                    st.markdown("#### 🛠️ Admin Tools")
+                    
+                    extend_col1, extend_col2 = st.columns(2)
+                    with extend_col1:
+                        extend_user = st.selectbox("Extend License", get_all_users()["username"].tolist() if not get_all_users().empty else [], key="extend_user")
+                    with extend_col2:
+                        extend_days = st.number_input("Days to Add", min_value=1, max_value=365, value=30, key="extend_days")
+                    
+                    if st.button("🔄 Extend License", use_container_width=True, key="extend_btn"):
+                        if extend_license(extend_user, extend_days):
+                            st.success(f"✅ Extended {extend_user} by {extend_days} days")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to extend")
+                
+                st.divider()
+                if st.button("🔒 Admin Logout", use_container_width=True, key="admin_logout"):
+                    st.session_state["admin_authenticated"] = False
+                    st.rerun()
+    
     # Definición de los tabs
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",

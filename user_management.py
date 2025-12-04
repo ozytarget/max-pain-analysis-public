@@ -14,9 +14,12 @@ from datetime import datetime, timedelta
 import pytz
 import socket
 import logging
+import os
 
 MARKET_TIMEZONE = pytz.timezone("America/New_York")
 USERS_DB = "auth_data/users.db"
+ADMIN_EMAIL = "ozytargetcom@gmail.com"
+ADMIN_PASSWORD_HASH = None  # Set during init
 
 USER_TIERS = {
     "Free": {"daily_limit": 10, "days_valid": 30, "color": "#808080"},
@@ -241,6 +244,118 @@ def get_user_info(username: str) -> dict:
     except:
         pass
     return None
+
+def authenticate_admin(email: str, password: str) -> tuple:
+    """Authenticate admin user"""
+    if email == ADMIN_EMAIL:
+        # Create admin account if doesn't exist
+        try:
+            conn = sqlite3.connect(USERS_DB)
+            c = conn.cursor()
+            c.execute("SELECT password_hash FROM users WHERE email = ?", (ADMIN_EMAIL,))
+            result = c.fetchone()
+            
+            if not result:
+                # Create admin account
+                password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                admin_tier = "Admin"
+                created_date = datetime.now(MARKET_TIMEZONE).isoformat()
+                expiration_date = (datetime.now(MARKET_TIMEZONE) + timedelta(days=3650)).isoformat()
+                
+                c.execute('''INSERT OR IGNORE INTO users (username, email, password_hash, tier, created_date, expiration_date, daily_limit, active)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                          ("admin", ADMIN_EMAIL, password_hash, admin_tier, created_date, expiration_date, 99999, 1))
+                conn.commit()
+                result = (password_hash,)
+            
+            if result:
+                password_hash = result[0]
+                if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
+                    ip_address = get_local_ip()
+                    c.execute("UPDATE users SET ip_address = ? WHERE email = ?", (ip_address, ADMIN_EMAIL))
+                    c.execute("INSERT INTO activity_log (username, action, timestamp, ip_address) VALUES (?, ?, ?, ?)",
+                              ("admin", "ADMIN_LOGIN", datetime.now(MARKET_TIMEZONE).isoformat(), ip_address))
+                    conn.commit()
+                    conn.close()
+                    return True, "Admin authenticated"
+                else:
+                    conn.close()
+                    return False, "Invalid admin password"
+        except Exception as e:
+            return False, str(e)
+    
+    return False, "Invalid admin email"
+
+def get_user_stats() -> dict:
+    """Get overall user statistics"""
+    try:
+        conn = sqlite3.connect(USERS_DB)
+        c = conn.cursor()
+        
+        c.execute("SELECT COUNT(*) FROM users WHERE active = 1")
+        total_active = c.fetchone()[0]
+        
+        c.execute("SELECT COUNT(*) FROM users WHERE tier = 'Free'")
+        free_users = c.fetchone()[0]
+        
+        c.execute("SELECT COUNT(*) FROM users WHERE tier = 'Pro'")
+        pro_users = c.fetchone()[0]
+        
+        c.execute("SELECT COUNT(*) FROM users WHERE tier = 'Premium'")
+        premium_users = c.fetchone()[0]
+        
+        c.execute("SELECT COUNT(*) FROM activity_log")
+        total_logins = c.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "total_active": total_active,
+            "free_users": free_users,
+            "pro_users": pro_users,
+            "premium_users": premium_users,
+            "total_logins": total_logins
+        }
+    except:
+        return {
+            "total_active": 0,
+            "free_users": 0,
+            "pro_users": 0,
+            "premium_users": 0,
+            "total_logins": 0
+        }
+
+def change_user_tier(username: str, new_tier: str) -> bool:
+    """Change user tier"""
+    if new_tier not in USER_TIERS and new_tier != "Admin":
+        return False
+    
+    try:
+        conn = sqlite3.connect(USERS_DB)
+        c = conn.cursor()
+        
+        daily_limit = USER_TIERS[new_tier]["daily_limit"] if new_tier in USER_TIERS else 99999
+        
+        c.execute("UPDATE users SET tier = ?, daily_limit = ? WHERE username = ?", 
+                  (new_tier, daily_limit, username))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
+
+def reset_user_daily_limit(username: str) -> bool:
+    """Manually reset user's daily limit"""
+    try:
+        conn = sqlite3.connect(USERS_DB)
+        c = conn.cursor()
+        c.execute("UPDATE users SET usage_today = 0, last_reset = ? WHERE username = ?", 
+                  (datetime.now(MARKET_TIMEZONE).date().isoformat(), username))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
 
 # Initialize on import
 initialize_users_db()
