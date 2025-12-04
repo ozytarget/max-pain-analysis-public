@@ -28,10 +28,6 @@ from dotenv import load_dotenv
 import krakenex
 import yfinance as yf
 
-# Import API backend client
-from api_client import api_client
-
-
 db_lock = Lock()
 AUTO_UPDATE_INTERVAL = 15
 DB_TIMEOUT = 20  # Segundos de espera para desbloqueo de base de datos
@@ -88,7 +84,7 @@ if not POLYGON_API_KEY:
 
 # Constantes
 PASSWORDS_DB = "auth_data/passwords.db"
-CACHE_TTL = 300
+CACHE_TTL = 600  # 10 minutos - aumentado para reducir llamadas innecesarias
 MAX_RETRIES = 5
 INITIAL_DELAY = 1
 RISK_FREE_RATE = 0.045  # Tasa libre de riesgo
@@ -418,18 +414,9 @@ def fetch_api_data(url: str, params: Dict, headers: Dict, source: str, max_retri
 @st.cache_data(ttl=60)
 def get_current_price(ticker: str) -> float:
     """
-    Get current price - intenta backend primero, fallback a Tradier/FMP directo
+    Get current price - Tradier → FMP (sin backend para evitar sobrecarga)
     """
-    # Intentar backend primero (si está disponible)
-    try:
-        price = api_client.get_current_price(ticker)
-        if price > 0:
-            logger.info(f"Fetched {ticker} price from backend")
-            return price
-    except Exception as e:
-        logger.warning(f"Backend unavailable, falling back to direct API: {str(e)}")
-    
-    # Fallback a Tradier directo
+    # Intenta Tradier primero
     url_tradier = f"{TRADIER_BASE_URL}/markets/quotes"
     params_tradier = {"symbols": ticker}
     try:
@@ -445,7 +432,7 @@ def get_current_price(ticker: str) -> float:
                 logger.info(f"Fetched {ticker} price from Tradier: ${price:.2f}")
                 return price
     except Exception as e:
-        logger.warning(f"Failed to fetch price for {ticker} from Tradier: {str(e)}")
+        logger.warning(f"Tradier failed for {ticker}: {str(e)}")
 
     # Fallback a FMP
     url_fmp = f"{FMP_BASE_URL}/quote/{ticker}"
@@ -460,9 +447,9 @@ def get_current_price(ticker: str) -> float:
                 logger.info(f"Fetched {ticker} price from FMP: ${price:.2f}")
                 return price
     except Exception as e:
-        logger.error(f"Failed to fetch price for {ticker} from FMP: {str(e)}")
+        logger.error(f"FMP failed for {ticker}: {str(e)}")
 
-    logger.error(f"Unable to fetch current price for {ticker} from any API")
+    logger.error(f"Unable to fetch price for {ticker}")
     return 0.0
 
 
@@ -493,48 +480,33 @@ def get_expiration_dates(ticker: str) -> List[str]:
 @st.cache_data(ttl=60)
 def get_current_prices(tickers: List[str]) -> Dict[str, float]:
     """
-    Get current prices for multiple tickers - intenta backend primero, fallback directo
+    Get current prices for multiple tickers - Tradier → FMP (sin backend)
     """
     prices_dict = {ticker: 0.0 for ticker in tickers}
     
-    # Intentar backend primero
+    # Intenta Tradier primero
+    tickers_str = ",".join(tickers)
+    url_tradier = f"{TRADIER_BASE_URL}/markets/quotes"
+    params_tradier = {"symbols": tickers_str}
     try:
-        backend_prices = api_client.get_current_prices(tickers)
-        if backend_prices:
-            prices_dict.update(backend_prices)
+        response = session_tradier.get(url_tradier, params=params_tradier, headers=HEADERS_TRADIER, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        if data and "quotes" in data and "quote" in data["quotes"]:
+            quotes = data["quotes"]["quote"]
+            if isinstance(quotes, dict):
+                quotes = [quotes]
+            for quote in quotes:
+                ticker = quote.get("symbol", "")
+                price = float(quote.get("last", 0.0))
+                if ticker in prices_dict and price > 0:
+                    prices_dict[ticker] = price
             fetched = [t for t, p in prices_dict.items() if p > 0]
-            if len(fetched) == len(tickers):
-                logger.info(f"Fetched all prices from backend")
-                return prices_dict
-            logger.info(f"Backend provided {len(fetched)}/{len(tickers)} prices, falling back for missing")
+            logger.info(f"Fetched {len(fetched)}/{len(tickers)} prices from Tradier")
     except Exception as e:
-        logger.warning(f"Backend unavailable, falling back to direct APIs: {str(e)}")
-    
-    # Fallback a Tradier para los faltantes
-    missing_tickers = [t for t, p in prices_dict.items() if p == 0.0]
-    if missing_tickers:
-        tickers_str = ",".join(missing_tickers)
-        url_tradier = f"{TRADIER_BASE_URL}/markets/quotes"
-        params_tradier = {"symbols": tickers_str}
-        try:
-            response = session_tradier.get(url_tradier, params=params_tradier, headers=HEADERS_TRADIER, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            if data and "quotes" in data and "quote" in data["quotes"]:
-                quotes = data["quotes"]["quote"]
-                if isinstance(quotes, dict):
-                    quotes = [quotes]
-                for quote in quotes:
-                    ticker = quote.get("symbol", "")
-                    price = float(quote.get("last", 0.0))
-                    if ticker in prices_dict and price > 0:
-                        prices_dict[ticker] = price
-                fetched = [t for t, p in prices_dict.items() if p > 0 and t in missing_tickers]
-                logger.info(f"Fetched {len(fetched)}/{len(missing_tickers)} missing prices from Tradier")
-        except Exception as e:
-            logger.warning(f"Tradier failed: {str(e)}")
+        logger.warning(f"Tradier failed: {str(e)}")
 
-    # Fallback a FMP para los aún faltantes
+    # Fallback a FMP para los faltantes
     missing_tickers = [t for t, p in prices_dict.items() if p == 0.0]
     if missing_tickers:
         url_fmp = f"{FMP_BASE_URL}/quote/{','.join(missing_tickers)}"
@@ -549,14 +521,14 @@ def get_current_prices(tickers: List[str]) -> Dict[str, float]:
                     price = float(item.get("price", 0.0))
                     if ticker in prices_dict and price > 0:
                         prices_dict[ticker] = price
-                fetched = [t for t, p in prices_dict.items() if p > 0 and t in missing_tickers]
-                logger.info(f"Fetched {len(fetched)}/{len(missing_tickers)} missing prices from FMP")
+            fetched = [t for t, p in prices_dict.items() if p > 0 and t in missing_tickers]
+            logger.info(f"Fetched {len(fetched)}/{len(missing_tickers)} remaining prices from FMP")
         except Exception as e:
             logger.error(f"FMP failed: {str(e)}")
 
     failed = [t for t, p in prices_dict.items() if p == 0.0]
     if failed:
-        logger.error(f"Unable to fetch prices for {len(failed)} tickers: {failed}")
+        logger.warning(f"Unable to fetch prices for {failed}")
 
     return prices_dict
 
@@ -662,19 +634,9 @@ def get_options_data(ticker: str, expiration_date: str) -> List[Dict]:
 
 @st.cache_data(ttl=CACHE_TTL)
 def get_historical_prices_combined(symbol, period="daily", limit=30):
-    """Get historical prices from centralized API backend with direct fallbacks"""
+    """Get historical prices - Polygon → FMP (sin backend)"""
     
-    # Intentar backend primero
-    try:
-        prices, volumes = api_client.get_historical_prices(symbol, days=limit)
-        if prices and len(prices) > 0:
-            logger.info(f"Fetched {len(prices)} historical prices for {symbol} from backend")
-            return prices, volumes
-        logger.info(f"Backend returned empty results, falling back for {symbol}")
-    except Exception as e:
-        logger.warning(f"Backend unavailable for historical prices {symbol}, falling back: {str(e)}")
-
-    # Fallback a Polygon
+    # Intenta Polygon primero
     try:
         from_date = (datetime.now() - timedelta(days=limit)).strftime("%Y-%m-%d")
         to_date = datetime.now().strftime("%Y-%m-%d")
@@ -695,7 +657,7 @@ def get_historical_prices_combined(symbol, period="daily", limit=30):
                 logger.info(f"Fetched {len(prices)} historical prices for {symbol} from Polygon")
                 return prices, volumes
     except Exception as e:
-        logger.warning(f"Polygon fallback failed: {str(e)}")
+        logger.warning(f"Polygon failed: {str(e)}")
 
     # Fallback a FMP
     try:
@@ -715,7 +677,7 @@ def get_historical_prices_combined(symbol, period="daily", limit=30):
                 logger.info(f"Fetched {len(prices)} historical prices for {symbol} from FMP")
                 return prices, volumes
     except Exception as e:
-        logger.error(f"FMP fallback failed: {str(e)}")
+        logger.error(f"FMP failed: {str(e)}")
 
     logger.error(f"Unable to fetch historical prices for {symbol}")
     return [], []
@@ -1454,19 +1416,9 @@ def scan_stock_batch(tickers: List[str], scan_type: str, breakout_period=10, vol
     return results
 
 def get_financial_metrics(symbol: str) -> Dict[str, float]:
-    """Get financial metrics from centralized API backend with FMP fallback"""
+    """Get financial metrics from FMP only (sin backend)"""
     
-    # Intentar backend primero
-    try:
-        metrics = api_client.get_financial_metrics(symbol)
-        if metrics and len(metrics) > 0:
-            logger.info(f"Fetched financial metrics for {symbol} from backend")
-            return metrics
-        logger.info(f"Backend returned empty metrics, falling back for {symbol}")
-    except Exception as e:
-        logger.warning(f"Backend unavailable for financial metrics {symbol}, falling back: {str(e)}")
-
-    # Fallback a FMP - ratios
+    # Intenta FMP - ratios
     try:
         url = f"{FMP_BASE_URL}/ratios/{symbol}"
         params = {"apikey": FMP_API_KEY}
@@ -1487,7 +1439,7 @@ def get_financial_metrics(symbol: str) -> Dict[str, float]:
             logger.info(f"Fetched financial metrics for {symbol} from FMP")
             return metrics
     except Exception as e:
-        logger.warning(f"FMP ratio fallback failed: {str(e)}")
+        logger.warning(f"FMP ratios failed: {str(e)}")
 
     # Fallback a FMP - enterprise value
     try:
@@ -1507,7 +1459,7 @@ def get_financial_metrics(symbol: str) -> Dict[str, float]:
             logger.info(f"Fetched EV metrics for {symbol} from FMP")
             return metrics
     except Exception as e:
-        logger.error(f"FMP enterprise value fallback failed: {str(e)}")
+        logger.error(f"FMP enterprise value failed: {str(e)}")
 
     logger.error(f"Unable to fetch financial metrics for {symbol}")
     return {}
