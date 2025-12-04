@@ -10,5 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN mkdir -p auth_data cache
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 8080
-CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0"]
+ENTRYPOINT ["/entrypoint.sh"]
