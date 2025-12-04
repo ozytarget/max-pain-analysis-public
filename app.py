@@ -26,6 +26,11 @@ import os
 import pytz
 from dotenv import load_dotenv
 import yfinance as yf
+from user_management import (
+    authenticate_user, create_user, check_daily_limit, increment_usage,
+    get_all_users, get_activity_log, deactivate_user, extend_license, 
+    get_user_info, USER_TIERS, initialize_users_db
+)
 
 db_lock = Lock()
 AUTO_UPDATE_INTERVAL = 15
