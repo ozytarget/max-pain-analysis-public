@@ -4454,7 +4454,7 @@ def main():
         
         # FinViz Elite Configuration (loaded from .env for security)
         FINVIZ_API_TOKEN = os.getenv("FINVIZ_API_TOKEN", "")
-        FINVIZ_BASE_URL = "https://elite.finviz.com/export.ashx"
+        FINVIZ_BASE_URL = "https://elite.finviz.com"
         
         # Function to fetch data from FinViz Elite API
         def get_finviz_screener(filters_dict, columns_list=None, add_delay=True):
