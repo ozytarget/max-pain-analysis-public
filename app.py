@@ -3758,10 +3758,10 @@ def main():
     """, unsafe_allow_html=True)
 
     # Definición de los tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |", "| Stock Insights |",
         "| Options Order Flow |", "| Analyst Rating Flow |", "| Elliott Pulse® |", "| Crypto Insights |",
-        
+        "| Trade Targets & MM Logic |"
     ])
 
     # Tab 1: Gummy Data Bubbles®
@@ -6087,6 +6087,248 @@ def main():
                     logger.error(f"Tab 8 error: {str(e)}")
         
         # Pie de página
+        st.markdown("---")
+        st.markdown("*Developed by Ozy | © 2025*")
+
+    # Tab 9: Trade Targets & MM Logic
+    with tab9:
+        st.subheader("🎯 Trade Targets & MM Logic")
+        
+        # Configuración inicial
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            ticker_t9 = st.text_input("Ticker Symbol", value="SPY", key="trade_ticker_tab9").upper()
+        with col2:
+            days_ahead = st.slider("Days to Expiration", 1, 60, value=7, key="trade_days_tab9")
+        
+        if ticker_t9:
+            with st.spinner(f"Calculating targets for {ticker_t9}..."):
+                try:
+                    # Obtener datos en vivo
+                    current_price_t9 = get_current_price(ticker_t9)
+                    if current_price_t9 == 0.0:
+                        st.error(f"Cannot fetch price for {ticker_t9}")
+                    else:
+                        # Obtener datos históricos para volatilidad
+                        prices_hist, volumes_hist = get_historical_prices_combined(ticker_t9, limit=60)
+                        
+                        if prices_hist:
+                            # Calcular volatilidad histórica
+                            returns = np.diff(np.array(prices_hist)) / np.array(prices_hist[:-1])
+                            hv = np.std(returns) * np.sqrt(252) * 100  # Annualized
+                            
+                            # Obtener opciones para IV
+                            expiration_dates_t9 = get_expiration_dates(ticker_t9)
+                            if expiration_dates_t9:
+                                selected_exp_t9 = expiration_dates_t9[0]
+                                options_data_t9 = get_options_data(ticker_t9, selected_exp_t9)
+                                
+                                if options_data_t9:
+                                    # Calcular IV promedio
+                                    ivs = []
+                                    for opt in options_data_t9:
+                                        iv = opt.get("implied_volatility", 0)
+                                        if iv and isinstance(iv, (int, float)) and iv > 0:
+                                            ivs.append(float(iv) * 100)
+                                    
+                                    iv_avg = np.mean(ivs) if ivs else hv
+                                    
+                                    # Calcular Gamma Walls
+                                    strikes_dict = {}
+                                    for opt in options_data_t9:
+                                        strike = float(opt.get("strike", 0))
+                                        opt_type = opt.get("option_type", "").upper()
+                                        oi = int(opt.get("open_interest", 0) or 0)
+                                        greeks = opt.get("greeks", {})
+                                        gamma = float(greeks.get("gamma", 0)) if isinstance(greeks, dict) else 0
+                                        
+                                        if strike not in strikes_dict:
+                                            strikes_dict[strike] = {"CALL": 0, "PUT": 0, "GAMMA": 0}
+                                        
+                                        if opt_type == "CALL":
+                                            strikes_dict[strike]["CALL"] += gamma * oi
+                                        else:
+                                            strikes_dict[strike]["PUT"] += gamma * oi
+                                        strikes_dict[strike]["GAMMA"] = abs(strikes_dict[strike]["CALL"] - strikes_dict[strike]["PUT"])
+                                    
+                                    # Identificar Gamma Walls (top 5)
+                                    gamma_walls = sorted(strikes_dict.items(), key=lambda x: x[1]["GAMMA"], reverse=True)[:5]
+                                    gamma_wall_strikes = [wall[0] for wall in gamma_walls]
+                                    
+                                    # Calcular Expected Move
+                                    days_to_exp = (datetime.strptime(selected_exp_t9, "%Y-%m-%d") - datetime.now()).days
+                                    expected_move = current_price_t9 * (iv_avg / 100) * np.sqrt(days_to_exp / 365)
+                                    
+                                    # Calcular rangos
+                                    bullish_target = current_price_t9 + expected_move
+                                    bearish_target = current_price_t9 - expected_move
+                                    
+                                    # Calcular probabilidades usando distribución normal
+                                    from scipy.stats import norm
+                                    bullish_prob = (1 - norm.cdf((bullish_target - current_price_t9) / expected_move)) * 100
+                                    bearish_prob = norm.cdf((current_price_t9 - bearish_target) / expected_move) * 100
+                                    
+                                    # Mostrar métricas principales
+                                    st.markdown("### 📊 Market Metrics")
+                                    col1, col2, col3, col4, col5 = st.columns(5)
+                                    
+                                    with col1:
+                                        st.metric("Current Price", f"${current_price_t9:.2f}")
+                                    with col2:
+                                        st.metric("IV (Implied)", f"{iv_avg:.1f}%")
+                                    with col3:
+                                        st.metric("HV (Historical)", f"{hv:.1f}%")
+                                    with col4:
+                                        st.metric("Expected Move", f"${expected_move:.2f}")
+                                    with col5:
+                                        st.metric("Days to Exp", days_to_exp)
+                                    
+                                    # Gamma Walls visualization
+                                    st.markdown("### 🧱 Gamma Walls (Price Magnets)")
+                                    gamma_wall_df = pd.DataFrame({
+                                        "Strike": [w[0] for w in gamma_walls],
+                                        "Gamma Strength": [w[1]["GAMMA"] for w in gamma_walls],
+                                        "Distance from Price": [f"{abs(w[0] - current_price_t9):.2f}" for w in gamma_walls],
+                                        "% from Current": [f"{((w[0] / current_price_t9 - 1) * 100):.2f}%" for w in gamma_walls]
+                                    })
+                                    st.dataframe(gamma_wall_df, use_container_width=True)
+                                    
+                                    # Trade Recommendations
+                                    st.markdown("### 🎯 Trade Recommendations")
+                                    
+                                    # Bullish Setup
+                                    col_bull, col_bear = st.columns(2)
+                                    
+                                    with col_bull:
+                                        st.markdown("#### 📈 BULLISH SETUP")
+                                        bullish_strike = min(gamma_wall_strikes, key=lambda x: abs(x - bullish_target)) if gamma_wall_strikes else bullish_target
+                                        
+                                        st.markdown(f"""
+                                        **Target Strike:** ${bullish_strike:.2f}
+                                        
+                                        **Strategy:** BUY CALL
+                                        
+                                        **Entry:** Current Price
+                                        
+                                        **Target:** ${bullish_target:.2f}
+                                        
+                                        **Probability:** {bullish_prob:.1f}%
+                                        
+                                        **Expected Profit:** ${bullish_target - current_price_t9:.2f}
+                                        
+                                        **Risk/Reward:** 1:{(bullish_target - current_price_t9) / expected_move:.2f}
+                                        
+                                        **Rationale:** Bullish pressure with gamma wall support
+                                        """)
+                                    
+                                    with col_bear:
+                                        st.markdown("#### 📉 BEARISH SETUP")
+                                        bearish_strike = min(gamma_wall_strikes, key=lambda x: abs(x - bearish_target)) if gamma_wall_strikes else bearish_target
+                                        
+                                        st.markdown(f"""
+                                        **Target Strike:** ${bearish_strike:.2f}
+                                        
+                                        **Strategy:** BUY PUT
+                                        
+                                        **Entry:** Current Price
+                                        
+                                        **Target:** ${bearish_target:.2f}
+                                        
+                                        **Probability:** {bearish_prob:.1f}%
+                                        
+                                        **Expected Profit:** ${current_price_t9 - bearish_target:.2f}
+                                        
+                                        **Risk/Reward:** 1:{(current_price_t9 - bearish_target) / expected_move:.2f}
+                                        
+                                        **Rationale:** Bearish pressure with gamma wall resistance
+                                        """)
+                                    
+                                    # MM Logic
+                                    st.markdown("### 🤖 MM Behavior Analysis")
+                                    
+                                    # Calcular Max Pain
+                                    max_pain_t9 = calculate_max_pain_optimized(options_data_t9)
+                                    
+                                    mm_col1, mm_col2, mm_col3 = st.columns(3)
+                                    
+                                    with mm_col1:
+                                        st.metric("Max Pain", f"${max_pain_t9:.2f}" if max_pain_t9 else "N/A",
+                                                 delta=f"{((max_pain_t9 / current_price_t9 - 1) * 100):.2f}%" if max_pain_t9 else "N/A")
+                                    with mm_col2:
+                                        pressure = "Bullish 📈" if current_price_t9 < max_pain_t9 else "Bearish 📉" if current_price_t9 > max_pain_t9 else "Neutral ⚖️"
+                                        st.metric("MM Pressure", pressure)
+                                    with mm_col3:
+                                        move_needed = abs(max_pain_t9 - current_price_t9) if max_pain_t9 else 0
+                                        st.metric("Move Required", f"${move_needed:.2f}" if move_needed else "N/A")
+                                    
+                                    # Gráfico de distribución de precios
+                                    st.markdown("### 📊 Expected Price Distribution")
+                                    
+                                    price_range = np.linspace(current_price_t9 - expected_move * 2, current_price_t9 + expected_move * 2, 100)
+                                    distribution = norm.pdf(price_range, current_price_t9, expected_move)
+                                    
+                                    fig_dist = go.Figure()
+                                    fig_dist.add_trace(go.Scatter(
+                                        x=price_range,
+                                        y=distribution,
+                                        fill='tozeroy',
+                                        name='Price Distribution',
+                                        line=dict(color='#00FFFF')
+                                    ))
+                                    
+                                    # Agregar gamma walls
+                                    for wall_strike in gamma_wall_strikes[:3]:
+                                        fig_dist.add_vline(x=wall_strike, line_dash="dash", line_color="#FF8C42",
+                                                          annotation_text=f"${wall_strike:.0f}")
+                                    
+                                    # Agregar max pain
+                                    if max_pain_t9:
+                                        fig_dist.add_vline(x=max_pain_t9, line_dash="dot", line_color="#FFD700",
+                                                          annotation_text=f"Max Pain: ${max_pain_t9:.0f}")
+                                    
+                                    # Agregar precio actual
+                                    fig_dist.add_vline(x=current_price_t9, line_dash="solid", line_color="#FFFFFF",
+                                                      annotation_text=f"Now: ${current_price_t9:.0f}")
+                                    
+                                    fig_dist.update_layout(
+                                        title=f"{ticker_t9} Expected Price Distribution",
+                                        xaxis_title="Price ($)",
+                                        yaxis_title="Probability",
+                                        template="plotly_dark",
+                                        height=400
+                                    )
+                                    
+                                    st.plotly_chart(fig_dist, use_container_width=True)
+                                    
+                                    # Trade Summary Table
+                                    st.markdown("### 📋 Trade Summary")
+                                    
+                                    trade_summary = pd.DataFrame({
+                                        "Setup": ["BULLISH", "BEARISH"],
+                                        "Strategy": ["BUY CALL", "BUY PUT"],
+                                        "Entry": [f"${current_price_t9:.2f}", f"${current_price_t9:.2f}"],
+                                        "Target": [f"${bullish_target:.2f}", f"${bearish_target:.2f}"],
+                                        "Probability": [f"{bullish_prob:.1f}%", f"{bearish_prob:.1f}%"],
+                                        "R/R Ratio": [f"1:{(bullish_target - current_price_t9) / expected_move:.2f}", 
+                                                     f"1:{(current_price_t9 - bearish_target) / expected_move:.2f}"],
+                                        "MM Aligned": ["Yes ✅" if current_price_t9 < max_pain_t9 else "No ❌", 
+                                                      "Yes ✅" if current_price_t9 > max_pain_t9 else "No ❌"]
+                                    })
+                                    
+                                    st.dataframe(trade_summary, use_container_width=True)
+                                    
+                                else:
+                                    st.error(f"No options data for {ticker_t9} on {selected_exp_t9}")
+                            else:
+                                st.error(f"No expiration dates found for {ticker_t9}")
+                        else:
+                            st.error(f"No historical data for {ticker_t9}")
+                
+                except Exception as e:
+                    st.error(f"Error calculating targets: {str(e)}")
+                    logger.error(f"Tab 9 error: {str(e)}")
+        
         st.markdown("---")
         st.markdown("*Developed by Ozy | © 2025*")
 
