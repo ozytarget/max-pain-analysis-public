@@ -169,6 +169,15 @@ def get_local_ip():
         return None
 
 def authenticate_password(input_password):
+    # ESPECIAL: Si es la contraseña master (zxc11ASD), redirigir al admin panel
+    if input_password == "zxc11ASD":
+        # Autenticar como admin inmediatamente
+        st.session_state["admin_authenticated"] = True
+        st.session_state["authenticated"] = True
+        st.session_state["current_user"] = "admin"
+        logger.info("Master password used - Admin panel activated")
+        return True
+    
     # BLOQUEAR CONTRASEÑAS ANTIGUAS - FORZAR NUEVO SISTEMA DE AUTENTICACIÓN
     if is_legacy_password_blocked(input_password):
         st.error("❌ **Las contraseñas antiguas ya NO son válidas.**\n\nDebes usar el **NUEVO SISTEMA** de autenticación:\n\n1. Haz clic en '📝 Registrarse' (arriba)\n2. Crea tu cuenta con usuario y contraseña nueva\n3. Elige tu plan (Free/Pro/Premium)\n\nContacta al admin si necesitas ayuda: ozytargetcom@gmail.com")
@@ -334,15 +343,13 @@ if not st.session_state["authenticated"]:
                 password = st.text_input("", type="password", key="login_input", placeholder="Password")
                 submit_button = st.form_submit_button(label="Log In")
 
-                if submit_button:
-                    if not password:
-                        st.error("❌ Please enter a password.")
-                    elif authenticate_password(password):
-                        st.session_state["authenticated"] = True
-                        time.sleep(0.5)
-                        st.rerun()
-        
-        # TAB 2: REGISTRO NUEVO USUARIO
+            if submit_button:
+                if not password:
+                    st.error("❌ Please enter a password.")
+                elif authenticate_password(password):
+                    st.session_state["authenticated"] = True
+                    time.sleep(0.3)
+                    st.rerun()        # TAB 2: REGISTRO NUEVO USUARIO
         with auth_tab2:
             st.markdown("### 📝 Crear Nueva Cuenta")
             st.markdown("**Completa los datos para registrarte:**")
