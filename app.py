@@ -1819,10 +1819,6 @@ def generate_contract_suggestions(ticker: str, options_data: List[Dict], current
             st.write(f"Predicted Next Move: {predicted_move} towards ${target_strike:.2f} (Intrinsic Value: ${intrinsic_values[nearest_strike_idx]:.2f})")
 
 
-# --- Nust.cache_data(ttl=CACHE_TTL)
-# --- Nuevas funciones para cripto (necesarias para Tab 8) ---
-
-
 
 
 
