@@ -109,7 +109,7 @@ def initialize_passwords_db():
             ("ne1s34", 0, "", ""), ("opq156", 0, "", ""), ("xyz719", 0, "", ""),
             ("kml156", 0, "", ""), ("no1123", 0, "", ""), ("qw1987", 0, "", ""),
             ("asd614", 0, "", ""), ("zxc121", 0, "", ""), ("b1m098", 0, "", ""),
-            ("vfr165", 0, "", ""), ("tes1234", 0, "", ""), ("1ju109", 0, "", "")
+            ("euge369", 0, "", ""), ("tes1234", 0, "", ""), ("1ju109", 0, "", "")
         ]
         hashed_passwords = [(bcrypt.hashpw(pwd.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'), count, ip1, ip2) 
                            for pwd, count, ip1, ip2 in initial_passwords]
