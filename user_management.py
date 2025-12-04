@@ -115,16 +115,14 @@ def authenticate_user(username: str, password: str) -> tuple:
         
         password_hash, expiration_date, active, tier = result
         
-        # CHECK: Usuario en estado PENDING
-        if tier == "Pending":
-            return False, "Your account is PENDING admin approval. Plan will be assigned shortly. Please wait."
-        
         if not active:
             return False, "Account is deactivated"
         
-        exp_date = datetime.fromisoformat(expiration_date)
-        if datetime.now(MARKET_TIMEZONE) > exp_date:
-            return False, f"License expired on {exp_date.strftime('%Y-%m-%d')}. Contact support to renew."
+        # PENDING users allowed but with Premium access temporarily
+        if tier != "Pending":
+            exp_date = datetime.fromisoformat(expiration_date)
+            if datetime.now(MARKET_TIMEZONE) > exp_date:
+                return False, f"License expired on {exp_date.strftime('%Y-%m-%d')}. Contact support to renew."
         
         if not bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
             return False, "Incorrect password"
@@ -147,13 +145,18 @@ def check_daily_limit(username: str) -> tuple:
         conn = sqlite3.connect(USERS_DB)
         c = conn.cursor()
         
-        c.execute("SELECT usage_today, daily_limit, last_reset FROM users WHERE username = ?", (username,))
+        c.execute("SELECT usage_today, daily_limit, last_reset, tier FROM users WHERE username = ?", (username,))
         result = c.fetchone()
         
         if not result:
             return False, 0, 0
         
-        usage_today, daily_limit, last_reset = result
+        usage_today, daily_limit, last_reset, tier = result
+        
+        # PENDING users get PREMIUM limit (999) temporarily
+        if tier == "Pending":
+            daily_limit = 999
+        
         today = datetime.now(MARKET_TIMEZONE).date().isoformat()
         
         if last_reset != today:
