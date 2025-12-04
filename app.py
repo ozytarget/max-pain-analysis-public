@@ -634,7 +634,7 @@ def get_options_data(ticker: str, expiration_date: str) -> List[Dict]:
 
 @st.cache_data(ttl=CACHE_TTL)
 def get_historical_prices_combined(symbol, period="daily", limit=30):
-    """Get historical prices - Polygon → FMP (sin backend)"""
+    """Get historical prices - Polygon → FMP → yfinance"""
     
     # Intenta Polygon primero
     try:
@@ -677,7 +677,20 @@ def get_historical_prices_combined(symbol, period="daily", limit=30):
                 logger.info(f"Fetched {len(prices)} historical prices for {symbol} from FMP")
                 return prices, volumes
     except Exception as e:
-        logger.error(f"FMP failed: {str(e)}")
+        logger.warning(f"FMP failed: {str(e)}")
+
+    # Fallback a yfinance (siempre funciona)
+    try:
+        ticker_obj = yf.Ticker(symbol)
+        hist = ticker_obj.history(period=f"{limit}d")
+        if not hist.empty:
+            prices = hist['Close'].tolist()
+            volumes = hist['Volume'].tolist()
+            if prices:
+                logger.info(f"Fetched {len(prices)} historical prices for {symbol} from yfinance")
+                return prices, volumes
+    except Exception as e:
+        logger.warning(f"yfinance failed: {str(e)}")
 
     logger.error(f"Unable to fetch historical prices for {symbol}")
     return [], []
