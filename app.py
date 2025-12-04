@@ -25,7 +25,6 @@ import base64
 import os
 import pytz
 from dotenv import load_dotenv
-import krakenex
 import yfinance as yf
 
 db_lock = Lock()
@@ -61,26 +60,12 @@ session_tradier.mount("https://", adapter)
 num_workers = min(100, multiprocessing.cpu_count())
 
 # API Keys and Constants (loaded from .env for security)
-API_KEY = os.getenv("KRAKEN_API_KEY", "")
-PRIVATE_KEY = os.getenv("KRAKEN_PRIVATE_KEY", "")
-kraken = krakenex.API(key=API_KEY, secret=PRIVATE_KEY)
-
 FMP_API_KEY = os.getenv("FMP_API_KEY", "")
 FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
 TRADIER_API_KEY = os.getenv("TRADIER_API_KEY", "")
 TRADIER_BASE_URL = "https://api.tradier.com/v1"
 HEADERS_FMP = {"Accept": "application/json"}
 HEADERS_TRADIER = {"Authorization": f"Bearer {TRADIER_API_KEY}", "Accept": "application/json"}
-
-# Polygon (Massive) API Configuration - Real-time data
-POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "")
-POLYGON_BASE_URL = "https://api.polygon.io"
-POLYGON_SESSION = requests.Session()
-POLYGON_SESSION.mount("https://", HTTPAdapter(max_retries=retry_strategy))
-
-# Log warning if POLYGON_API_KEY is not configured
-if not POLYGON_API_KEY:
-    logger.warning("POLYGON_API_KEY not configured - will fallback to Tradier/FMP for quotes")
 
 # Constantes
 PASSWORDS_DB = "auth_data/passwords.db"
@@ -634,32 +619,9 @@ def get_options_data(ticker: str, expiration_date: str) -> List[Dict]:
 
 @st.cache_data(ttl=CACHE_TTL)
 def get_historical_prices_combined(symbol, period="daily", limit=30):
-    """Get historical prices - Polygon → FMP → yfinance"""
+    """Get historical prices - FMP → yfinance"""
     
-    # Intenta Polygon primero
-    try:
-        from_date = (datetime.now() - timedelta(days=limit)).strftime("%Y-%m-%d")
-        to_date = datetime.now().strftime("%Y-%m-%d")
-        
-        url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/1/day/{from_date}/{to_date}"
-        params = {"apiKey": POLYGON_API_KEY, "sort": "asc", "limit": 120}
-        response = requests.get(url, params=params, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        
-        if data.get("results"):
-            prices = []
-            volumes = []
-            for item in data.get("results", []):
-                prices.append(float(item.get("c", 0)))  # Close price
-                volumes.append(float(item.get("v", 0)))  # Volume
-            if prices:
-                logger.info(f"Fetched {len(prices)} historical prices for {symbol} from Polygon")
-                return prices, volumes
-    except Exception as e:
-        logger.warning(f"Polygon failed: {str(e)}")
-
-    # Fallback a FMP
+    # Intenta FMP primero
     try:
         url = f"{FMP_BASE_URL}/historical-price-full/{symbol}"
         params = {"apikey": FMP_API_KEY, "serietype": period}
@@ -1868,292 +1830,7 @@ def generate_contract_suggestions(ticker: str, options_data: List[Dict], current
 
 
 
-# Funciones para el Tab 8
-# Funciones para el Tab 8
-def kraken_pair_to_api_format(ticker: str) -> str:
-    """Convierte un ticker (e.g., BTC) al formato de Kraken (e.g., XXBTZUSD)."""
-    base = ticker.upper()
-    quote = "USD"
-    if base == "BTC":
-        base = "XBT"
-    return f"X{base}Z{quote}"
 
-def fetch_order_book(ticker: str, depth: int = 500) -> Tuple[pd.DataFrame, pd.DataFrame, float]:
-    """Obtiene el libro de órdenes en vivo desde Kraken con máxima profundidad."""
-    api_pair = kraken_pair_to_api_format(ticker)
-    try:
-        response = kraken.query_public("Depth", {"pair": api_pair, "count": depth})
-        if "error" in response and response["error"]:
-            logger.error(f"Error fetching order book for {ticker}/USD: {response['error']}")
-            return pd.DataFrame(), pd.DataFrame(), 0.0
-        
-        result = response["result"][api_pair]
-        bids = pd.DataFrame(result["bids"], columns=["Price", "Volume", "Timestamp"]).astype(float)
-        asks = pd.DataFrame(result["asks"], columns=["Price", "Volume", "Timestamp"]).astype(float)
-        
-        if bids.empty or asks.empty:
-            logger.warning(f"Empty order book received for {ticker}/USD: bids={len(bids)}, asks={len(asks)}")
-        
-        best_bid = bids["Price"].max() if not bids.empty else 0
-        best_ask = asks["Price"].min() if not asks.empty else 0
-        current_price = (best_bid + best_ask) / 2 if best_bid and best_ask else 0.0
-        
-        logger.info(f"Fetched order book for {ticker}/USD: {len(bids)} bids, {len(asks)} asks")
-        return bids, asks, current_price
-    except Exception as e:
-        logger.error(f"Error fetching order book for {ticker}/USD: {e}")
-        return pd.DataFrame(), pd.DataFrame(), 0.0
-
-def fetch_coingecko_data(ticker: str) -> dict:
-    """Obtiene datos de mercado desde CoinGecko, incluyendo volatilidad."""
-    coin_map = {
-        "BTC": "bitcoin",
-        "ETH": "ethereum",
-        "XRP": "ripple",
-        "LTC": "litecoin",
-        "ADA": "cardano"
-    }
-    coin_id = coin_map.get(ticker.upper(), ticker.lower())
-    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
-    try:
-        response = requests.get(url, timeout=5)
-        if response.status_code != 200:
-            logger.error(f"Error fetching  data for {ticker}: {response.status_code}")
-            return {}
-        data = response.json()
-        market_data = data.get("market_data", {})
-        # URL para datos históricos de 24h
-        history_url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days=1&interval=hourly"
-        history_response = requests.get(history_url, timeout=5)
-        history_data = history_response.json() if history_response.status_code == 200 else {"prices": []}
-        prices = [price[1] for price in history_data.get("prices", [])]
-        volatility = stats.stdev([p / prices[0] * 100 - 100 for p in prices]) * (365 ** 0.5) if len(prices) > 1 else 0  # Volatilidad anualizada
-        return {
-            "price": market_data.get("current_price", {}).get("usd", 0),
-            "change_value": market_data.get("price_change_24h", 0),
-            "change_percent": market_data.get("price_change_percentage_24h", 0),
-            "volume": market_data.get("total_volume", {}).get("usd", 0),
-            "market_cap": market_data.get("market_cap", {}).get("usd", 0),
-            "volatility": volatility
-        }
-    except Exception as e:
-        logger.error(f"Error fetching CoinGecko data for {ticker}: {str(e)}")
-        return {}
-
-def calculate_crypto_max_pain(bids: pd.DataFrame, asks: pd.DataFrame) -> float:
-    """Calcula el Max Pain basado en el libro de órdenes de criptomonedas."""
-    if bids.empty or asks.empty:
-        return 0.0
-    
-    all_prices = sorted(set(bids["Price"].tolist() + asks["Price"].tolist()))
-    min_price = min(all_prices)
-    max_price = max(all_prices)
-    price_range = np.linspace(min_price, max_price, 200)  # Más precisión
-    
-    max_pain_losses = {}
-    for price in price_range:
-        bid_loss = bids[bids["Price"] < price]["Volume"].sum() * (price - bids[bids["Price"] < price]["Price"]).sum()
-        ask_loss = asks[asks["Price"] > price]["Volume"].sum() * (asks[asks["Price"] > price]["Price"] - price).sum()
-        total_loss = bid_loss + ask_loss
-        max_pain_losses[price] = total_loss
-    
-    max_pain_price = min(max_pain_losses, key=max_pain_losses.get, default=0.0)
-    return max_pain_price
-
-def calculate_metrics_with_whales(bids: pd.DataFrame, asks: pd.DataFrame, current_price: float, market_volatility: float) -> dict:
-    """Calcula métricas avanzadas con órdenes de ballenas y volatilidad de mercado."""
-    total_bid_volume = bids["Volume"].sum() if not bids.empty else 0
-    total_ask_volume = asks["Volume"].sum() if not asks.empty else 0
-    total_volume = total_bid_volume + total_ask_volume
-    net_pressure = total_bid_volume - total_ask_volume if total_volume > 0 else 0
-    pressure_index = (net_pressure / total_volume * 100) if total_volume > 0 else 0  # Índice de presión
-    
-    # Órdenes de ballenas
-    whale_threshold = max(bids["Volume"].quantile(0.95) if not bids.empty else 0, 
-                          asks["Volume"].quantile(0.95) if not asks.empty else 0, 
-                          50.0)  # Top 5% o 50 unidades
-    whale_bids = bids[bids["Volume"] >= whale_threshold] if not bids.empty else pd.DataFrame()
-    whale_asks = asks[asks["Volume"] >= whale_threshold] if not asks.empty else pd.DataFrame()
-    
-    whale_bid_volume = whale_bids["Volume"].sum() if not whale_bids.empty else 0
-    whale_ask_volume = whale_asks["Volume"].sum() if not whale_asks.empty else 0
-    whale_net_pressure = whale_bid_volume - whale_ask_volume
-    whale_pressure_weight = (whale_bid_volume + whale_ask_volume) / total_volume if total_volume > 0 else 0
-    
-    whale_bid_price = (whale_bids["Price"] * whale_bids["Volume"]).sum() / whale_bid_volume if whale_bid_volume > 0 else current_price
-    whale_ask_price = (whale_asks["Price"] * whale_asks["Volume"]).sum() / whale_ask_volume if whale_ask_volume > 0 else current_price
-    
-    # Support y Resistance basados en acumulaciones de volumen
-    bids["CumVolume"] = bids["Volume"].cumsum()
-    asks["CumVolume"] = asks["Volume"].cumsum()
-    support = bids[bids["CumVolume"] >= total_bid_volume * 0.25]["Price"].min() if not bids.empty else current_price  # 25% del volumen bid
-    resistance = asks[asks["CumVolume"] >= total_ask_volume * 0.25]["Price"].max() if not asks.empty else current_price  # 25% del volumen ask
-    
-    # Whale Accumulation Zones (clústeres)
-    whale_zones = []
-    if not whale_bids.empty:
-        whale_zones.extend(whale_bids["Price"].tolist())
-    if not whale_asks.empty:
-        whale_zones.extend(whale_asks["Price"].tolist())
-    whale_zones = sorted(set(whale_zones))[:6]  # Limitar a 6 zonas
-    
-    # Fórmula personalizada para target (mi toque especial)
-    max_pain_price = calculate_crypto_max_pain(bids, asks)
-    if max_pain_price != 0.0 and current_price != 0.0:
-        distance_to_max_pain = max_pain_price - current_price
-        whale_influence = (whale_bid_price * whale_bid_volume - whale_ask_price * whale_ask_volume) / (whale_bid_volume + whale_ask_volume + 1) if (whale_bid_volume + whale_ask_volume) > 0 else 0
-        whale_factor = whale_pressure_weight * whale_influence * 3  # Más peso a ballenas
-        volatility_factor = market_volatility / 100  # Volatilidad de CoinGecko como amplificador
-        possible_move = (distance_to_max_pain * (pressure_index / 100) + whale_factor) * (1 + volatility_factor)
-        target_price = current_price + possible_move
-        direction = "BUY" if current_price < target_price else "SELL" if current_price > target_price else "HOLD"
-        
-        # Trader's Edge Score (mi sorpresa)
-        whale_momentum = whale_net_pressure / (whale_bid_volume + whale_ask_volume + 1) * 100 if (whale_bid_volume + whale_ask_volume) > 0 else 0
-        edge_score = (pressure_index * 0.4 + whale_momentum * 0.4 + volatility_factor * 20)  # Puntuación de 0 a 100
-    else:
-        target_price = current_price
-        direction = "HOLD"
-        edge_score = 0
-    
-    return {
-        "net_pressure": net_pressure,
-        "volatility": market_volatility,  # De CoinGecko
-        "support": support,
-        "resistance": resistance,
-        "whale_zones": whale_zones,
-        "target_price": target_price,
-        "direction": direction,
-        "trend": "Bullish" if net_pressure > 0 else "Bearish" if net_pressure < 0 else "Neutral",
-        "whale_bids": whale_bids,
-        "whale_asks": whale_asks,
-        "edge_score": edge_score
-    }
-
-def plot_order_book_bubbles_with_max_pain(bids: pd.DataFrame, asks: pd.DataFrame, current_price: float, ticker: str, market_volatility: float) -> Tuple[go.Figure, dict]:
-    """Crea un gráfico de burbujas con Max Pain, órdenes de ballenas y niveles clave."""
-    fig = go.Figure()
-    
-    # Órdenes regulares
-    if not bids.empty:
-        fig.add_trace(go.Scatter(
-            x=bids["Price"],
-            y=[0] * len(bids),
-            mode="markers",
-            name="Bids",
-            marker=dict(
-                size=bids["Volume"] * 20 / bids["Volume"].max(),
-                color="#32CD32",
-                opacity=0.7,
-                line=dict(width=0.5, color="white")
-            ),
-            customdata=bids[["Price", "Volume"]],
-            hovertemplate="<b>Price:</b> $%{customdata[0]:.2f}<br><b>Volume:</b> %{customdata[1]:.2f}"
-        ))
-    
-    if not asks.empty:
-        fig.add_trace(go.Scatter(
-            x=asks["Price"],
-            y=[0] * len(asks),
-            mode="markers",
-            name="Asks",
-            marker=dict(
-                size=asks["Volume"] * 20 / asks["Volume"].max(),
-                color="#FF4500",
-                opacity=0.7,
-                line=dict(width=0.5, color="white")
-            ),
-            customdata=asks[["Price", "Volume"]],
-            hovertemplate="<b>Price:</b> $%{customdata[0]:.2f}<br><b>Volume:</b> %{customdata[1]:.2f}"
-        ))
-    
-    metrics = calculate_metrics_with_whales(bids, asks, current_price, market_volatility)
-    
-    # Resaltar órdenes de ballenas
-    if not metrics["whale_bids"].empty:
-        fig.add_trace(go.Scatter(
-            x=metrics["whale_bids"]["Price"],
-            y=[0] * len(metrics["whale_bids"]),
-            mode="markers",
-            name="Whale Bids",
-            marker=dict(
-                size=metrics["whale_bids"]["Volume"] * 20 / bids["Volume"].max(),
-                color="#00FF00",
-                opacity=0.9,
-                line=dict(width=2, color="white")
-            ),
-            customdata=metrics["whale_bids"][["Price", "Volume"]],
-            hovertemplate="<b>Whale Bid Price:</b> $%{customdata[0]:.2f}<br><b>Volume:</b> %{customdata[1]:.2f}"
-        ))
-    
-    if not metrics["whale_asks"].empty:
-        fig.add_trace(go.Scatter(
-            x=metrics["whale_asks"]["Price"],
-            y=[0] * len(metrics["whale_asks"]),
-            mode="markers",
-            name="Whale Asks",
-            marker=dict(
-                size=metrics["whale_asks"]["Volume"] * 20 / asks["Volume"].max(),
-                color="#FF0000",
-                opacity=0.9,
-                line=dict(width=2, color="white")
-            ),
-            customdata=metrics["whale_asks"][["Price", "Volume"]],
-            hovertemplate="<b>Whale Ask Price:</b> $%{customdata[0]:.2f}<br><b>Volume:</b> %{customdata[1]:.2f}"
-        ))
-    
-    # Líneas de precio actual y target
-    if current_price > 0:
-        fig.add_vline(
-            x=current_price,
-            line=dict(color="#FFD700", width=1, dash="dash"),
-            annotation_text=f"Current: ${current_price:.2f}",
-            annotation_position="top left",
-            annotation_font=dict(color="#FFD700", size=10)
-        )
-    
-    if metrics["target_price"] != current_price:
-        fig.add_vline(
-            x=metrics["target_price"],
-            line=dict(color="#39FF14", width=1, dash="dot"),
-            annotation_text=f"Target: ${metrics['target_price']:.2f} ({metrics['direction']})",
-            annotation_position="top right",
-            annotation_font=dict(color="#39FF14", size=10)
-        )
-    
-    # Líneas de soporte y resistencia
-    fig.add_vline(
-        x=metrics["support"],
-        line=dict(color="#1E90FF", width=1, dash="dot"),
-        annotation_text=f"Support: ${metrics['support']:.2f}",
-        annotation_position="bottom left",
-        annotation_font=dict(color="#1E90FF", size=8)
-    )
-    fig.add_vline(
-        x=metrics["resistance"],
-        line=dict(color="#FF4500", width=1, dash="dot"),
-        annotation_text=f"Resistance: ${metrics['resistance']:.2f}",
-        annotation_position="bottom right",
-        annotation_font=dict(color="#FF4500", size=8)
-    )
-    
-    fig.update_layout(
-        title=f"FlowS {ticker}/USD | Strategy",
-        xaxis_title="Price (USD)",
-        yaxis_title="",
-        template="plotly_dark",
-        plot_bgcolor="#1E1E1E",
-        paper_bgcolor="#1E1E1E",
-        font=dict(color="#FFFFFF", size=12),
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        height=600,
-        showlegend=True,
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
-    )
-    fig.update_xaxes(showgrid=True, gridcolor="rgba(255,255,255,0.1)")
-    
-    return fig, metrics
 
 
 
@@ -3825,9 +3502,9 @@ def main():
     """, unsafe_allow_html=True)
 
     # Definición de los tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |", "| Stock Insights |",
-        "| Options Order Flow |", "| Analyst Rating Flow |", "| Elliott Pulse® |", "| Crypto Insights |",
+        "| Options Order Flow |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
         "| Target Generator |"
     ])
 
@@ -6090,75 +5767,8 @@ def main():
             st.markdown("---")
             st.markdown("*Developed by Ozy | © 2025*")
 
-    # Tab 8: Crypto Insights
-        # Tab 8: Crypto Insights
+    # Tab 8: Trade Targets & MM Logic
     with tab8:
-        st.subheader("Crypto Insights")
-        
-        # Entrada del usuario
-        ticker = st.text_input("Enter Crypto Ticker (e.g., BTC, ETH, XRP):", value="BTC", key="crypto_ticker_tab8").upper()
-        selected_pair = f"{ticker}/USD"
-        
-        # Botón de actualización
-        refresh_button = st.button("Refresh Orders", key="refresh_tab8")
-        
-        # Placeholder para actualización dinámica
-        placeholder = st.empty()
-        
-        # Procesar datos al hacer clic o en la primera carga
-        if refresh_button or "tab8_initialized" not in st.session_state:
-            with st.spinner(f"Fetching data for {selected_pair}..."):
-                try:
-                    # Importar time explícitamente para evitar el error
-                    import time
-                    
-                    # Obtener datos de mercado de CoinGecko
-                    market_data = fetch_coingecko_data(ticker)
-                    if not market_data:
-                        st.error(f"⏳ Market data for {ticker} is being synced. Please try again shortly.")
-                        logger.error(f"No market data returned for {ticker} from Data")
-                    else:
-                        # Obtener libro de órdenes de Kraken
-                        logger.info(f"Attempting to fetch order book for {selected_pair}")
-                        bids, asks, current_price = fetch_order_book(ticker, depth=500)
-                        if bids.empty or asks.empty:
-                            st.error(f"⏳ Order book data is temporarily unavailable. Please refresh to retry.")
-                            logger.error(f"Order book fetch failed: bids={len(bids)}, asks={len(asks)} for {selected_pair}")
-                        else:
-                            # Mostrar datos en el placeholder
-                            with placeholder.container():
-                                st.markdown(f"### {ticker} USD ({ticker}USD)")
-                                st.write(f"**Price**: ${market_data['price']:,.2f}")
-                                st.write(f"**Change (24h)**: {market_data['change_value']:,.2f} ({market_data['change_percent']:.2f}%)")
-                                st.write(f"**Volume (24h)**: {market_data['volume']:,.0f}")
-                                st.write(f"**Market Cap**: ${market_data['market_cap']:,.0f}")
-                                
-                                # Generar y mostrar gráfico de burbujas
-                                fig, order_metrics = plot_order_book_bubbles_with_max_pain(bids, asks, current_price, ticker, market_data['volatility'])
-                                st.plotly_chart(fig, use_container_width=True, key=f"plotly_chart_tab8_{ticker}_{int(time.time())}")
-                                
-                                # Mostrar métricas
-                                pressure_color = "#32CD32" if order_metrics['net_pressure'] > 0 else "#FF4500" if order_metrics['net_pressure'] < 0 else "#FFFFFF"
-                                st.write(f"**Net Pressure**: <span style='color:{pressure_color}'>{order_metrics['net_pressure']:,.0f}</span> ({order_metrics['trend']})", unsafe_allow_html=True)
-                                st.write(f"**Volatility (Annualized)**: {order_metrics['volatility']:.2f}%")
-                                st.write(f"**Projected Target**: ${order_metrics['target_price']:,.2f}")
-                                st.write(f"**Support**: ${order_metrics['support']:.2f} | **Resistance**: ${order_metrics['resistance']:.2f}")
-                                st.write("**Whale Accumulation Zones**: " + ", ".join([f"${zone:.2f}" for zone in order_metrics['whale_zones']]))
-                                edge_color = "#32CD32" if order_metrics['edge_score'] > 50 else "#FF4500" if order_metrics['edge_score'] < 30 else "#FFD700"
-                                st.write(f"**Trader's Edge Score**: <span style='color:{edge_color}'>{order_metrics['edge_score']:.1f}</span> (0-100)", unsafe_allow_html=True)
-                            
-                            # Marcar como inicializado
-                            st.session_state["tab8_initialized"] = True
-                except Exception as e:
-                    st.error(f"Error processing data for {selected_pair}: {str(e)}")
-                    logger.error(f"Tab 8 error: {str(e)}")
-        
-        # Pie de página
-        st.markdown("---")
-        st.markdown("*Developed by Ozy | © 2025*")
-
-    # Tab 9: Trade Targets & MM Logic
-    with tab9:
         st.subheader("🎯 Trade Targets & MM Logic")
         
         # Configuración inicial
