@@ -3780,10 +3780,173 @@ def main():
             
             st.divider()
 
+    # ===== MARKET MAKER ANALYSIS FUNCTIONS =====
+    @st.cache_data(ttl=CACHE_TTL)
+    def calculate_mm_dynamics(options_data: List[Dict], current_price: float) -> Dict:
+        """
+        Calcula la dinámica de Market Makers basada en OI, Gamma y volatilidad.
+        Identifica cómo los MM posicionarían el precio según su estrategia.
+        """
+        if not options_data:
+            return {}
+        
+        # Procesar datos
+        strikes_data = {}
+        for opt in options_data:
+            strike = float(opt.get("strike", 0))
+            oi = int(opt.get("open_interest", 0) or 0)
+            volume = int(opt.get("volume", 0) or 0)
+            bid = float(opt.get("bid", 0) or 0)
+            ask = float(opt.get("ask", 0) or 0)
+            iv = float(opt.get("implied_volatility", 0) or 0)
+            opt_type = opt.get("option_type", "").upper()
+            
+            if strike not in strikes_data:
+                strikes_data[strike] = {"CALL": {"OI": 0, "VOL": 0, "BID_ASK": 0, "IV": 0}, 
+                                       "PUT": {"OI": 0, "VOL": 0, "BID_ASK": 0, "IV": 0}}
+            
+            if opt_type in strikes_data[strike]:
+                strikes_data[strike][opt_type]["OI"] += oi
+                strikes_data[strike][opt_type]["VOL"] += volume
+                strikes_data[strike][opt_type]["BID_ASK"] += (ask - bid) if bid > 0 else 0
+                strikes_data[strike][opt_type]["IV"] = max(strikes_data[strike][opt_type]["IV"], iv)
+        
+        # Calcular MM pressure por strike
+        mm_analysis = {}
+        for strike in strikes_data:
+            call_data = strikes_data[strike]["CALL"]
+            put_data = strikes_data[strike]["PUT"]
+            
+            # Presión MM: OI × Spread × IV (MM gana con volatilidad y spread)
+            call_pressure = (call_data["OI"] + call_data["VOL"]) * (call_data["BID_ASK"] + 0.01) * (call_data["IV"] + 0.1)
+            put_pressure = (put_data["OI"] + put_data["VOL"]) * (put_data["BID_ASK"] + 0.01) * (put_data["IV"] + 0.1)
+            
+            # Distancia del precio actual
+            distance_pct = abs(strike - current_price) / current_price * 100 if current_price > 0 else 0
+            
+            # Score de atracción MM (qué tan probable que MM lleve el precio aquí)
+            attraction_score = (call_pressure + put_pressure) / (distance_pct + 1)
+            
+            mm_analysis[strike] = {
+                "call_pressure": call_pressure,
+                "put_pressure": put_pressure,
+                "net_pressure": call_pressure - put_pressure,
+                "attraction_score": attraction_score,
+                "distance_pct": distance_pct,
+                "spread_width": (call_data["BID_ASK"] + put_data["BID_ASK"]) / 2,
+                "combined_oi": call_data["OI"] + put_data["OI"],
+                "combined_vol": call_data["VOL"] + put_data["VOL"]
+            }
+        
+        return mm_analysis
+    
+    @st.cache_data(ttl=CACHE_TTL)
+    def identify_contraction_zones(mm_analysis: Dict, current_price: float, top_n: int = 5) -> List[Dict]:
+        """
+        Identifica zonas de contracción probable donde MM probablemente moverá el mercado.
+        Zonas de alta presión MM = contracción probable.
+        """
+        if not mm_analysis:
+            return []
+        
+        # Ordenar por attraction_score (mayor atracción = zona de contracción probable)
+        sorted_strikes = sorted(mm_analysis.items(), key=lambda x: x[1]["attraction_score"], reverse=True)
+        
+        contraction_zones = []
+        for strike, data in sorted_strikes[:top_n]:
+            # Dirección probable basada en presión neta
+            direction = "UP" if data["net_pressure"] > 0 else "DOWN" if data["net_pressure"] < 0 else "SIDEWAYS"
+            distance = abs(strike - current_price)
+            
+            contraction_zones.append({
+                "strike": strike,
+                "attraction_score": data["attraction_score"],
+                "direction": direction,
+                "distance_points": distance,
+                "distance_pct": data["distance_pct"],
+                "combined_oi": data["combined_oi"],
+                "call_pressure": data["call_pressure"],
+                "put_pressure": data["put_pressure"],
+                "spread_width": data["spread_width"]
+            })
+        
+        return contraction_zones
+    
+    @st.cache_data(ttl=CACHE_TTL)
+    def calculate_strike_value(strike: float, mm_data: Dict, current_price: float, max_pain: float) -> Dict:
+        """
+        Calcula el valor de un strike específico para MM y traders.
+        Combina: Max Pain, Pressure, Spread, OI.
+        """
+        if strike not in mm_data:
+            return {}
+        
+        data = mm_data[strike]
+        
+        # Score de valor (1-100)
+        # Factores:
+        # 1. Proximidad a max pain (MM prefiere max pain)
+        # 2. Presión combinada (mayor OI/VOL = más importante)
+        # 3. Spread (spreads anchos = más ganancia para MM)
+        # 4. Proximidad al precio actual (zona de congestión)
+        
+        max_pain_dist = abs(strike - max_pain) if max_pain else abs(strike - current_price)
+        price_proximity = 1 / (abs(strike - current_price) + 0.1)
+        
+        pressure_score = (data["combined_oi"] + data["combined_vol"]) / 1000
+        spread_score = data["spread_width"] * 100
+        max_pain_score = 1 / (max_pain_dist + 1)
+        
+        total_value = (pressure_score * 30 + spread_score * 20 + max_pain_score * 50) / 100
+        
+        return {
+            "strike": strike,
+            "value_score": min(100, total_value),
+            "pressure_score": pressure_score,
+            "spread_score": spread_score,
+            "max_pain_affinity": max_pain_score,
+            "combined_oi": data["combined_oi"],
+            "direction_bias": "UP" if data["net_pressure"] > 0 else "DOWN" if data["net_pressure"] < 0 else "NEUTRAL"
+        }
+    
+    @st.cache_data(ttl=CACHE_TTL)
+    def process_mm_analysis(ticker: str, expiration: str, current_price: float) -> Dict:
+        """
+        Procesa análisis completo de MM incluyendo contracción, strikes valiosos y proyecciones.
+        """
+        options_data = get_options_data(ticker, expiration)
+        if not options_data:
+            return {}
+        
+        # Calcular max pain
+        max_pain = calculate_max_pain_optimized(options_data)
+        
+        # Análisis MM
+        mm_analysis = calculate_mm_dynamics(options_data, current_price)
+        contraction_zones = identify_contraction_zones(mm_analysis, current_price, top_n=8)
+        
+        # Calcular valor de strikes
+        valuable_strikes = []
+        for strike in mm_analysis.keys():
+            value_data = calculate_strike_value(strike, mm_analysis, current_price, max_pain)
+            if value_data and value_data["value_score"] > 20:  # Solo strikes con valor
+                valuable_strikes.append(value_data)
+        
+        # Ordenar por value_score
+        valuable_strikes.sort(key=lambda x: x["value_score"], reverse=True)
+        
+        return {
+            "max_pain": max_pain,
+            "contraction_zones": contraction_zones,
+            "valuable_strikes": valuable_strikes[:5],  # Top 5
+            "mm_analysis": mm_analysis,
+            "current_price": current_price
+        }
+
     # Definición de los tabs
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |", "| Stock Insights |",
-        "| Options Order Flow |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
+        "| MM Market Analysis |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
         "| Target Generator |"
     ])
 
@@ -5617,169 +5780,188 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
 
             
-    # Tab 5: Options Order Flow
+    # Tab 5: MM Market Analysis
     with tab5:
-        st.subheader("Order Flow")
-        stock = st.text_input("Enter Stock Ticker (e.g., AAPL, MSFT):", value="SPY", key="stock_analysis").upper()
-        expiration_dates = get_expiration_dates(stock)
+        st.subheader("📊 Market Maker Analysis - Smart Strike Valuation")
+        
+        # Input fields
+        col1, col2 = st.columns([1.5, 1])
+        with col1:
+            ticker = st.text_input("Stock Ticker", value="SPY", key="mm_ticker").upper()
+        
+        # Get expiration dates
+        expiration_dates = get_expiration_dates(ticker)
         if not expiration_dates:
-            st.error(f"No expiration dates found for '{stock}'. Please enter a valid stock ticker (e.g., SPY, AAPL).")
-            return
-        selected_expiration = st.selectbox("Select an Expiration Date:", expiration_dates, key="stock_exp_date")
-        if stock:
-            with st.spinner("Fetching data..."):
-                current_price = get_current_price(stock)
-                if current_price == 0.0:
-                    st.error(f"❌ No se pudo obtener el precio para {stock}. Por favor, intenta de nuevo en un momento.")
-                    return
+            st.error(f"No expiration dates found for '{ticker}'. Please enter a valid ticker.")
+            st.stop()
+        
+        with col2:
+            expiration_date = st.selectbox("Expiration", expiration_dates, key="mm_expiration")
+        
+        # Fetch current price
+        with st.spinner(f"Analyzing {ticker} Market Maker dynamics..."):
+            current_price = get_current_price(ticker)
+            if current_price == 0.0:
+                st.error(f"Could not fetch price for {ticker}. Please try again.")
+                st.stop()
+            
+            # Process MM analysis
+            mm_result = process_mm_analysis(ticker, expiration_date, current_price)
+            
+            if not mm_result or not mm_result.get("valuable_strikes"):
+                st.error("No market maker data available for this ticker/expiration combination.")
+                st.stop()
+        
+        # Display current price info
+        st.markdown(f"### Current Price: ${current_price:.2f}")
+        
+        col_info1, col_info2, col_info3 = st.columns(3)
+        with col_info1:
+            st.metric("Max Pain Strike", f"${mm_result['max_pain']:.2f}" if mm_result['max_pain'] else "N/A")
+        with col_info2:
+            st.metric("Expiration", expiration_date)
+        with col_info3:
+            st.metric("Days to Expiry", (datetime.strptime(expiration_date, "%Y-%m-%d") - datetime.now()).days)
+        
+        st.divider()
+        
+        # ===== SECTION 1: TOP VALUABLE STRIKES (CARDS) =====
+        st.markdown("### 💎 Top Value Strikes for MM & Traders")
+        st.write("Strikes that offer maximum value based on MM pressure, spread width, and Max Pain affinity:")
+        
+        valuable_strikes = mm_result.get("valuable_strikes", [])
+        
+        if valuable_strikes:
+            # Display as 3-column cards
+            cols = st.columns(3)
+            for idx, strike_data in enumerate(valuable_strikes[:3]):
+                with cols[idx]:
+                    value_score = strike_data["value_score"]
+                    color_intensity = min(255, int((value_score / 100) * 255))
+                    color_hex = f"#{color_intensity:02x}FF{255-color_intensity:02x}"
+                    
+                    direction = strike_data["direction_bias"]
+                    direction_emoji = "📈" if direction == "UP" else "📉" if direction == "DOWN" else "↔️"
+                    direction_color = "green" if direction == "UP" else "red" if direction == "DOWN" else "white"
+                    
+                    card_html = f"""
+                    <div style="
+                        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                        border: 2px solid {color_hex};
+                        border-radius: 10px;
+                        padding: 20px;
+                        margin: 10px 0;
+                        box-shadow: 0 0 20px rgba({color_intensity}, 255, {255-color_intensity}, 0.3);
+                    ">
+                        <div style="text-align: center;">
+                            <h3 style="color: {color_hex}; margin: 0 0 15px 0;">
+                                Strike ${strike_data['strike']:.2f}
+                            </h3>
+                            <div style="font-size: 24px; margin: 10px 0;">
+                                <strong style="color: #39FF14;">VALUE: {value_score:.1f}/100</strong>
+                            </div>
+                            <div style="font-size: 18px; color: {direction_color}; margin: 10px 0;">
+                                {direction_emoji} <strong>{direction}</strong>
+                            </div>
+                            <hr style="border-color: {color_hex}; opacity: 0.3;">
+                            <div style="text-align: left; font-size: 13px; color: #CCCCCC;">
+                                <div><strong>📊 Combined OI:</strong> {strike_data['combined_oi']:,.0f}</div>
+                                <div><strong>💰 Pressure:</strong> {strike_data['pressure_score']:.2f}</div>
+                                <div><strong>📈 Spread Value:</strong> {strike_data['spread_score']:.2f}%</div>
+                                <div><strong>🎯 Max Pain Affinity:</strong> {strike_data['max_pain_affinity']:.2f}</div>
+                            </div>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(card_html, unsafe_allow_html=True)
+            
+            # Additional strikes below (more compact)
+            if len(valuable_strikes) > 3:
+                st.markdown("### 🎯 Additional High-Value Strikes")
+                for strike_data in valuable_strikes[3:]:
+                    col1, col2, col3, col4, col5 = st.columns(5)
+                    with col1:
+                        st.metric("Strike", f"${strike_data['strike']:.2f}")
+                    with col2:
+                        st.metric("Value Score", f"{strike_data['value_score']:.1f}")
+                    with col3:
+                        st.metric("Combined OI", f"{strike_data['combined_oi']:,.0f}")
+                    with col4:
+                        st.metric("Direction", strike_data["direction_bias"])
+                    with col5:
+                        st.metric("Max Pain Aff.", f"{strike_data['max_pain_affinity']:.2f}")
+        
+        st.divider()
+        
+        # ===== SECTION 2: CONTRACTION ZONES =====
+        st.markdown("### 🔮 Probable Price Contraction Zones (MM Activity)")
+        st.write("Where Market Makers are likely to push the price based on Open Interest and Spread Pressure:")
+        
+        contraction_zones = mm_result.get("contraction_zones", [])
+        
+        if contraction_zones:
+            for zone in contraction_zones[:5]:
+                distance_indicator = "🔴" if zone["distance_pct"] < 2 else "🟡" if zone["distance_pct"] < 5 else "🟢"
+                direction_indicator = "📈" if zone["direction"] == "UP" else "📉" if zone["direction"] == "DOWN" else "↔️"
                 
-                order_flow_df, total_call_oi, total_put_oi, net_gamma, direction_mm = process_order_flow_data(stock, selected_expiration, current_price)
-                if order_flow_df.empty:
-                    st.error(f"❌ No options data available for {stock} on {selected_expiration}.")
-                    return
-                
-                max_pain = calculate_max_pain_optimized(get_option_data(stock, selected_expiration).to_dict('records'))
-                
-                fig = go.Figure()
-                fig.add_trace(go.Bar(
-                    x=order_flow_df["Strike"],
-                    y=order_flow_df["Buy_Call_OI"],
-                    name="Buy Call",
-                    marker_color="green",
-                    width=0.4,
-                    hovertemplate="%{y:,}",
-                    text="Buy Call",
-                    textposition="inside"
-                ))
-                fig.add_trace(go.Bar(
-                    x=order_flow_df["Strike"],
-                    y=order_flow_df["Sell_Call_OI"],
-                    name="Sell Call",
-                    marker_color="orange",
-                    width=0.4,
-                    hovertemplate="%{y:,}",
-                    text="Sell Call",
-                    textposition="inside"
-                ))
-                fig.add_trace(go.Bar(
-                    x=order_flow_df["Strike"],
-                    y=-order_flow_df["Buy_Put_OI"],
-                    name="Buy Put",
-                    marker_color="red",
-                    width=0.4,
-                    hovertemplate="%{customdata:,}",
-                    customdata=order_flow_df["Buy_Put_OI"].abs(),
-                    text="Buy Put",
-                    textposition="inside"
-                ))
-                fig.add_trace(go.Bar(
-                    x=order_flow_df["Strike"],
-                    y=-order_flow_df["Sell_Put_OI"],
-                    name="Sell Put",
-                    marker_color="purple",
-                    width=0.4,
-                    hovertemplate="%{customdata:,}",
-                    customdata=order_flow_df["Sell_Put_OI"].abs(),
-                    text="Sell Put",
-                    textposition="inside"
-                ))
-                
-                fig.update_traces(
-                    hoverlabel=dict(
-                        bgcolor="rgba(0,0,0,0.1)",
-                        bordercolor="rgba(255,255,255,0.3)",
-                        font=dict(color="white", size=12)
-                    )
-                )
-                
-                y_max = max(order_flow_df[["Buy_Call_OI", "Sell_Call_OI"]].max().max() or 0, 100) * 1.1
-                y_min = -y_max
-                fig.add_trace(go.Scatter(
-                    x=[current_price, current_price],
-                    y=[y_min, y_max],
-                    mode="lines",
-                    line=dict(width=1, dash="dash", color="#39FF14"),
-                    name="Current Price",
-                    hovertemplate=(
-                        f"<b>Current Price:</b> ${current_price:.2f}<br>"
-                        f"<b>Max Pain:</b> ${max_pain:.2f}<br>"
-                        f"<b>Total Call OI:</b> {total_call_oi:,}<br>"
-                        f"<b>Total Put OI:</b> {total_put_oi:,}<br>"
-                        f"<b>Net Gamma:</b> {net_gamma:.2f}<br>"
-                        f"<b>MM Direction:</b> {direction_mm}"
-                    ),
-                    showlegend=False,
-                    hoverlabel=dict(
-                        bgcolor="rgba(0,0,0,0)",
-                        bordercolor="rgba(0,0,0,0)",
-                        font=dict(color="#39FF14", size=12)
-                    )
-                ))
-                
-                fig.add_annotation(
-                    x=current_price,
-                    y=y_max * 0.95,
-                    text=f"Price: ${current_price:.2f}",
-                    showarrow=False,
-                    font=dict(color="#39FF14", size=10),
-                    bgcolor="rgba(0,0,0,0.5)",
-                    bordercolor="#39FF14",
-                    borderwidth=1,
-                    borderpad=4
-                )
-                
-                score_color = "red" if direction_mm == "Down" else "green" if direction_mm == "Up" else "white"
-                fig.add_annotation(
-                    x=current_price,
-                    y=y_max * 0.9,
-                    text=f"MM Direction: <span style='color:{score_color}'>{direction_mm}</span>",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowsize=1,
-                    arrowwidth=1,
-                    arrowcolor="#39FF14",
-                    font=dict(size=12),
-                    ax=20,
-                    ay=-30,
-                    bgcolor="rgba(0,0,0,0.5)",
-                    bordercolor="#39FF14"
-                )
-                
-                fig.update_layout(
-                    title=f"| {stock} | Expiration: {selected_expiration}",
-                    xaxis_title="Strike Price",
-                    yaxis_title="Open Interest",
-                    barmode="relative",
-                    showlegend=True,
-                    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-                    xaxis=dict(
-                        tickmode="array",
-                        tickvals=order_flow_df["Strike"],
-                        ticktext=[f"{s:.2f}" for s in order_flow_df["Strike"]],
-                        range=[min(order_flow_df["Strike"]) - 10, max(order_flow_df["Strike"]) + 10],
-                        showgrid=False,
-                        rangeslider=dict(visible=True)
-                    ),
-                    yaxis=dict(showgrid=False),
-                    hovermode="x",
-                    bargap=0.2,
-                    height=600,
-                    template="plotly_dark"
-                )
-                
-                st.plotly_chart(fig, use_container_width=True, height=600)
-                st.write(f"**MM Metrics**: Total Call OI: {total_call_oi:,} | Total Put OI: {total_put_oi:,} | Net Gamma: {net_gamma:.2f} | Direction: {direction_mm}")
-                
-                order_flow_csv = order_flow_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Order Flow Data",
-                    data=order_flow_csv,
-                    file_name=f"{stock}_order_flow_{selected_expiration}.csv",
-                    mime="text/csv",
-                    key="download_tab5"
-                )
-                st.markdown("---")
-                st.markdown("*Developed by Ozy | © 2025*")
+                with st.container():
+                    col1, col2, col3, col4, col5 = st.columns([1, 1.5, 1.5, 1.5, 1])
+                    
+                    with col1:
+                        st.write(f"**{zone['strike']:.2f}**")
+                    with col2:
+                        st.write(f"{direction_indicator} {zone['direction']}")
+                    with col3:
+                        st.write(f"📊 Score: {zone['attraction_score']:.1f}")
+                    with col4:
+                        st.write(f"📏 {zone['distance_pct']:.2f}% away")
+                    with col5:
+                        st.write(f"{distance_indicator}")
+                    
+                    # Details row
+                    details = f"Combined OI: {zone['combined_oi']:,.0f} | Spread: ${zone['spread_width']:.4f}"
+                    st.caption(details)
+                    st.divider()
+        
+        st.divider()
+        
+        # ===== SECTION 3: MM INSIGHTS =====
+        st.markdown("### 🧠 Market Maker Insights")
+        
+        col_insight1, col_insight2, col_insight3 = st.columns(3)
+        
+        with col_insight1:
+            st.write("**MM Positioning Logic:**")
+            st.info("""
+            Market Makers profit from:
+            - Wide bid-ask spreads
+            - High volatility
+            - High Open Interest concentration
+            
+            They drive prices to maximize their profit.
+            """)
+        
+        with col_insight2:
+            st.write("**Why Max Pain?**")
+            st.success("""
+            Max Pain = Maximum Loss for option holders
+            = Maximum Profit for option sellers (MM)
+            
+            MMs tend to push price toward Max Pain.
+            """)
+        
+        with col_insight3:
+            st.write("**How to Use:**")
+            st.warning("""
+            1. High Value Strikes = Good risk/reward
+            2. Contraction Zones = Probable price targets
+            3. Direction = Call vs Put pressure
+            
+            Align trades with MM logic for better odds.
+            """)
+        
+        st.divider()
+        st.markdown("*Developed by Ozy | MM Analysis © 2025*")
 
     # Tab 6: Analyst Rating Flow
         # Tab 6: Analyst Rating Flow
