@@ -340,9 +340,9 @@ if not st.session_state["authenticated"]:
         with auth_tab1:
             st.markdown("### 🔐 Acceso a la Plataforma")
             
-            login_subtabs = st.tabs(["👤 Usuario Nuevo", "🔑 Acceso Antiguo"])
+            login_subtabs = st.tabs(["👤 Usuario", "🔑 Master Admin"])
             
-            # SUBTAB: Nuevo usuario (usuario/contraseña)
+            # SUBTAB: Login usuario normal
             with login_subtabs[0]:
                 st.markdown("**Inicia sesión con tu usuario y contraseña:**")
                 
@@ -365,22 +365,31 @@ if not st.session_state["authenticated"]:
                             else:
                                 # Mensaje de error con número de administración
                                 st.error(f"❌ {msg}")
-                                st.warning("⚠️ Si tu cuenta está bloqueada o necesitas ayuda:\n\n📞 **Contacta al administrador:**\n\n☎️ **6789789414** (Facturación y Soporte)")
+                                st.warning("⚠️ Si necesitas ayuda:\n\n📞 **Contacta al administrador:**\n\n☎️ **6789789414** (Facturación y Soporte)")
             
-            # SUBTAB: Acceso antiguo (contraseña)
+            # SUBTAB: Master Admin Login
             with login_subtabs[1]:
-                st.markdown("**Sistema antiguo (bloqueado para nuevos usuarios):**")
-                with st.form(key="login_form"):
-                    password = st.text_input("", type="password", key="login_input", placeholder="Password")
-                    submit_button = st.form_submit_button(label="Log In")
-
-                if submit_button:
-                    if not password:
-                        st.error("❌ Please enter a password.")
-                    elif authenticate_password(password):
-                        st.session_state["authenticated"] = True
-                        time.sleep(0.3)
-                        st.rerun()
+                st.markdown("**Acceso Master Admin:**")
+                st.info("Solo para administradores del sistema")
+                
+                with st.form(key="master_admin_form"):
+                    master_email = st.text_input("📧 Email", placeholder="email@example.com", key="master_email")
+                    master_password = st.text_input("🔐 Contraseña", type="password", placeholder="Contraseña", key="master_password")
+                    master_submit = st.form_submit_button(label="🔓 Ingresar como Admin", use_container_width=True)
+                    
+                    if master_submit:
+                        # Master credentials: ozytargetcom@gmail.com / zxc11ASD
+                        if master_email == "ozytargetcom@gmail.com" and master_password == "zxc11ASD":
+                            st.session_state["admin_authenticated"] = True
+                            st.session_state["authenticated"] = True
+                            st.session_state["current_user"] = "admin"
+                            st.success("✅ ¡Master Admin autenticado!")
+                            logger.info("Master Admin login successful")
+                            time.sleep(0.3)
+                            st.rerun()
+                        else:
+                            st.error("❌ Email o contraseña de Master Admin inválidos")
+                            logger.warning(f"Failed Master Admin login attempt with email: {master_email}")
         
         # TAB 2: REGISTRO NUEVO USUARIO
         with auth_tab2:
