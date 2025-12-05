@@ -4141,8 +4141,9 @@ def main():
                     users_df = get_all_users()
                     if not users_df.empty:
                         users_df = users_df.copy()
-                        users_df["expiration_date"] = pd.to_datetime(users_df["expiration_date"]).dt.strftime("%Y-%m-%d")
-                        users_df["created_date"] = pd.to_datetime(users_df["created_date"]).dt.strftime("%Y-%m-%d")
+                        # Convert dates safely, handling None/empty values
+                        users_df["expiration_date"] = pd.to_datetime(users_df["expiration_date"], errors='coerce').dt.strftime("%Y-%m-%d")
+                        users_df["created_date"] = pd.to_datetime(users_df["created_date"], errors='coerce').dt.strftime("%Y-%m-%d")
                         users_df["Status"] = users_df["active"].apply(lambda x: "🟢 Active" if x else "🔴 Inactive")
                         
                         display_cols = ["username", "email", "tier", "created_date", "expiration_date", "usage_today", "daily_limit", "Status"]
