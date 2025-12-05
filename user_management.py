@@ -47,7 +47,9 @@ def initialize_users_db():
         usage_today INTEGER DEFAULT 0,
         last_reset TEXT,
         active BOOLEAN DEFAULT 1,
-        ip_address TEXT DEFAULT ''
+        ip_address TEXT DEFAULT '',
+        ip1 TEXT DEFAULT '',
+        ip2 TEXT DEFAULT ''
     )''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS activity_log (
@@ -87,9 +89,9 @@ def create_user(username: str, email: str, password: str, tier: str = "Pending")
         expiration_date = (datetime.now(MARKET_TIMEZONE) + timedelta(days=USER_TIERS[tier]["days_valid"])).isoformat()
         daily_limit = USER_TIERS[tier]["daily_limit"]
         
-        c.execute('''INSERT INTO users (username, email, password_hash, tier, created_date, expiration_date, daily_limit)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                  (username, email, password_hash, tier, created_date, expiration_date, daily_limit))
+        c.execute('''INSERT INTO users (username, email, password_hash, tier, created_date, expiration_date, daily_limit, ip1, ip2)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                  (username, email, password_hash, tier, created_date, expiration_date, daily_limit, "", ""))
         
         conn.commit()
         conn.close()
@@ -102,18 +104,18 @@ def create_user(username: str, email: str, password: str, tier: str = "Pending")
         return False, str(e)
 
 def authenticate_user(username: str, password: str) -> tuple:
-    """Authenticate user and check license validity"""
+    """Authenticate user and check license validity - Max 2 IPs per user"""
     try:
         conn = sqlite3.connect(USERS_DB)
         c = conn.cursor()
         
-        c.execute("SELECT password_hash, expiration_date, active, tier FROM users WHERE username = ?", (username,))
+        c.execute("SELECT password_hash, expiration_date, active, tier, ip1, ip2 FROM users WHERE username = ?", (username,))
         result = c.fetchone()
         
         if not result:
             return False, "User not found"
         
-        password_hash, expiration_date, active, tier = result
+        password_hash, expiration_date, active, tier, ip1, ip2 = result
         
         if not active:
             return False, "Account is deactivated"
@@ -127,10 +129,24 @@ def authenticate_user(username: str, password: str) -> tuple:
         if not bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
             return False, "Incorrect password"
         
-        ip_address = get_local_ip()
-        c.execute("UPDATE users SET ip_address = ? WHERE username = ?", (ip_address, username))
+        # VALIDATE IP - Maximum 2 IPs allowed
+        current_ip = get_local_ip()
+        
+        # If both IP slots are filled and current IP doesn't match either, DENY
+        if ip1 and ip2 and current_ip != ip1 and current_ip != ip2:
+            return False, f"❌ Access denied: This password is already in use from 2 other IPs. Maximum 2 IPs allowed per user."
+        
+        # If IP1 is empty, register it
+        if not ip1:
+            c.execute("UPDATE users SET ip1 = ? WHERE username = ?", (current_ip, username))
+        # If IP2 is empty and current IP doesn't match IP1, register it
+        elif not ip2 and current_ip != ip1:
+            c.execute("UPDATE users SET ip2 = ? WHERE username = ?", (current_ip, username))
+        
+        # Update last IP used
+        c.execute("UPDATE users SET ip_address = ? WHERE username = ?", (current_ip, username))
         c.execute("INSERT INTO activity_log (username, action, timestamp, ip_address) VALUES (?, ?, ?, ?)",
-                  (username, "LOGIN", datetime.now(MARKET_TIMEZONE).isoformat(), ip_address))
+                  (username, "LOGIN", datetime.now(MARKET_TIMEZONE).isoformat(), current_ip))
         conn.commit()
         conn.close()
         
