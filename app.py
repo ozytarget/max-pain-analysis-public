@@ -4413,6 +4413,11 @@ def main():
         
         expiration_date = st.selectbox("Expiration Date", expiration_dates, key="expiration_date")
         
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # SHOW LATEST NEWS FOR THIS TICKER
+        # ═══════════════════════════════════════════════════════════════════════════════
+        show_latest_news_ticker(ticker)
+        
         with st.spinner("Fetching price..."):
             current_price = get_current_price(ticker)
             if current_price == 0.0:
@@ -5081,11 +5086,6 @@ def main():
             import traceback
             st.write(traceback.format_exc())
 
-        # ═══════════════════════════════════════════════════════════════════════════════
-        # SHOW LATEST NEWS FOR THIS TICKER
-        # ═══════════════════════════════════════════════════════════════════════════════
-        st.markdown("---")
-        show_latest_news_ticker(ticker)
         st.markdown("*Developed by Ozy | © 2025*")
 
 
@@ -5245,6 +5245,11 @@ def main():
         
         with col_max:
             max_results = st.slider("Max Results", 10, 500, value=100, key="crazy_max")
+        
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # SHOW LATEST MARKET NEWS
+        # ═══════════════════════════════════════════════════════════════════════════════
+        show_latest_news_ticker("SPY")  # Use SPY as proxy for general market news
         
         # ===== MAPEO DE ESTRATEGIAS A FILTROS FINVIZ =====
         finviz_filters = {}
@@ -5883,14 +5888,6 @@ def main():
                 
                 except Exception as e:
                     st.error(f"❌ Scanner Error: {str(e)}")
-        
-        # ═══════════════════════════════════════════════════════════════════════════════
-        # SHOW LATEST MARKET NEWS
-        # ═══════════════════════════════════════════════════════════════════════════════
-        st.markdown("---")
-        st.markdown("### 📰 Latest Market News")
-        show_latest_news_ticker("SPY")  # Use SPY as proxy for general market news
-
         
         st.markdown("---")
         st.markdown("*🚀 Developed by Ozy *")
