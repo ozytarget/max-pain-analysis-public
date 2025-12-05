@@ -7042,9 +7042,9 @@ def main():
                                 'axis': {'range': [0, 100]},
                                 'bar': {'color': vol_color},
                                 'steps': [
-                                    {'range': [0, 30], 'color': '#00FF0020'},
-                                    {'range': [30, 70], 'color': '#FFD70020'},
-                                    {'range': [70, 100], 'color': '#FF000020'}
+                                    {'range': [0, 30], 'color': 'rgba(0, 255, 0, 0.2)'},
+                                    {'range': [30, 70], 'color': 'rgba(255, 215, 0, 0.2)'},
+                                    {'range': [70, 100], 'color': 'rgba(255, 0, 0, 0.2)'}
                                 ],
                                 'threshold': {
                                     'line': {'color': 'white', 'width': 2},
