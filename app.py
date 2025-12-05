@@ -2208,7 +2208,7 @@ def generate_contract_suggestions(ticker: str, options_data: List[Dict], current
 def calculate_volume_power_flow(historical_data, current_price, bin_size=100):
     """Calcular flujo de volumen por precio con Power Index y datos para velas de ballenas."""
     df = pd.DataFrame(historical_data)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], errors='coerce')
     df = df.sort_values("date")
     
     # Calcular buy/sell volume
@@ -2336,7 +2336,7 @@ def plot_volume_power_flow(flow_data, current_price, support, resistance, accumu
 def calculate_liquidity_pulse(historical_data, current_price):
     """Calcular pulso de liquidez diario con target proyectado."""
     df = pd.DataFrame(historical_data)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], errors='coerce')
     df = df.sort_values("date")
     
     df["price_change"] = df["close"].diff()
@@ -3154,7 +3154,7 @@ def fetch_fmp_intraday_prices(symbol: str) -> pd.DataFrame:
         data = response.json()
         if data:
             df = pd.DataFrame(data)
-            df["date"] = pd.to_datetime(df["date"])
+            df["date"] = pd.to_datetime(df["date"], errors='coerce')
             return df[["date", "close"]].sort_values("date")
         return pd.DataFrame()
     except requests.RequestException as e:
@@ -3265,7 +3265,7 @@ def fetch_fmp_historical_prices(symbol: str) -> pd.DataFrame:
         if "date" not in df or "close" not in df:
             logger.warning(f"Invalid historical price data format for {symbol}")
             return pd.DataFrame()
-        df["date"] = pd.to_datetime(df["date"])
+        df["date"] = pd.to_datetime(df["date"], errors='coerce')
         df["close"] = pd.to_numeric(df["close"], errors="coerce")
         df = df[["date", "close"]].dropna().sort_values("date")
         logger.info(f"Successfully fetched {len(df)} days of historical prices for {symbol}")
@@ -4110,7 +4110,7 @@ def main():
                         st.warning(f"⚠️ {len(pending_users)} user(s) pending admin tier assignment")
                         
                         pending_display = pending_users[['username', 'email', 'created_date']].copy()
-                        pending_display['created_date'] = pd.to_datetime(pending_display['created_date']).dt.strftime("%Y-%m-%d")
+                        pending_display['created_date'] = pd.to_datetime(pending_display['created_date'], errors='coerce').dt.strftime("%Y-%m-%d")
                         st.dataframe(pending_display, use_container_width=True, hide_index=True)
                         
                         # Quick assign for pending users
@@ -4186,7 +4186,7 @@ def main():
                     activity_df = get_activity_log()
                     if not activity_df.empty:
                         activity_df = activity_df.copy()
-                        activity_df["timestamp"] = pd.to_datetime(activity_df["timestamp"]).dt.strftime("%Y-%m-%d %H:%M")
+                        activity_df["timestamp"] = pd.to_datetime(activity_df["timestamp"], errors='coerce').dt.strftime("%Y-%m-%d %H:%M")
                         st.dataframe(activity_df, use_container_width=True, hide_index=True)
                     else:
                         st.info("No activity logs")
@@ -4273,7 +4273,8 @@ def main():
                         - Email: {email}
                         """)
                         st.stop()
-                except:
+                except Exception as e:
+                    logger.warning(f"Error validating user expiration: {e}")
                     pass
             
             # Validación 3: Daily limit exceeded (excepto Pending y Unlimited)
@@ -4465,12 +4466,12 @@ def main():
                     # Procesar datos históricos (últimos 180 días)
                     tab1_historical = tab1_hist_data['historical'][:180]
                     tab1_hist_df = pd.DataFrame(tab1_historical)
-                    tab1_hist_df['date'] = pd.to_datetime(tab1_hist_df['date']).dt.tz_localize(None)
+                    tab1_hist_df['date'] = pd.to_datetime(tab1_hist_df['date'], errors='coerce').dt.tz_localize(None)
                     tab1_hist_df = tab1_hist_df.sort_values('date')
                     
                     # Procesar targets (últimos 12 meses)
                     tab1_targets_df = pd.DataFrame(tab1_targets_data)
-                    tab1_targets_df['publishedDate'] = pd.to_datetime(tab1_targets_df['publishedDate']).dt.tz_localize(None)
+                    tab1_targets_df['publishedDate'] = pd.to_datetime(tab1_targets_df['publishedDate'], errors='coerce').dt.tz_localize(None)
                     tab1_one_year_ago = pd.Timestamp.now().tz_localize(None) - pd.Timedelta(days=365)
                     tab1_targets_df = tab1_targets_df[tab1_targets_df['publishedDate'] >= tab1_one_year_ago]
                     
@@ -5594,12 +5595,11 @@ def main():
                                             
                                             # ===== BULLISH SIGNALS =====
                                             change = 0
-                                            if 'Change' in df.columns:
-                                                change_str = str(row['Change']).replace('%', '').replace(',', '')
-                                                try:
-                                                    change = float(change_str)
-                                                except:
-                                                    change = 0
+                                            change_str = str(row['Change']).replace('%', '').replace(',', '')
+                                            try:
+                                                change = float(change_str)
+                                            except (ValueError, TypeError):
+                                                change = 0
                                             
                                             # Signal 1: Cambio positivo (bullish momentum)
                                             if change > 1:
