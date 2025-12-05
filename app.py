@@ -6911,7 +6911,7 @@ def main():
         # 🔥 MEGA CÁLCULO: MARKET MAKER ANALYSIS & TARGETS
         # ═════════════════════════════════════════════════════════════════
         st.markdown("---")
-        st.markdown("## 🔥 MARKET MAKER ANALYSIS & PROFESSIONAL TARGETS")
+        st.markdown("## 🔥  ANALYSIS & TARGETS")
         
         col_mm1, col_mm2 = st.columns(2)
         
@@ -6991,82 +6991,11 @@ def main():
                         with col_of4:
                             st.metric("Volume Spike", f"{volume_spike:.2f}x")
                         
-                        # ════════════════════════════════════════════════════════
-                        # VOLATILITY ANALYSIS
-                        # ════════════════════════════════════════════════════════
-                        st.markdown("### ⚡ Volatility Analysis")
-                        
-                        returns_vol = np.diff(np.log(prices_array))
-                        hv_current = np.std(returns_vol) * np.sqrt(252) * 100
-                        
+                        # Obtener datos de opciones para gamma
                         exp_dates = get_expiration_dates(ticker_mm)
-                        vol_action = "BUY"
-                        vol_state = "🟡 NORMAL"
-                        iv_current = hv_current
-                        iv_percentile = 50
-                        
+                        opts_data = None
                         if exp_dates:
                             opts_data = get_options_data(ticker_mm, exp_dates[0])
-                            
-                            if opts_data:
-                                ivs_list = [float(o.get("implied_volatility", 0)) * 100 
-                                           for o in opts_data if o.get("implied_volatility")]
-                                iv_current = np.mean(ivs_list) if ivs_list else hv_current
-                                iv_percentile = (iv_current - np.min(ivs_list)) / (np.max(ivs_list) - np.min(ivs_list) + 0.001) * 100 if ivs_list else 50
-                                
-                                if iv_percentile < 30:
-                                    vol_state = "🟢 LOW"
-                                    vol_action = "BUY"
-                                    vol_color = "#00FF00"
-                                elif iv_percentile > 70:
-                                    vol_state = "🔴 HIGH"
-                                    vol_action = "SELL"
-                                    vol_color = "#FF0000"
-                                else:
-                                    vol_state = "🟡 NORMAL"
-                                    vol_action = "NEUTRAL"
-                                    vol_color = "#FFD700"
-                        
-                        # Visualización de Volatilidad - GAUGE
-                        fig_vol = go.Figure(go.Indicator(
-                            mode="gauge+number+delta",
-                            value=iv_percentile,
-                            domain={'x': [0, 1], 'y': [0, 1]},
-                            title={'text': "IV Percentile"},
-                            delta={'reference': 50, 'suffix': " from Neutral"},
-                            gauge={
-                                'axis': {'range': [0, 100]},
-                                'bar': {'color': vol_color},
-                                'steps': [
-                                    {'range': [0, 30], 'color': 'rgba(0, 255, 0, 0.2)'},
-                                    {'range': [30, 70], 'color': 'rgba(255, 215, 0, 0.2)'},
-                                    {'range': [70, 100], 'color': 'rgba(255, 0, 0, 0.2)'}
-                                ],
-                                'threshold': {
-                                    'line': {'color': 'white', 'width': 2},
-                                    'thickness': 0.75,
-                                    'value': 50
-                                }
-                            }
-                        ))
-                        
-                        fig_vol.update_layout(
-                            template="plotly_dark",
-                            height=350,
-                            font=dict(size=12)
-                        )
-                        
-                        st.plotly_chart(fig_vol, use_container_width=True)
-                        
-                        col_vol1, col_vol2, col_vol3, col_vol4 = st.columns(4)
-                        with col_vol1:
-                            st.metric("IV", f"{iv_current:.1f}%")
-                        with col_vol2:
-                            st.metric("HV", f"{hv_current:.1f}%")
-                        with col_vol3:
-                            st.metric("IV Percentile", f"{iv_percentile:.0f}%")
-                        with col_vol4:
-                            st.metric("Action", vol_state)
                         
                         # ════════════════════════════════════════════════════════
                         # GAMMA ANALYSIS
@@ -7141,71 +7070,6 @@ def main():
                                 )
                                 
                                 st.plotly_chart(fig_gamma, use_container_width=True)
-                        
-                        # ════════════════════════════════════════════════════════
-                        # SENTIMENT & REVERSAL DETECTION
-                        # ════════════════════════════════════════════════════════
-                        st.markdown("### 🔄 Sentiment & Reversal Risk")
-                        
-                        recent_trend = prices_array[-1] - prices_array[0]
-                        trend_pct = (recent_trend / prices_array[0]) * 100
-                        
-                        daily_changes = np.abs(returns_flow)
-                        avg_move = np.mean(daily_changes) * 100
-                        recent_move = np.abs(returns_flow[-1]) * 100
-                        
-                        if recent_move > avg_move * 1.5:
-                            reversal_risk = "⚠️ HIGH"
-                            reversal_color = "#FF0000"
-                        elif recent_move < avg_move * 0.5:
-                            reversal_risk = "✅ LOW"
-                            reversal_color = "#00FF00"
-                        else:
-                            reversal_risk = "➡️ MEDIUM"
-                            reversal_color = "#FFD700"
-                        
-                        # Heatmap de volatilidad por periodo
-                        periods = 6
-                        volatilities = []
-                        for i in range(periods):
-                            segment = prices_array[i*5:(i+1)*5]
-                            if len(segment) > 1:
-                                seg_vol = np.std(np.diff(segment) / segment[:-1]) * 100
-                                volatilities.append(seg_vol)
-                            else:
-                                volatilities.append(0)
-                        
-                        fig_heatmap = go.Figure(data=go.Heatmap(
-                            z=[volatilities],
-                            x=[f"Period {i+1}" for i in range(len(volatilities))],
-                            y=["Volatility"],
-                            colorscale="RdYlGn_r",
-                            text=[[f"{v:.2f}%" for v in volatilities]],
-                            texttemplate="%{text}",
-                            textfont={"size": 12},
-                            hovertemplate='%{x}<br>Volatility: %{z:.2f}%<extra></extra>'
-                        ))
-                        
-                        fig_heatmap.update_layout(
-                            title="Volatility Distribution Over Time",
-                            template="plotly_dark",
-                            height=200,
-                            xaxis_title="Time Period"
-                        )
-                        
-                        st.plotly_chart(fig_heatmap, use_container_width=True)
-                        
-                        col_rev1, col_rev2, col_rev3, col_rev4 = st.columns(4)
-                        with col_rev1:
-                            st.metric("Trend 30D", f"{trend_pct:+.2f}%", 
-                                     delta_color="normal" if trend_pct > 0 else "inverse")
-                        with col_rev2:
-                            st.metric("Avg Daily Move", f"{avg_move:.2f}%")
-                        with col_rev3:
-                            st.metric("Recent Move", f"{recent_move:.2f}%",
-                                     delta_color="inverse" if recent_move > avg_move * 1.5 else "normal")
-                        with col_rev4:
-                            st.metric("Reversal Risk", reversal_risk)
                         
                         # ════════════════════════════════════════════════════════
                         # PROFESSIONAL TARGETS CALCULATION
@@ -7373,88 +7237,252 @@ def main():
                             """)
                         
                         # ════════════════════════════════════════════════════════
-                        # FINAL ANALYSIS SCORE - RADAR CHART
+                        # LEYES 26-100: REAL MARKET EXAMPLES
                         # ════════════════════════════════════════════════════════
                         st.markdown("---")
-                        st.markdown("### 📊 Market Structure Analysis")
-                        
-                        bullish_score = 0
-                        bearish_score = 0
-                        
-                        if buy_pressure > 55: bullish_score += 1
-                        else: bearish_score += 1
-                        
-                        if vol_action == "BUY": bullish_score += 1
-                        elif vol_action == "SELL": bearish_score += 1
-                        
-                        if reversal_risk != "⚠️ HIGH": bullish_score += 1
-                        else: bearish_score += 1
-                        
-                        if trend_pct > 0: bullish_score += 1
-                        else: bearish_score += 1
-                        
-                        if volume_spike > 1.5: bullish_score += 1
-                        else: bearish_score += 1
-                        
-                        # Radar Chart
-                        categories = ["Order Flow", "Volatility", "Reversal Risk", "Trend", "Volume"]
-                        bullish_values = [
-                            buy_pressure if buy_pressure > 50 else 100 - buy_pressure,
-                            80 if vol_action == "BUY" else 50 if vol_action == "NEUTRAL" else 30,
-                            80 if reversal_risk != "⚠️ HIGH" else 20,
-                            (trend_pct + 10) if trend_pct > 0 else abs(trend_pct) + 10,
-                            min(volume_spike * 30, 100)
-                        ]
-                        
-                        fig_radar = go.Figure()
-                        
-                        fig_radar.add_trace(go.Scatterpolar(
-                            r=bullish_values,
-                            theta=categories,
-                            fill='toself',
-                            name='Market Strength',
-                            line=dict(color='#00FF00'),
-                            fillcolor='rgba(0, 255, 0, 0.2)'
-                        ))
-                        
-                        fig_radar.update_layout(
-                            polar=dict(
-                                radialaxis=dict(
-                                    visible=True,
-                                    range=[0, 100],
-                                    gridcolor='#333333'
-                                ),
-                                bgcolor='#111111'
-                            ),
-                            title="Market Structure Radar",
-                            template="plotly_dark",
-                            height=450,
-                            showlegend=False
-                        )
-                        
-                        st.plotly_chart(fig_radar, use_container_width=True)
-                        
-                        # Final Recommendation
-                        if bullish_score >= 3:
-                            rec_text = f"🚀 BULLISH BIAS"
-                            rec_color = "green"
-                            rec_box = f"**Signal Strength: {bullish_score}/5**"
-                        elif bearish_score >= 3:
-                            rec_text = f"🔴 BEARISH BIAS"
-                            rec_color = "red"
-                            rec_box = f"**Signal Strength: {bearish_score}/5**"
-                        else:
-                            rec_text = f"⚖️ NEUTRAL"
-                            rec_color = "orange"
-                            rec_box = f"**Awaiting Clarity**"
-                        
-                        st.markdown(f"""
-                        <div style='background: linear-gradient(135deg, {rec_color}30 0%, transparent 100%); 
-                                    border-left: 4px solid {rec_color}; padding: 20px; border-radius: 8px;'>
-                        <h2>{rec_text}</h2>
-                        {rec_box}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        with st.expander("⭐ LEYES 26–100 (Real Market Examples)"):
+                            st.markdown("""
+### 🔥 GAMMA LAWS (26–35)
+
+🔥 **26. Los squeezes existen por gamma, no por "compradores"**
+*Ejemplo: TSLA sube +7% en 20 min → no fueron compradores retail, fue cobertura de calls vendidos por MM*
+
+🔥 **27. El MM sube precio para cubrir calls vendidos**
+*Ejemplo: NVDA con 5M calls OTM → MM compra spot → precio arriba → calls expiran OTM*
+
+🔥 **28. La gamma máxima siempre está ATM (at-the-money)**
+*Ejemplo: SPY 450 actual → gamma máxima en 450, no en 460 (que está OTM)*
+
+🔥 **29. Comprar gamma = comprar volatilidad futura**
+*Ejemplo: IV 18% pero SKEW invertido → comprar calls OTM gana si volatilidad explota*
+
+🔥 **30. Vender gamma = ser alcanzador de vol**
+*Ejemplo: IV 45% y subiendo → vender calls OTM es neta, pero need tight stops*
+
+🔥 **31. El gamma es convexidad, no directionalidad**
+*Ejemplo: SPY call holder gana si sube O si baja (porque vol sube en ambos casos)*
+
+🔥 **32. Gamma squeeze = todos corren hacia el mismo lado**
+*Ejemplo: GME 2021 - calls en cadena, gamma multiplied, movimiento exponencial*
+
+🔥 **33. Cuanto más OTM, menor gamma pero más "timing dependent"**
+*Ejemplo: QQQ 850 call (6% OTM) → baja gamma pero movimiento de 1% la duplica*
+
+🔥 **34. ATM options tienen máxima gamma durante últimas 2 semanas**
+*Ejemplo: SPY call 450 strike → gamma multiplies por 10 desde 30 días a 1 día*
+
+🔥 **35. Gamma siempre favor a quien compra vol relativa a la que vende**
+*Ejemplo: IV Percentile baja pero skew dice "put buyers" → los puts van a ganar*
+
+### ⚖️ DELTA & RISK LAWS (36–45)
+
+🔥 **36. Delta 0.50 NO SIGNIFICA "50% de probabilidad"**
+*Ejemplo: SPY call delta 0.50 con IV 18% ≠ 50% de chances, es ~40-42% de probabilidad real*
+
+🔥 **37. Delta se mueve más rápido cuando IV cae (convexidad negativa)**
+*Ejemplo: Una call delta 0.60 con IV subiendo → puede bajar a 0.55 sin moverse el spot*
+
+🔥 **38. Vender delta alto = vender direccionalidad pura, sin gamma**
+*Ejemplo: Vender 0.80 delta call → puro short direccional, gamma te va a destroyar en reversal*
+
+🔥 **39. Delta es "instantaneous", gamma es "acceleration"**
+*Ejemplo: Si delta 0.50 y spot sube 1%, nuevo delta ≈ 0.70 (gamma movió delta)*
+
+🔥 **40. Net delta negativo se maneja con spreads, no short spot**
+*Ejemplo: Short 10 0.70 delta calls → comprar calls OTM (spread) = hedge mejor que short stock*
+
+🔥 **41. Theta decay accelerates en últimas 2 semanas**
+*Ejemplo: Weekly call Friday = pierde 40% del valor en 1 día, pero pierde 60% en últimas 6 horas*
+
+🔥 **42. Vega es "vol convexity", siempre favor a long vol**
+*Ejemplo: Long call + long put (straddle) → gana si IV sube, pierde si IV cae (even same spot)*
+
+🔥 **43. Rho es irrelevante para equities, crítico para futures**
+*Ejemplo: SPY call vega >> rho, pero GOLD futures rho = importantísimo en carry*
+
+🔥 **44. Delta hedging = "rebalancing purgatory"**
+*Ejemplo: Compras call, delta 0.50, subes spot → delta ahora 0.75 → vendes futures → spot cae → repeat*
+
+🔥 **45. "Greeks are wrong at extremes" - stochastic vol is real**
+*Ejemplo: FOMC data → implied move +5% pero realizado -8% → "tail risk" mata modelos*
+
+### ⏳ TIME & THETA LAWS (46–55)
+
+🔥 **46. Theta NO es lineal, explota en últimas 2 semanas**
+*Ejemplo: 45 DTE call pierde 0.5% diaria, 5 DTE call pierde 8% diaria (misma strike, mismo IV)*
+
+🔥 **47. Long IV traders son "time decay fighters"**
+*Ejemplo: Compras call IV 30, spot mueve +3% pero IV cae a 25 → puedes perder dinero anyway*
+
+🔥 **48. Earning moves > IV expected = suicides IV short**
+*Ejemplo: AAPL moves +8% pero IV forecast era +6% → put sellers mueren, call sellers mueren*
+
+🔥 **49. Weekend theta = "theta in slo-mo" (menos decay de lo normal)**
+*Ejemplo: Friday ATM call pierde 1.5% theta, pero lunes a viernes decay es 2.5% (mercado abierto matters)*
+
+🔥 **50. Tuesday-Wednesday theta = máximo decay (estatisticamente)**
+*Ejemplo: Vende calls los viernes, cierra los miercoles = profit máximo en % (theta compounding)*
+
+🔥 **51. Theta es 'rent'... long IV es 'insurance buyer'**
+*Ejemplo: Compras call, pagas rent (theta) cada día, esperas volatilidad = si no explota, pierdes rent*
+
+🔥 **52. Theta acceleration > gamma acceleration en últimas 48h**
+*Ejemplo: Monday 0 DTE call pierde 50% valor en 2 horas, gamma solo cae 30%*
+
+🔥 **53. Quarterly expiries = micro-options (SPX, WEEKLIES) tienen theta maníaco**
+*Ejemplo: SPX 0 DTE options pierden $100K en 10 minutos (institucionales lo saben)*
+
+🔥 **54. Theta is YOUR ALLY si eres net short gamma**
+*Ejemplo: Vendedor de credit spreads = theta amigo, pero gamma enemy si se mueve mucho*
+
+🔥 **55. Theta en direction opposite del movimiento = "double death"**
+*Ejemplo: Long call, mercado baja + theta decay = pierdes por dos cosas, peor que ambas juntas*
+
+### 🔄 REVERSALS & RALLY LAWS (56–65)
+
+🔥 **56. El bounce máximo siempre es en -2 sigma, no en -1 sigma**
+*Ejemplo: SPY cae 2.5% (≈ -1.5σ) → MM no sube, cae otro 1% → llega -2.5σ → AH BOOM reversión*
+
+🔥 **57. Rallies desde -3σ son "mechanical", no "organic"**
+*Ejemplo: TSLA cae 5% en 30 min → rallies no porque "es barato", rallies porque gamma forcing bid*
+
+🔥 **58. Put selling es "catching falling knives in slow motion"**
+*Ejemplo: Vender 0.30 delta puts en caída libre → cada día 0.30 delta se vuelve 0.50, 0.70, 0.90*
+
+🔥 **59. Squeeze = gamma + volatility + shorts crowding**
+*Ejemplo: GME: shorts + low float + gamma en calls = combinación explosiva, no es retail buying*
+
+🔥 **60. Bottom formations = "max pain meeting option walls"**
+*Ejemplo: AAPL buscó 150 strike (max pain) 3 veces en 1 semana → ahí hay massive put walls*
+
+🔥 **61. Reversal ≠ Bounce. Bounce es temporal, reversal es estructura**
+*Ejemplo: NVDA cae 4% → rally 2% (bounce), luego cae 5% más (no reversal). Reversal sería +10% sostenido*
+
+🔥 **62. Rallies que "faltan momentum" mueren en 2-3 dias**
+*Ejemplo: SPY sube +1.5% pero volumen cae 30% → rally muere, revisit lows incoming*
+
+🔥 **63. Reversals grandes siempre tienen "low point liquidity check"**
+*Ejemplo: Market cae 3% → sube 2.9% → rechecks lows en volumen bajo (liquidity testing)*
+
+🔥 **64. La reversión más grande es cuando "stops run"**
+*Ejemplo: SPY toca 450 (support) → salta a 451 → stops corren → inversión de momentum completa*
+
+🔥 **65. Post-reversal rallies > pre-reversal rallies (más gamma buying)**
+*Ejemplo: Cae 5%, revierte en gamma squeeze → sube 8% (overshoot porque gamma compra en rally)*
+
+### 🧠 PSYCHOLOGY & SENTIMENT LAWS (66–75)
+
+🔥 **66. Retail tiene 1 día de paciencia, MM tiene 30 dias de plan**
+*Ejemplo: Retail vende SPY put en caída, MM espera 15 días para que expire OTM*
+
+🔥 **67. FOMO es 15-minute phenomenon, no 15-day phenomenon**
+*Ejemplo: Movimiento +3% en 15 min = FOMO, pero +3% en 1 día = estructura normal*
+
+🔥 **68. Cuando "todos hablan del mismo trade" = ya está priced in**
+*Ejemplo: Enero 2024: todos hablan de "MegaCap AI" → AI stocks no suben, suben otros*
+
+🔥 **69. Bearish sentiment en 5-10% caída = oportunidad, en -20% = pánico real**
+*Ejemplo: -5% caída → "BUY DIP" señal, pero -20% caída → institucionales liquidando*
+
+🔥 **70. El mayor leverage psicológico es "casi ganas dinero ayer"**
+*Ejemplo: Perdiste $1000 ayer en trade → hoy haces +$500 → sientes que "ganaste" cuando en realidad sigues down*
+
+🔥 **71. Pyramid schemes (FOMO) siempre colapsan cuando "nuevo dinero" se agota**
+*Ejemplo: Crypto pumps cuando retail entra, colapsa cuando retail no tiene más fiat*
+
+🔥 **72. Traders que "predicen" directamente = emotional bias**
+*Ejemplo: "SPY va a 600" vs "Si SPY rompe 470, próximo target 480" - el segundo es probabilístico*
+
+🔥 **73. Loss aversion = 3x power vs gain attraction**
+*Ejemplo: Retail vende winners early para "lock in gains", mantiene losers (loss aversion bias)*
+
+🔥 **74. Anchoring bias mata trading: "fue a 500 ayer, va a 500 mañana" - wrong.**
+*Ejemplo: TSLA fue a 250 en 2020, no significa que vuelve a 250 mañana (structure cambia)*
+
+🔥 **75. Confirmation bias = lee noticias que confirman tu posición, ignora las opuestas**
+*Ejemplo: Bull on SPY → lee sobre economic growth, ignora unemployment data*
+
+### 💧 LIQUIDITY & HIDDEN STRUCTURE LAWS (76–85)
+
+🔥 **76. El bid-ask spread en opciones = "tax invisible"**
+*Ejemplo: Compras call 2.50, vendes 2.40 = 0.10 de spread (4% cost) antes de move actual*
+
+🔥 **77. Liquidity clustering = 70% volumen en 10% of strikes**
+*Ejemplo: SPY calls: 70% volumen en 5-10 strikes principales, otros son illiquid traps*
+
+🔥 **78. Hidden layers = MM tiene "bots layer" + "human layer" + "principal layer"**
+*Ejemplo: Ves bid $2.00, pero MM interno quiere $1.95, tus órdenes hit bots primero*
+
+🔥 **79. Dark pools = "institutional routing", no "conspiracy"**
+*Ejemplo: Grandes bloques de AAPL stock no ven el bid-ask público, ejecutan dark*
+
+🔥 **80. Liquidity provider vs liquidity taker = 1:10 payoff ratio**
+*Ejemplo: Proveedor (vende opciones) gana pequeño, comprador (compra opciones) gana grande pero raro*
+
+🔥 **81. El spread más bajo = trampa de información asimétrica**
+*Ejemplo: NVDA call spread 0.01, pero si intentas vender 100 lotes, precio cae 50%*
+
+🔥 **82. Market impact = tu orden es "visible information"**
+*Ejemplo: Vendes 50M acciones → precio cae antes de que cierres, porque ves volumen grande*
+
+🔥 **83. The 'axe' = el lado del MM que REALMENTE quiere transacciones**
+*Ejemplo: MM hace bid 100 (alto), ask 102 (bajo) → el 'axe' es comprar en bid (busca shorters)*
+
+🔥 **84. Rollover points = 5 días antes de expiración tienen 30% de volumen**
+*Ejemplo: SPX roll viernes → lunes es 30% volumen más alto (todos rolling forward)*
+
+🔥 **85. Expiración semanal vs mensual = diferente estructura de gamma**
+*Ejemplo: Weekly opciones tie gamma a 5 días (micro-wars), monthly a 30 días (macro-wars)*
+
+### 🎭 MANIPULATION & MARKET BEHAVIOR LAWS (86–95)
+
+🔥 **86. "Painting the tape" = MM mueve precio no por flow, sino por opción hedging**
+*Ejemplo: MM vendió 100K calls 450 → sube precio a 451 → tus calls pierden valor, MM profits*
+
+🔥 **87. Wash sales = legales en opciones, ilegales en stocks (arbitrage opportunity)**
+*Ejemplo: Compra call, vende call mismo momento = realización de pérdida para taxes, same exposure*
+
+🔥 **88. Spoofing = hace órdenes falsas, pero es ILEGAL (y detectado por SEC)**
+*Ejemplo: Colocas orden gigante, la retiras antes de transaccionar = spoofing = prisión*
+
+🔥 **89. Pump & dump = altcoins / low cap, NOT big cap (se nota mucho)**
+*Ejemplo: TSLA/SPY no puede pump & dump, pero DWAC sí = baja liquidez = fácil**
+
+🔥 **90. Short ladder attacks = MEME, no realidad. Está prohibido legalmente.**
+*Ejemplo: "Citadel shorting to keep GME down" = no es structural, es shorting normal legal*
+
+🔥 **91. 'Wick burns' = MM shakes out weak hands, realmente es hedge rebalancing**
+*Ejemplo: SPY suena nivel bajo, wick, revierte → MM rehded gamma, no 'attack retail'*
+
+🔥 **92. Earnings surprises > option gamma effects**
+*Ejemplo: AAPL gana +10% revenue, pero IV explode → straddle buyers ganan 15%*
+
+🔥 **93. Earnings whipsaw = día después movimiento reversal (mean reversion post-shock)**
+*Ejemplo: AAPL baja -6% earnings, +3% next day (pero NET -3%, media reversion)*
+
+🔥 **94. "Support/Resistance" es MASSIVE option walls, no magical lines**
+*Ejemplo: SPY 450 soporte = 50M shares de put walls ahí, NO es mágica, es gamma*
+
+🔥 **95. Floor brokers = ya no existen (automated), pero illusion persiste**
+*Ejemplo: Crees que "floor trader" ejecuta tu orden, pero es algoritmo en 1 milisegundo*
+
+### 🎲 PURE STRATEGIES (96–100)
+
+🔥 **96. Calendar spreads = micro-vol trade (little vega, high theta)**
+*Ejemplo: Vende 30 DTE call, compra 60 DTE call (strike), gana si IV cae*
+
+🔥 **97. Iron condors = "net zero directional, short volatility"**
+*Ejemplo: Sell 450 call + Sell 440 put (SPY) = ganas si SPY stays 440-450, pierdes en extremos*
+
+🔥 **98. Diagonal spreads = "rolling hedge engine"**
+*Ejemplo: Compra 60 DTE call, vende 30 DTE call (más alta strike) = self-funding strategy*
+
+🔥 **99. Conversions/reversals = "locked-in arbitrage", solo para MM**
+*Ejemplo: Long call + Short put + Short stock = 0% directional, pure carry trade (MM only)*
+
+🔥 **100. No buscan acertar dirección: buscan no morir**
+*Ejemplo: Delta-neutral hedging = MM gana pequeño pero consistente, retail arriesga mucho por pequeño gain*
+                            """)
                         
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
