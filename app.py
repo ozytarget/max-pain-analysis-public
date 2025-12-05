@@ -6907,6 +6907,416 @@ def main():
                     st.error(f"Error calculating targets: {str(e)}")
                     logger.error(f"Tab 9 error: {str(e)}")
         
+        # ═════════════════════════════════════════════════════════════════
+        # 🔥 MEGA CÁLCULO: 100 LEYES DE MARKET MAKERS
+        # ═════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.markdown("## 🔥 MEGA CÁLCULO: 100 LEYES & ESTRATEGIAS DE MARKET MAKERS")
+        
+        col_mm1, col_mm2 = st.columns(2)
+        
+        with col_mm1:
+            ticker_mm = st.text_input("Ticker para MM Analysis", value="SPY", key="mm_analysis_ticker").upper()
+        with col_mm2:
+            expiry_mm = st.selectbox("Expiración", ["Weekly", "Monthly"], key="mm_expiry_select")
+        
+        if ticker_mm and ticker_mm != "":
+            with st.spinner(f"🔥 Calculando 100 Leyes de MM para {ticker_mm}..."):
+                try:
+                    # Obtener datos
+                    current_price_mm = get_current_price(ticker_mm)
+                    prices_hist_mm, volumes_hist_mm = get_historical_prices_combined(ticker_mm, limit=120)
+                    
+                    if current_price_mm > 0 and prices_hist_mm:
+                        # ════════════════════════════════════════════════════════
+                        # I. ANÁLISIS DE FLUJO DE ÓRDENES (Order Flow)
+                        # ════════════════════════════════════════════════════════
+                        st.markdown("### 🌊 I. LEYES DEL FLUJO DE ÓRDENES (Order Flow Laws)")
+                        
+                        # Calcular imbalance de precio
+                        prices_array = np.array(prices_hist_mm[-30:])
+                        returns_flow = np.diff(prices_array) / prices_array[:-1]
+                        
+                        # Presión de compra/venta
+                        buy_pressure = len([r for r in returns_flow if r > 0.001]) / len(returns_flow) * 100
+                        sell_pressure = len([r for r in returns_flow if r < -0.001]) / len(returns_flow) * 100
+                        
+                        # Liquidez detectada
+                        volumes_array = np.array(volumes_hist_mm[-30:])
+                        avg_volume = np.mean(volumes_array)
+                        volume_spike = np.max(volumes_array) / avg_volume if avg_volume > 0 else 1
+                        
+                        # Tamaño de velas
+                        highs = np.max(prices_array.reshape(-1, 5), axis=1)
+                        lows = np.min(prices_array.reshape(-1, 5), axis=1)
+                        candle_sizes = (highs - lows) / np.mean(prices_array.reshape(-1, 5)) * 100
+                        avg_candle = np.mean(candle_sizes)
+                        large_candles = len([c for c in candle_sizes if c > avg_candle * 1.5])
+                        
+                        col_of1, col_of2, col_of3, col_of4 = st.columns(4)
+                        with col_of1:
+                            st.metric("💰 Presión Compra", f"{buy_pressure:.1f}%", 
+                                     delta=f"{buy_pressure - 50:.1f}% vs neutral")
+                        with col_of2:
+                            st.metric("📉 Presión Venta", f"{sell_pressure:.1f}%",
+                                     delta=f"{sell_pressure - 50:.1f}% vs neutral")
+                        with col_of3:
+                            st.metric("📦 Liquidez (Spike)", f"{volume_spike:.2f}x",
+                                     delta="Alto" if volume_spike > 2 else "Normal")
+                        with col_of4:
+                            st.metric("📏 Velas Grandes", f"{large_candles}/6",
+                                     delta="Desequilibrio" if large_candles > 3 else "Balance")
+                        
+                        # Interpretación según leyes
+                        st.markdown("""
+                        **Leyes Aplicadas:**
+                        - El precio sigue a la liquidez, no a la lógica
+                        - Los stops son objetivos, no advertencias
+                        - El volumen alto atrae más volumen
+                        - Una vela grande = desequilibrio; pequeña = balance
+                        """)
+                        
+                        # ════════════════════════════════════════════════════════
+                        # II. ANÁLISIS DE VOLATILIDAD (IV, Vega, Vanna)
+                        # ════════════════════════════════════════════════════════
+                        st.markdown("### ⚡ II. LEYES DE VOLATILIDAD (IV, Vega, Vanna)")
+                        
+                        # Histórica vs Realizada
+                        returns_vol = np.diff(np.log(prices_array))
+                        hv_current = np.std(returns_vol) * np.sqrt(252) * 100
+                        
+                        # Obtener opciones para IV
+                        exp_dates = get_expiration_dates(ticker_mm)
+                        if exp_dates:
+                            opts_data = get_options_data(ticker_mm, exp_dates[0])
+                            
+                            if opts_data:
+                                ivs_list = [float(o.get("implied_volatility", 0)) * 100 
+                                           for o in opts_data if o.get("implied_volatility")]
+                                iv_current = np.mean(ivs_list) if ivs_list else hv_current
+                                
+                                # Volatility State
+                                iv_percentile = (iv_current - np.min(ivs_list)) / (np.max(ivs_list) - np.min(ivs_list) + 0.001) * 100 if ivs_list else 50
+                                
+                                if iv_percentile < 30:
+                                    vol_state = "🟢 BAJO (MM compra premium)"
+                                    vol_action = "COMPRAR opciones (baratas)"
+                                elif iv_percentile > 70:
+                                    vol_state = "🔴 ALTO (MM vende premium)"
+                                    vol_action = "VENDER opciones (caras)"
+                                else:
+                                    vol_state = "🟡 NORMAL (Expectativa equilibrada)"
+                                    vol_action = "Estrategias neutras"
+                                
+                                col_vol1, col_vol2, col_vol3, col_vol4 = st.columns(4)
+                                with col_vol1:
+                                    st.metric("📊 IV Actual", f"{iv_current:.1f}%")
+                                with col_vol2:
+                                    st.metric("📈 HV Realizada", f"{hv_current:.1f}%")
+                                with col_vol3:
+                                    st.metric("IV Percentil", f"{iv_percentile:.0f}%")
+                                with col_vol4:
+                                    st.metric("Volatility State", vol_state)
+                                
+                                st.info(f"**Acción MM**: {vol_action}")
+                                st.markdown("""
+                                **Leyes Aplicadas:**
+                                - IV baja → MM compra premium
+                                - IV sube → MM vende premium
+                                - Noticias mueven IV, no precio
+                                - Vega manda en eventos importantes
+                                """)
+                        
+                        # ════════════════════════════════════════════════════════
+                        # III. ANÁLISIS DE GAMMA (Control del Spot)
+                        # ════════════════════════════════════════════════════════
+                        st.markdown("### 🧱 III. LEYES DE GAMMA (Control del Spot)")
+                        
+                        if opts_data:
+                            # Calcular gamma agregado por zona
+                            gamma_by_strike = {}
+                            for opt in opts_data:
+                                strike = float(opt.get("strike", 0))
+                                opt_type = opt.get("option_type", "").upper()
+                                gamma = float(opt.get("greeks", {}).get("gamma", 0)) if isinstance(opt.get("greeks", {}), dict) else 0
+                                oi = int(opt.get("open_interest", 0) or 0)
+                                
+                                if strike not in gamma_by_strike:
+                                    gamma_by_strike[strike] = {"CALL": 0, "PUT": 0}
+                                
+                                if opt_type == "CALL":
+                                    gamma_by_strike[strike]["CALL"] += gamma * oi
+                                elif opt_type == "PUT":
+                                    gamma_by_strike[strike]["PUT"] += gamma * oi
+                            
+                            # Detectar flip (gamma negativo)
+                            gamma_net = {}
+                            for strike, gamma in gamma_by_strike.items():
+                                net = gamma["CALL"] - gamma["PUT"]
+                                gamma_net[strike] = net
+                            
+                            # Identificar zona dominante
+                            if gamma_net:
+                                max_call_strike = max(gamma_net, key=lambda k: gamma_net[k] if gamma_net[k] > 0 else 0)
+                                max_put_strike = min(gamma_net, key=lambda k: gamma_net[k])
+                                
+                                call_gamma_val = gamma_net.get(max_call_strike, 0)
+                                put_gamma_val = gamma_net.get(max_put_strike, 0)
+                                
+                                if call_gamma_val > abs(put_gamma_val):
+                                    gamma_state = "🟢 GAMMA POSITIVO (Precio estable)"
+                                    gamma_behavior = "MM sigue al flujo"
+                                    gamma_flip = False
+                                elif put_gamma_val > abs(call_gamma_val):
+                                    gamma_state = "🔴 GAMMA NEGATIVO (Spot explosivo)"
+                                    gamma_behavior = "MM empuja contra flujo"
+                                    gamma_flip = True
+                                else:
+                                    gamma_state = "🟡 GAMMA FLIP (Impredecible)"
+                                    gamma_behavior = "Volatilidad extrema esperada"
+                                    gamma_flip = True
+                                
+                                col_gm1, col_gm2, col_gm3 = st.columns(3)
+                                with col_gm1:
+                                    st.metric("Gamma State", gamma_state)
+                                with col_gm2:
+                                    st.metric("Call Gamma Zona", f"${max_call_strike:.2f}")
+                                with col_gm3:
+                                    st.metric("Put Gamma Zona", f"${max_put_strike:.2f}")
+                                
+                                st.warning(f"**MM Comportamiento**: {gamma_behavior}")
+                                st.markdown("""
+                                **Leyes Aplicadas:**
+                                - Gamma positivo = precio estable
+                                - Gamma negativo = spot explosivo
+                                - Gamma flip = mercado impredecible
+                                - Zonas de gamma son imanes de precio
+                                """)
+                        
+                        # ════════════════════════════════════════════════════════
+                        # IV. ANÁLISIS DE REVERSIÓN Y RALLIES
+                        # ════════════════════════════════════════════════════════
+                        st.markdown("### 🔄 IV. LEYES DE REVERSIÓN Y RALLIES")
+                        
+                        # Detectar tendencia y posible reversión
+                        recent_trend = prices_array[-1] - prices_array[0]
+                        trend_pct = (recent_trend / prices_array[0]) * 100
+                        
+                        # Amplitud de movimiento
+                        daily_changes = np.abs(returns_flow)
+                        avg_move = np.mean(daily_changes) * 100
+                        recent_move = np.abs(returns_flow[-1]) * 100
+                        
+                        # Velocidad de movimiento
+                        if recent_move > avg_move * 1.5:
+                            movement_type = "⚡ EXPLOSIVO - Reversión esperada"
+                            reversal_risk = "ALTO"
+                        elif recent_move < avg_move * 0.5:
+                            movement_type = "🐢 LENTO - Consolidación"
+                            reversal_risk = "BAJO"
+                        else:
+                            movement_type = "⚙️ NORMAL - Balance"
+                            reversal_risk = "MEDIO"
+                        
+                        col_rev1, col_rev2, col_rev3, col_rev4 = st.columns(4)
+                        with col_rev1:
+                            st.metric("Tendencia 30D", f"{trend_pct:+.2f}%")
+                        with col_rev2:
+                            st.metric("Movimiento Típico", f"{avg_move:.2f}%")
+                        with col_rev3:
+                            st.metric("Movimiento Reciente", f"{recent_move:.2f}%")
+                        with col_rev4:
+                            st.metric("Tipo Movimiento", movement_type)
+                        
+                        st.warning(f"**Riesgo de Reversión**: {reversal_risk}")
+                        st.markdown("""
+                        **Leyes Aplicadas:**
+                        - Daño no lo hace tendencia, lo hace reversión
+                        - Movimientos exagerados siempre revierten
+                        - Rally violento = rebalanceo de gamma
+                        - Caída rápida = reponer liquidez
+                        """)
+                        
+                        # ════════════════════════════════════════════════════════
+                        # V. ANÁLISIS DE SENTIMIENTO & PRESIÓN MM
+                        # ════════════════════════════════════════════════════════
+                        st.markdown("### 🎯 V. LEYES DE SENTIMIENTO & PRESIÓN MM")
+                        
+                        # Calcular sentimiento
+                        bullish_days = len([r for r in returns_flow if r > 0])
+                        bearish_days = len([r for r in returns_flow if r < 0])
+                        neutral_days = len([r for r in returns_flow if abs(r) <= 0.001])
+                        
+                        total_days = len(returns_flow)
+                        bullish_pct = (bullish_days / total_days) * 100
+                        bearish_pct = (bearish_days / total_days) * 100
+                        
+                        # Extremo detectado
+                        if bullish_pct > 65:
+                            sentiment = "🔴 EXTREMADAMENTE BULLISH - MM venderá calls"
+                            mm_action = "SELL CALLS / Buscar shorting"
+                        elif bearish_pct > 65:
+                            sentiment = "🟢 EXTREMADAMENTE BEARISH - MM venderá puts"
+                            mm_action = "SELL PUTS / Buscar compra"
+                        else:
+                            sentiment = "🟡 BALANCED - MM espera"
+                            mm_action = "Estrategias neutras"
+                        
+                        col_sent1, col_sent2, col_sent3 = st.columns(3)
+                        with col_sent1:
+                            st.metric("📈 Días Alcistas", f"{bullish_pct:.1f}%")
+                        with col_sent2:
+                            st.metric("📉 Días Bajistas", f"{bearish_pct:.1f}%")
+                        with col_sent3:
+                            st.metric("Sentimiento", sentiment)
+                        
+                        st.info(f"**Acción MM Esperada**: {mm_action}")
+                        st.markdown("""
+                        **Leyes Aplicadas:**
+                        - MM va contra sentimiento extremo
+                        - El retail se mueve en masa; MM primero
+                        - Precio se mueve por dolor, no esperanza
+                        - MM nunca predice; solo ajusta riesgo
+                        """)
+                        
+                        # ════════════════════════════════════════════════════════
+                        # VI. ANÁLISIS DE ESTRUCTURA & LIQUIDEZ OCULTA
+                        # ════════════════════════════════════════════════════════
+                        st.markdown("### 💧 VI. LEYES DE LIQUIDEZ OCULTA & ESTRUCTURA")
+                        
+                        # Detectar gaps y desequilibrios
+                        intraday_ranges = []
+                        for i in range(5, len(prices_array), 5):
+                            segment = prices_array[i-5:i]
+                            intraday_ranges.append(np.max(segment) - np.min(segment))
+                        
+                        avg_intraday = np.mean(intraday_ranges) if intraday_ranges else 0
+                        current_range = np.max(prices_array[-5:]) - np.min(prices_array[-5:]) if len(prices_array) >= 5 else 0
+                        
+                        if current_range > avg_intraday * 1.5:
+                            liquidity_state = "🔴 IMBALANCE - Zonas de liquidez faltante"
+                            liquidity_action = "Atacar gaps"
+                        elif current_range < avg_intraday * 0.5:
+                            liquidity_state = "🟢 BALANCEADO - Liquidez distribuida"
+                            liquidity_action = "Seguir flujo"
+                        else:
+                            liquidity_state = "🟡 NORMAL"
+                            liquidity_action = "Esperar setup"
+                        
+                        col_liq1, col_liq2, col_liq3 = st.columns(3)
+                        with col_liq1:
+                            st.metric("Rango Promedio 5D", f"${avg_intraday:.2f}")
+                        with col_liq2:
+                            st.metric("Rango Actual 5D", f"${current_range:.2f}")
+                        with col_liq3:
+                            st.metric("Estado", liquidity_state)
+                        
+                        st.warning(f"**Acción sobre Liquidez**: {liquidity_action}")
+                        st.markdown("""
+                        **Leyes Aplicadas:**
+                        - Donde no hay volumen, precio no puede moverse
+                        - Gaps son zonas de baja liquidez
+                        - MM empuja precio hacia pools de liquidez
+                        - Zonas de imbalance son objetivos inevitables
+                        """)
+                        
+                        # ════════════════════════════════════════════════════════
+                        # VII. RESUMEN FINAL: MATRIZ DE DECISIÓN MM
+                        # ════════════════════════════════════════════════════════
+                        st.markdown("---")
+                        st.markdown("### 🎯 MATRIZ FINAL DE DECISIÓN (MM Laws)")
+                        
+                        # Crear matriz de análisis
+                        decision_matrix = pd.DataFrame({
+                            "Análisis": [
+                                "Flujo de Órdenes",
+                                "Volatilidad",
+                                "Gamma",
+                                "Reversión",
+                                "Sentimiento",
+                                "Liquidez"
+                            ],
+                            "Estado": [
+                                f"Compra {buy_pressure:.0f}% / Venta {sell_pressure:.0f}%",
+                                vol_state if 'vol_state' in locals() else "N/A",
+                                gamma_state if 'gamma_state' in locals() else "N/A",
+                                movement_type if 'movement_type' in locals() else "N/A",
+                                sentiment if 'sentiment' in locals() else "N/A",
+                                liquidity_state if 'liquidity_state' in locals() else "N/A"
+                            ],
+                            "Señal": [
+                                "📈 Compra" if buy_pressure > 55 else "📉 Venta" if sell_pressure > 55 else "⚖️ Neutral",
+                                "📈 Compra" if iv_percentile < 30 else "📉 Venta" if iv_percentile > 70 else "⚖️ Neutral",
+                                "📈 Sigue" if not gamma_flip else "📉 Contra",
+                                "⚠️ Reversión" if reversal_risk == "ALTO" else "✅ Continuar",
+                                mm_action.split("/")[0] if 'mm_action' in locals() else "N/A",
+                                liquidity_action if 'liquidity_action' in locals() else "N/A"
+                            ]
+                        })
+                        
+                        st.dataframe(decision_matrix, use_container_width=True)
+                        
+                        # Recomendación final basada en las 100 leyes
+                        st.markdown("---")
+                        st.markdown("### 🔥 RECOMENDACIÓN FINAL (Basada en 100 Leyes de MM)")
+                        
+                        # Contar señales
+                        bullish_signals = 0
+                        bearish_signals = 0
+                        
+                        if buy_pressure > 55: bullish_signals += 1
+                        else: bearish_signals += 1
+                        
+                        if 'vol_action' in locals() and "compra" in vol_action.lower(): 
+                            bullish_signals += 1
+                        elif 'vol_action' in locals():
+                            bearish_signals += 1
+                        
+                        if not gamma_flip: bullish_signals += 1
+                        else: bearish_signals += 1
+                        
+                        if reversal_risk == "ALTO": 
+                            bearish_signals += 1
+                        else:
+                            bullish_signals += 1
+                        
+                        if "BULLISH" in sentiment: bearish_signals += 1
+                        else: bullish_signals += 1
+                        
+                        # Decisión final
+                        if bullish_signals >= 4:
+                            final_rec = "🚀 COMPRA ALCISTA"
+                            rec_color = "green"
+                        elif bearish_signals >= 4:
+                            final_rec = "🔴 VENTA/SHORT"
+                            rec_color = "red"
+                        else:
+                            final_rec = "⚖️ ESPERA SETUP CLARO"
+                            rec_color = "orange"
+                        
+                        st.markdown(f"""
+                        <div style='background-color: {rec_color}; padding: 20px; border-radius: 10px; text-align: center;'>
+                        <h2>RECOMENDACIÓN: {final_rec}</h2>
+                        <p>Señales Alcistas: {bullish_signals}/5 | Señales Bajistas: {bearish_signals}/5</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        st.markdown("""
+                        **Clave de las 100 Leyes**:
+                        - El MM nunca predice, solo ajusta riesgo (Delta neutral)
+                        - Busca liquidez donde está el retail
+                        - Gamma domina el intradía
+                        - Theta gana por paciencia
+                        - Los stops son objetivos
+                        - La reversión es el mayor riesgo
+                        - IV es más importante que el precio
+                        - Estructura > Sentimiento
+                        """)
+                        
+                except Exception as e:
+                    st.error(f"Error en MEGA CÁLCULO: {str(e)}")
+                    logger.error(f"MM Mega Calc error: {str(e)}")
+        
         st.markdown("---")
         st.markdown("*Developed by Ozy | © 2025*")
 
