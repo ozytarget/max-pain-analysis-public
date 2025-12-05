@@ -21,17 +21,30 @@ USERS_DB = "auth_data/users.db"
 ADMIN_EMAIL = "ozytargetcom@gmail.com"
 ADMIN_PASSWORD_HASH = None  # Set during init
 
+# Logger setup
+logger = logging.getLogger(__name__)
+
+# Database schema version for tracking migrations
+DB_SCHEMA_VERSION = 2  # Increment when schema changes
+SCHEMA_VERSION_FILE = "auth_data/schema_version.txt"
+
 USER_TIERS = {
     "Pending": {"daily_limit": 0, "days_valid": 999999, "color": "#FFA500"},  # Orange - awaiting admin
     "Free": {"daily_limit": 10, "days_valid": 30, "color": "#808080"},
     "Pro": {"daily_limit": 100, "days_valid": 365, "color": "#39FF14"},
-    "Premium": {"daily_limit": 999, "days_valid": 365, "color": "#FFD700"}
+    "Premium": {"daily_limit": 999, "days_valid": 365, "color": "#FFD700"},
+    "SchemaUpdate": {"daily_limit": 0, "days_valid": 0, "color": "#FF0000"}  # Blocked - must re-register
 }
 
 def initialize_users_db():
-    """Initialize professional user management database with automatic migration"""
+    """Initialize professional user management database with schema versioning"""
     import os
     os.makedirs("auth_data", exist_ok=True)
+    
+    # Get stored schema version
+    stored_version = get_schema_version()
+    current_version = DB_SCHEMA_VERSION
+    
     conn = sqlite3.connect(USERS_DB)
     c = conn.cursor()
     
@@ -39,22 +52,55 @@ def initialize_users_db():
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
     table_exists = c.fetchone() is not None
     
+    schema_changed = False
+    
     if table_exists:
         # Check if new columns exist
         c.execute("PRAGMA table_info(users)")
         columns = [row[1] for row in c.fetchall()]
         
-        # If missing new columns, migrate
+        # If missing new columns, schema has changed
         if 'ip1' not in columns:
-            logger.info("Migrating users table - adding ip1, ip2 columns")
+            logger.warning("🔴 SCHEMA CHANGED - Detected missing columns (ip1, ip2)")
+            schema_changed = True
+            
             try:
-                # Add new columns
-                c.execute("ALTER TABLE users ADD COLUMN ip1 TEXT DEFAULT ''")
-                c.execute("ALTER TABLE users ADD COLUMN ip2 TEXT DEFAULT ''")
-                conn.commit()
-                logger.info("✅ Migration successful - added IP restriction columns")
+                # BACKUP old users before migration
+                logger.info("📦 Creating backup of existing users...")
+                c.execute("SELECT * FROM users")
+                old_users = c.fetchall()
+                
+                # If there are old users, block them and preserve data
+                if old_users:
+                    logger.warning(f"⚠️ Found {len(old_users)} existing users - marking as BLOCKED for re-registration")
+                    
+                    # Add new columns
+                    c.execute("ALTER TABLE users ADD COLUMN ip1 TEXT DEFAULT ''")
+                    c.execute("ALTER TABLE users ADD COLUMN ip2 TEXT DEFAULT ''")
+                    
+                    # Block all existing users by setting tier to SchemaUpdate
+                    c.execute("UPDATE users SET tier = 'SchemaUpdate', active = 0")
+                    
+                    # Log the blocking action
+                    for user_row in old_users:
+                        username = user_row[1]  # username is second column
+                        c.execute("""INSERT INTO activity_log (username, action, timestamp, details) 
+                                   VALUES (?, ?, ?, ?)""",
+                                (username, "BLOCKED_SCHEMA_UPDATE", 
+                                 datetime.now(MARKET_TIMEZONE).isoformat(),
+                                 "Account blocked due to database schema update - must re-register"))
+                    
+                    conn.commit()
+                    logger.info(f"✅ Blocked {len(old_users)} users - they must re-register")
+                else:
+                    # No old users, just add columns
+                    c.execute("ALTER TABLE users ADD COLUMN ip1 TEXT DEFAULT ''")
+                    c.execute("ALTER TABLE users ADD COLUMN ip2 TEXT DEFAULT ''")
+                    conn.commit()
+                    logger.info("✅ Schema migration completed (no users to block)")
+                    
             except sqlite3.OperationalError as e:
-                logger.warning(f"⚠️ Migration issue: {e} (columns may already exist)")
+                logger.warning(f"⚠️ Column already exists: {e}")
     else:
         # Create new table with all columns
         c.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -73,7 +119,7 @@ def initialize_users_db():
             ip1 TEXT DEFAULT '',
             ip2 TEXT DEFAULT ''
         )''')
-        logger.info("✅ Created new users table with IP restriction columns")
+        logger.info("✅ Created new users table with full schema")
     
     c.execute('''CREATE TABLE IF NOT EXISTS activity_log (
         id INTEGER PRIMARY KEY,
@@ -86,6 +132,30 @@ def initialize_users_db():
     
     conn.commit()
     conn.close()
+    
+    # Update schema version
+    if schema_changed:
+        save_schema_version(current_version)
+        logger.warning(f"🔴 Schema version updated to {current_version} - users have been blocked")
+    elif stored_version != current_version:
+        save_schema_version(current_version)
+        logger.info(f"✅ Schema version updated to {current_version}")
+
+def get_schema_version():
+    """Get stored database schema version"""
+    try:
+        if os.path.exists(SCHEMA_VERSION_FILE):
+            with open(SCHEMA_VERSION_FILE, 'r') as f:
+                return int(f.read().strip())
+    except:
+        pass
+    return 1
+
+def save_schema_version(version):
+    """Save database schema version"""
+    os.makedirs("auth_data", exist_ok=True)
+    with open(SCHEMA_VERSION_FILE, 'w') as f:
+        f.write(str(version))
 
 def get_local_ip():
     """Get user IP address"""
@@ -139,6 +209,10 @@ def authenticate_user(username: str, password: str) -> tuple:
             return False, "User not found"
         
         password_hash, expiration_date, active, tier, ip1, ip2 = result
+        
+        # 🔴 CHECK FOR SCHEMA UPDATE BLOCK
+        if tier == "SchemaUpdate":
+            return False, "🔴 ACCOUNT BLOCKED - Database was updated. You must RE-REGISTER to continue. Your account will be restored with your original tier."
         
         if not active:
             return False, "Account is deactivated"
