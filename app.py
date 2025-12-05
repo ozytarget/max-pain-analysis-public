@@ -4357,6 +4357,41 @@ def main():
                     """)
                     st.stop()
     
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # HELPER FUNCTION: Show latest news in single line format
+    # ═══════════════════════════════════════════════════════════════════════════════
+    def show_latest_news_ticker(ticker_symbol: str):
+        """Display the most recent news for a ticker in a single line format"""
+        try:
+            # Fetch news for the ticker
+            google_news = fetch_google_news([ticker_symbol])
+            bing_news = fetch_bing_news([ticker_symbol])
+            all_news = google_news + bing_news
+            
+            if all_news:
+                # Get the most recent news (first one)
+                latest = all_news[0]
+                title = latest.get("title", "No title")
+                link = latest.get("link", "#")
+                time_posted = latest.get("time", "Recently")
+                
+                # Display in a compact, single-line format
+                st.markdown(f"""
+                <div style='background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%); 
+                           border-left: 3px solid #00FF00; padding: 8px 12px; 
+                           border-radius: 5px; margin: 10px 0;'>
+                    <small style='color: #00FF00;'>📰 LATEST NEWS:</small>
+                    <a href='{link}' target='_blank' style='color: #FFD700; text-decoration: none; font-weight: bold;'>
+                        {title[:100]}...
+                    </a>
+                    <small style='color: #888;'> • {time_posted}</small>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info(f"📰 No recent news found for {ticker_symbol}")
+        except Exception as e:
+            logger.warning(f"Error fetching latest news for {ticker_symbol}: {e}")
+    
     # Definición de los tabs
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",
@@ -5046,6 +5081,11 @@ def main():
             import traceback
             st.write(traceback.format_exc())
 
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # SHOW LATEST NEWS FOR THIS TICKER
+        # ═══════════════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        show_latest_news_ticker(ticker)
         st.markdown("*Developed by Ozy | © 2025*")
 
 
@@ -5844,6 +5884,12 @@ def main():
                 except Exception as e:
                     st.error(f"❌ Scanner Error: {str(e)}")
         
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # SHOW LATEST MARKET NEWS
+        # ═══════════════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.markdown("### 📰 Latest Market News")
+        show_latest_news_ticker("SPY")  # Use SPY as proxy for general market news
 
         
         st.markdown("---")
