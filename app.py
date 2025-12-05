@@ -79,9 +79,9 @@ HEADERS_FINVIZ = {"User-Agent": "Mozilla/5.0"}
 
 # Constantes
 PASSWORDS_DB = "auth_data/passwords.db"
-CACHE_TTL = 600  # 10 minutos - aumentado para reducir llamadas innecesarias
-CACHE_TTL_AGGRESSIVE = 1800  # 30 minutos para screener (ahorra más datos)
-CACHE_TTL_STATS = 3600  # 1 hora para datos estadísticos
+CACHE_TTL = 30  # 30 segundos - tiempo real para ticker data
+CACHE_TTL_AGGRESSIVE = 60  # 1 minuto para screener - balance entre datos y velocidad
+CACHE_TTL_STATS = 300  # 5 minutos para datos estadísticos
 MAX_RETRIES = 5
 INITIAL_DELAY = 1
 RISK_FREE_RATE = 0.045  # Tasa libre de riesgo
@@ -511,10 +511,10 @@ def fetch_api_data(url: str, params: Dict, headers: Dict, source: str, max_retri
                 logger.error(f"{source} failed after {max_retries} attempts: {str(e)}")
                 return None
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=10)
 def get_current_price(ticker: str) -> float:
     """
-    Get current price - Tradier → FMP (sin backend para evitar sobrecarga)
+    Get current price - TIEMPO REAL (10 segundos) - Tradier → FMP
     """
     # Intenta Tradier primero
     url_tradier = f"{TRADIER_BASE_URL}/markets/quotes"
@@ -731,7 +731,7 @@ def get_options_data_hybrid(ticker: str, expiration_date: str = "", prefer_sourc
     logger.error(f"❌ Both Tradier and Finviz failed for {ticker}")
     return None
 
-@st.cache_data(ttl=CACHE_TTL_AGGRESSIVE)  # 30 min - aggressive cache to save bandwidth
+@st.cache_data(ttl=60)  # 1 minuto - tiempo real para screener
 def get_finviz_screener_elite(filters: Dict[str, any] = None, columns: List[str] = None, view_id: str = "111") -> Optional[pd.DataFrame]:
     """
     Fetch screener data from Finviz Elite export API.
@@ -872,9 +872,7 @@ def get_current_prices(tickers: List[str]) -> Dict[str, float]:
 
     return prices_dict
 
-@st.cache_data(ttl=3600)
-
-@st.cache_data(ttl=CACHE_TTL)
+@st.cache_data(ttl=10)  # 10 segundos - opciones son tiempo real, cambian constantemente
 def get_options_data(ticker: str, expiration_date: str) -> List[Dict]:
     """
     Fetch options chain data from Tradier API with strict validation.
@@ -6002,7 +6000,7 @@ def main():
         st.divider()
         
         # ===== SECTION 2: CONTRACTION ZONES =====
-        st.markdown("### 🔮 Probable Price Contraction Zones (MM Activity)")
+        st.markdown("###  Price Contraction Zones (MM Activity)")
         st.write("Where Market Makers are likely to push the price based on Open Interest and Spread Pressure:")
         
         contraction_zones = mm_result.get("contraction_zones", [])
