@@ -6983,17 +6983,13 @@ def main():
                         # Métricas en cards
                         col_of1, col_of2, col_of3, col_of4 = st.columns(4)
                         with col_of1:
-                            st.metric("Buy Pressure", f"{buy_pressure:.1f}%", 
-                                     delta=f"{buy_pressure - 50:.1f}%", delta_color="normal" if buy_pressure > 50 else "inverse")
+                            st.metric("Current Price", f"${current_price_mm:.2f}")
                         with col_of2:
-                            st.metric("Sell Pressure", f"{sell_pressure:.1f}%",
-                                     delta=f"{sell_pressure - 50:.1f}%", delta_color="inverse" if sell_pressure > 50 else "normal")
+                            st.metric("Buy Pressure", f"{buy_pressure:.1f}%")
                         with col_of3:
-                            st.metric("Volume Spike", f"{volume_spike:.2f}x",
-                                     delta="High" if volume_spike > 2 else "Normal")
+                            st.metric("Sell Pressure", f"{sell_pressure:.1f}%")
                         with col_of4:
-                            st.metric("Large Candles", f"{large_candles}/6",
-                                     delta="Imbalance" if large_candles > 3 else "Balanced")
+                            st.metric("Volume Spike", f"{volume_spike:.2f}x")
                         
                         # ════════════════════════════════════════════════════════
                         # VOLATILITY ANALYSIS
@@ -7215,7 +7211,7 @@ def main():
                         # PROFESSIONAL TARGETS CALCULATION
                         # ════════════════════════════════════════════════════════
                         st.markdown("---")
-                        st.markdown("## 🎯 PROFESSIONAL TARGETS")
+                        st.markdown("## 🎯 TARGETS")
                         
                         days_to_exp = 7 if "Weekly" in expiry_mm else 30
                         expected_move = current_price_mm * (iv_current / 100) * np.sqrt(days_to_exp / 365)
@@ -7418,7 +7414,7 @@ def main():
                             fill='toself',
                             name='Market Strength',
                             line=dict(color='#00FF00'),
-                            fillcolor='#00FF0030'
+                            fillcolor='rgba(0, 255, 0, 0.2)'
                         ))
                         
                         fig_radar.update_layout(
