@@ -7077,6 +7077,14 @@ def main():
                         st.markdown("---")
                         st.markdown("## 🎯 TARGETS")
                         
+                        # Calculate IV from options data
+                        iv_current = 20.0  # Default IV
+                        if opts_data:
+                            ivs_list = [float(o.get("implied_volatility", 0)) * 100 
+                                       for o in opts_data if o.get("implied_volatility")]
+                            if ivs_list:
+                                iv_current = np.mean(ivs_list)
+                        
                         days_to_exp = 7 if "Weekly" in expiry_mm else 30
                         expected_move = current_price_mm * (iv_current / 100) * np.sqrt(days_to_exp / 365)
                         
