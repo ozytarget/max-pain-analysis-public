@@ -6921,7 +6921,7 @@ def main():
             expiry_mm = st.selectbox("Expiración", ["Weekly", "Monthly"], key="mm_expiry_select")
         
         if ticker_mm and ticker_mm != "":
-            with st.spinner(f"🔥 Calculando Market Maker Analysis para {ticker_mm}..."):
+            with st.spinner(f"🔥 Analyzing {ticker_mm}..."):
                 try:
                     # Obtener datos
                     current_price_mm = get_current_price(ticker_mm)
@@ -6949,15 +6949,51 @@ def main():
                         avg_candle = np.mean(candle_sizes)
                         large_candles = len([c for c in candle_sizes if c > avg_candle * 1.5])
                         
+                        # Visualización de Presión de Órdenes - BURBUJAS
+                        fig_pressure = go.Figure()
+                        
+                        fig_pressure.add_trace(go.Scatter(
+                            x=["BUY", "SELL", "NEUTRAL"],
+                            y=[buy_pressure, sell_pressure, 100 - buy_pressure - sell_pressure],
+                            mode='markers',
+                            marker=dict(
+                                size=[buy_pressure/3, sell_pressure/3, (100 - buy_pressure - sell_pressure)/3],
+                                color=['#00FF00', '#FF0000', '#FFD700'],
+                                opacity=0.7,
+                                line=dict(width=2, color=['#00AA00', '#AA0000', '#CCAA00'])
+                            ),
+                            text=[f"{buy_pressure:.1f}%", f"{sell_pressure:.1f}%", f"{100-buy_pressure-sell_pressure:.1f}%"],
+                            textposition="middle center",
+                            textfont=dict(size=14, color='white', family='Arial Black'),
+                            hovertemplate='<b>%{x}</b><br>Pressure: %{y:.1f}%<extra></extra>'
+                        ))
+                        
+                        fig_pressure.update_layout(
+                            title="Order Flow Pressure Distribution",
+                            xaxis_title="Order Type",
+                            yaxis_title="Percentage (%)",
+                            template="plotly_dark",
+                            height=400,
+                            showlegend=False,
+                            hovermode='closest'
+                        )
+                        
+                        st.plotly_chart(fig_pressure, use_container_width=True)
+                        
+                        # Métricas en cards
                         col_of1, col_of2, col_of3, col_of4 = st.columns(4)
                         with col_of1:
-                            st.metric("Buy Pressure", f"{buy_pressure:.1f}%")
+                            st.metric("Buy Pressure", f"{buy_pressure:.1f}%", 
+                                     delta=f"{buy_pressure - 50:.1f}%", delta_color="normal" if buy_pressure > 50 else "inverse")
                         with col_of2:
-                            st.metric("Sell Pressure", f"{sell_pressure:.1f}%")
+                            st.metric("Sell Pressure", f"{sell_pressure:.1f}%",
+                                     delta=f"{sell_pressure - 50:.1f}%", delta_color="inverse" if sell_pressure > 50 else "normal")
                         with col_of3:
-                            st.metric("Volume Spike", f"{volume_spike:.2f}x")
+                            st.metric("Volume Spike", f"{volume_spike:.2f}x",
+                                     delta="High" if volume_spike > 2 else "Normal")
                         with col_of4:
-                            st.metric("Large Candles", f"{large_candles}/6")
+                            st.metric("Large Candles", f"{large_candles}/6",
+                                     delta="Imbalance" if large_candles > 3 else "Balanced")
                         
                         # ════════════════════════════════════════════════════════
                         # VOLATILITY ANALYSIS
@@ -6968,6 +7004,11 @@ def main():
                         hv_current = np.std(returns_vol) * np.sqrt(252) * 100
                         
                         exp_dates = get_expiration_dates(ticker_mm)
+                        vol_action = "BUY"
+                        vol_state = "🟡 NORMAL"
+                        iv_current = hv_current
+                        iv_percentile = 50
+                        
                         if exp_dates:
                             opts_data = get_options_data(ticker_mm, exp_dates[0])
                             
@@ -6980,22 +7021,56 @@ def main():
                                 if iv_percentile < 30:
                                     vol_state = "🟢 LOW"
                                     vol_action = "BUY"
+                                    vol_color = "#00FF00"
                                 elif iv_percentile > 70:
                                     vol_state = "🔴 HIGH"
                                     vol_action = "SELL"
+                                    vol_color = "#FF0000"
                                 else:
                                     vol_state = "🟡 NORMAL"
                                     vol_action = "NEUTRAL"
-                                
-                                col_vol1, col_vol2, col_vol3, col_vol4 = st.columns(4)
-                                with col_vol1:
-                                    st.metric("IV", f"{iv_current:.1f}%")
-                                with col_vol2:
-                                    st.metric("HV", f"{hv_current:.1f}%")
-                                with col_vol3:
-                                    st.metric("IV Percentile", f"{iv_percentile:.0f}%")
-                                with col_vol4:
-                                    st.metric("Status", vol_state)
+                                    vol_color = "#FFD700"
+                        
+                        # Visualización de Volatilidad - GAUGE
+                        fig_vol = go.Figure(go.Indicator(
+                            mode="gauge+number+delta",
+                            value=iv_percentile,
+                            domain={'x': [0, 1], 'y': [0, 1]},
+                            title={'text': "IV Percentile"},
+                            delta={'reference': 50, 'suffix': " from Neutral"},
+                            gauge={
+                                'axis': {'range': [0, 100]},
+                                'bar': {'color': vol_color},
+                                'steps': [
+                                    {'range': [0, 30], 'color': '#00FF0020'},
+                                    {'range': [30, 70], 'color': '#FFD70020'},
+                                    {'range': [70, 100], 'color': '#FF000020'}
+                                ],
+                                'threshold': {
+                                    'line': {'color': 'white', 'width': 2},
+                                    'thickness': 0.75,
+                                    'value': 50
+                                }
+                            }
+                        ))
+                        
+                        fig_vol.update_layout(
+                            template="plotly_dark",
+                            height=350,
+                            font=dict(size=12)
+                        )
+                        
+                        st.plotly_chart(fig_vol, use_container_width=True)
+                        
+                        col_vol1, col_vol2, col_vol3, col_vol4 = st.columns(4)
+                        with col_vol1:
+                            st.metric("IV", f"{iv_current:.1f}%")
+                        with col_vol2:
+                            st.metric("HV", f"{hv_current:.1f}%")
+                        with col_vol3:
+                            st.metric("IV Percentile", f"{iv_percentile:.0f}%")
+                        with col_vol4:
+                            st.metric("Action", vol_state)
                         
                         # ════════════════════════════════════════════════════════
                         # GAMMA ANALYSIS
@@ -7007,7 +7082,6 @@ def main():
                         
                         if opts_data:
                             gamma_by_strike = {}
-                            total_oi_by_strike = {}
                             
                             for opt in opts_data:
                                 strike = float(opt.get("strike", 0))
@@ -7017,14 +7091,11 @@ def main():
                                 
                                 if strike not in gamma_by_strike:
                                     gamma_by_strike[strike] = {"CALL": 0, "PUT": 0}
-                                    total_oi_by_strike[strike] = 0
                                 
                                 if opt_type == "CALL":
                                     gamma_by_strike[strike]["CALL"] += gamma * oi
                                 elif opt_type == "PUT":
                                     gamma_by_strike[strike]["PUT"] += gamma * oi
-                                
-                                total_oi_by_strike[strike] += oi
                             
                             gamma_net = {}
                             for strike, gamma in gamma_by_strike.items():
@@ -7035,12 +7106,45 @@ def main():
                             max_pain_mm = calculate_max_pain_optimized(opts_data) if 'calculate_max_pain_optimized' in dir() else 0
                             
                             if gamma_walls_list:
-                                gw_df = pd.DataFrame({
-                                    "Gamma Zone": [f"${gw[0]:.2f}" for gw in gamma_walls_list],
-                                    "Strength": [f"{gw[1]:.0f}" for gw in gamma_walls_list],
-                                    "Distance": [f"{abs(gw[0] - current_price_mm):.2f}" for gw in gamma_walls_list]
-                                })
-                                st.dataframe(gw_df, use_container_width=True)
+                                # Visualización de Gamma Walls - SCATTER CON TAMAÑOS
+                                gamma_strikes = [gw[0] for gw in gamma_walls_list]
+                                gamma_strengths = [gw[1] for gw in gamma_walls_list]
+                                colors = ['#FF6B6B', '#FFA500', '#FFD700', '#90EE90', '#87CEEB'][:len(gamma_walls_list)]
+                                
+                                fig_gamma = go.Figure()
+                                
+                                fig_gamma.add_trace(go.Scatter(
+                                    x=gamma_strikes,
+                                    y=[1] * len(gamma_strikes),
+                                    mode='markers+text',
+                                    marker=dict(
+                                        size=[s/np.max(gamma_strengths)*50 + 20 for s in gamma_strengths],
+                                        color=colors,
+                                        opacity=0.8,
+                                        line=dict(width=2, color='white')
+                                    ),
+                                    text=[f"${s:.2f}" for s in gamma_strikes],
+                                    textposition="top center",
+                                    textfont=dict(size=12, color='white'),
+                                    hovertemplate='<b>Gamma Zone</b><br>Price: $%{x:.2f}<br>Strength: %{customdata:.0f}<extra></extra>',
+                                    customdata=gamma_strengths
+                                ))
+                                
+                                # Agregar línea del precio actual
+                                fig_gamma.add_vline(x=current_price_mm, line_dash="dash", line_color="white",
+                                                   annotation_text=f"Now: ${current_price_mm:.2f}", annotation_position="top left")
+                                
+                                fig_gamma.update_layout(
+                                    title="Gamma Concentration Zones",
+                                    xaxis_title="Strike Price ($)",
+                                    yaxis_title="",
+                                    template="plotly_dark",
+                                    height=350,
+                                    showlegend=False,
+                                    yaxis={'showticklabels': False}
+                                )
+                                
+                                st.plotly_chart(fig_gamma, use_container_width=True)
                         
                         # ════════════════════════════════════════════════════════
                         # SENTIMENT & REVERSAL DETECTION
@@ -7056,18 +7160,54 @@ def main():
                         
                         if recent_move > avg_move * 1.5:
                             reversal_risk = "⚠️ HIGH"
+                            reversal_color = "#FF0000"
                         elif recent_move < avg_move * 0.5:
                             reversal_risk = "✅ LOW"
+                            reversal_color = "#00FF00"
                         else:
                             reversal_risk = "➡️ MEDIUM"
+                            reversal_color = "#FFD700"
+                        
+                        # Heatmap de volatilidad por periodo
+                        periods = 6
+                        volatilities = []
+                        for i in range(periods):
+                            segment = prices_array[i*5:(i+1)*5]
+                            if len(segment) > 1:
+                                seg_vol = np.std(np.diff(segment) / segment[:-1]) * 100
+                                volatilities.append(seg_vol)
+                            else:
+                                volatilities.append(0)
+                        
+                        fig_heatmap = go.Figure(data=go.Heatmap(
+                            z=[volatilities],
+                            x=[f"Period {i+1}" for i in range(len(volatilities))],
+                            y=["Volatility"],
+                            colorscale="RdYlGn_r",
+                            text=[[f"{v:.2f}%" for v in volatilities]],
+                            texttemplate="%{text}",
+                            textfont={"size": 12},
+                            hovertemplate='%{x}<br>Volatility: %{z:.2f}%<extra></extra>'
+                        ))
+                        
+                        fig_heatmap.update_layout(
+                            title="Volatility Distribution Over Time",
+                            template="plotly_dark",
+                            height=200,
+                            xaxis_title="Time Period"
+                        )
+                        
+                        st.plotly_chart(fig_heatmap, use_container_width=True)
                         
                         col_rev1, col_rev2, col_rev3, col_rev4 = st.columns(4)
                         with col_rev1:
-                            st.metric("Trend 30D", f"{trend_pct:+.2f}%")
+                            st.metric("Trend 30D", f"{trend_pct:+.2f}%", 
+                                     delta_color="normal" if trend_pct > 0 else "inverse")
                         with col_rev2:
                             st.metric("Avg Daily Move", f"{avg_move:.2f}%")
                         with col_rev3:
-                            st.metric("Recent Move", f"{recent_move:.2f}%")
+                            st.metric("Recent Move", f"{recent_move:.2f}%",
+                                     delta_color="inverse" if recent_move > avg_move * 1.5 else "normal")
                         with col_rev4:
                             st.metric("Reversal Risk", reversal_risk)
                         
@@ -7077,30 +7217,65 @@ def main():
                         st.markdown("---")
                         st.markdown("## 🎯 PROFESSIONAL TARGETS")
                         
-                        # Expected move based on IV
                         days_to_exp = 7 if "Weekly" in expiry_mm else 30
                         expected_move = current_price_mm * (iv_current / 100) * np.sqrt(days_to_exp / 365)
                         
-                        # Target 1: Based on Gamma Walls
                         target_gamma = gamma_walls_list[0][0] if gamma_walls_list else 0
-                        
-                        # Target 2: Based on Expected Move
                         target_upside = current_price_mm + expected_move
                         target_downside = current_price_mm - expected_move
-                        
-                        # Target 3: Based on Max Pain
                         target_max_pain = max_pain_mm if max_pain_mm > 0 else current_price_mm
-                        
-                        # Target 4: Based on Support/Resistance (20/80 percentiles)
                         target_support = np.percentile(prices_array, 20)
                         target_resistance = np.percentile(prices_array, 80)
-                        
-                        # Target 5: Extreme Move (2 sigma)
                         target_extreme_up = current_price_mm + (expected_move * 2)
                         target_extreme_down = current_price_mm - (expected_move * 2)
                         
-                        st.markdown("### 📊 Target Summary")
+                        # Visualización de Targets - CÍRCULOS EN ESCALA DE PRECIO
+                        targets_all = [
+                            ("Gamma", target_gamma, "#FF6B6B", 10),
+                            ("Up", target_upside, "#00FF00", 8),
+                            ("Down", target_downside, "#FF0000", 8),
+                            ("Max Pain", target_max_pain, "#FFD700", 9),
+                            ("Resistance", target_resistance, "#90EE90", 7),
+                            ("Support", target_support, "#87CEEB", 7),
+                            ("Extreme ↑", target_extreme_up, "#00FFFF", 6),
+                            ("Extreme ↓", target_extreme_down, "#FF69B4", 6)
+                        ]
                         
+                        targets_valid = [(n, p, c, s) for n, p, c, s in targets_all if p > 0]
+                        
+                        fig_targets = go.Figure()
+                        
+                        for i, (name, price, color, size) in enumerate(targets_valid):
+                            fig_targets.add_trace(go.Scatter(
+                                x=[price],
+                                y=[i],
+                                mode='markers+text',
+                                name=name,
+                                marker=dict(size=size*3, color=color, opacity=0.7,
+                                           line=dict(width=2, color='white')),
+                                text=f"${price:.2f}",
+                                textposition="top center",
+                                textfont=dict(size=11, color='white'),
+                                hovertemplate=f'<b>{name}</b><br>Price: $%{{x:.2f}}<br>Distance: {((price/current_price_mm-1)*100):+.2f}%<extra></extra>'
+                            ))
+                        
+                        # Agregar precio actual
+                        fig_targets.add_vline(x=current_price_mm, line_dash="solid", line_color="white", line_width=3,
+                                             annotation_text=f"NOW: ${current_price_mm:.2f}", annotation_position="top right")
+                        
+                        fig_targets.update_layout(
+                            title="Price Targets Distribution",
+                            xaxis_title="Price ($)",
+                            yaxis_title="Target Type",
+                            template="plotly_dark",
+                            height=500,
+                            showlegend=True,
+                            hovermode='closest'
+                        )
+                        
+                        st.plotly_chart(fig_targets, use_container_width=True)
+                        
+                        # Tabla de Targets con colores
                         targets_data = {
                             "Target": [
                                 "Gamma Zone",
@@ -7122,7 +7297,7 @@ def main():
                                 f"${target_extreme_up:.2f}",
                                 f"${target_extreme_down:.2f}"
                             ],
-                            "Distance": [
+                            "Distance %": [
                                 f"{((target_gamma / current_price_mm - 1) * 100):+.2f}%" if target_gamma > 0 else "N/A",
                                 f"{((target_upside / current_price_mm - 1) * 100):+.2f}%",
                                 f"{((target_downside / current_price_mm - 1) * 100):+.2f}%",
@@ -7138,65 +7313,74 @@ def main():
                         st.dataframe(targets_df, use_container_width=True)
                         
                         # ════════════════════════════════════════════════════════
-                        # TRADE SETUPS
+                        # TRADE SETUPS - CON INDICADORES VISUALES
                         # ════════════════════════════════════════════════════════
-                        st.markdown("### 📈 Primary Targets")
+                        st.markdown("### 📈 Primary Trade Setups")
                         
                         col_t1, col_t2, col_t3 = st.columns(3)
                         
                         with col_t1:
+                            fig_setup_up = go.Figure()
+                            fig_setup_up.add_trace(go.Indicator(
+                                mode="number+delta",
+                                value=target_upside,
+                                title={'text': "BULLISH TARGET"},
+                                number={'prefix': "$", 'valueformat': '.2f'},
+                                delta={'reference': current_price_mm, 'relative': True, 'valueformat': '.2%'},
+                                domain={'x': [0, 1], 'y': [0, 1]}
+                            ))
+                            fig_setup_up.update_layout(template="plotly_dark", height=200)
+                            st.plotly_chart(fig_setup_up, use_container_width=True)
+                            
                             st.markdown(f"""
-                            **PRIMARY UP**
-                            - Entry: ${current_price_mm:.2f}
-                            - Target: ${target_upside:.2f}
-                            - Stop: ${target_downside:.2f}
-                            - R/R: 1:{abs((target_upside - current_price_mm) / (current_price_mm - target_downside)):.2f}
+                            **Entry:** ${current_price_mm:.2f}  
+                            **Stop:** ${target_downside:.2f}  
+                            **R/R:** 1:{abs((target_upside - current_price_mm) / (current_price_mm - target_downside)):.2f}
                             """)
                         
                         with col_t2:
+                            fig_setup_max = go.Figure()
+                            fig_setup_max.add_trace(go.Indicator(
+                                mode="number+delta",
+                                value=target_max_pain,
+                                title={'text': "MAX PAIN TARGET"},
+                                number={'prefix': "$", 'valueformat': '.2f'},
+                                delta={'reference': current_price_mm, 'relative': True, 'valueformat': '.2%'},
+                                domain={'x': [0, 1], 'y': [0, 1]}
+                            ))
+                            fig_setup_max.update_layout(template="plotly_dark", height=200)
+                            st.plotly_chart(fig_setup_max, use_container_width=True)
+                            
                             st.markdown(f"""
-                            **PRIMARY DOWN**
-                            - Entry: ${current_price_mm:.2f}
-                            - Target: ${target_downside:.2f}
-                            - Stop: ${target_upside:.2f}
-                            - R/R: 1:{abs((current_price_mm - target_downside) / (target_upside - current_price_mm)):.2f}
+                            **Entry:** ${current_price_mm:.2f}  
+                            **High Probability**  
+                            **Momentum Play**
                             """)
                         
                         with col_t3:
+                            fig_setup_down = go.Figure()
+                            fig_setup_down.add_trace(go.Indicator(
+                                mode="number+delta",
+                                value=target_downside,
+                                title={'text': "BEARISH TARGET"},
+                                number={'prefix': "$", 'valueformat': '.2f'},
+                                delta={'reference': current_price_mm, 'relative': True, 'valueformat': '.2%'},
+                                domain={'x': [0, 1], 'y': [0, 1]}
+                            ))
+                            fig_setup_down.update_layout(template="plotly_dark", height=200)
+                            st.plotly_chart(fig_setup_down, use_container_width=True)
+                            
                             st.markdown(f"""
-                            **MAX PAIN TARGET**
-                            - Entry: ${current_price_mm:.2f}
-                            - Target: ${target_max_pain:.2f}
-                            - Distance: {((target_max_pain / current_price_mm - 1) * 100):+.2f}%
-                            - Probability: High
+                            **Entry:** ${current_price_mm:.2f}  
+                            **Stop:** ${target_upside:.2f}  
+                            **R/R:** 1:{abs((current_price_mm - target_downside) / (target_upside - current_price_mm)):.2f}
                             """)
                         
                         # ════════════════════════════════════════════════════════
-                        # LIQUIDITY POOL IDENTIFICATION
-                        # ════════════════════════════════════════════════════════
-                        st.markdown("### 💧 Liquidity Pools & Gaps")
-                        
-                        liquidity_pools = []
-                        for i in range(len(prices_array)-1):
-                            gap = abs(prices_array[i+1] - prices_array[i])
-                            if gap > expected_move * 0.5:
-                                pool_price = (prices_array[i] + prices_array[i+1]) / 2
-                                liquidity_pools.append(pool_price)
-                        
-                        if liquidity_pools:
-                            lp_df = pd.DataFrame({
-                                "Liquidity Pool": [f"${lp:.2f}" for lp in sorted(set(liquidity_pools), reverse=True)[:5]],
-                                "Type": ["Support/Resistance"] * len(set(liquidity_pools)[:5])
-                            })
-                            st.dataframe(lp_df, use_container_width=True)
-                        else:
-                            st.info("No significant liquidity gaps detected")
-                        
-                        # ════════════════════════════════════════════════════════
-                        # FINAL ANALYSIS SCORE
+                        # FINAL ANALYSIS SCORE - RADAR CHART
                         # ════════════════════════════════════════════════════════
                         st.markdown("---")
-                        st.markdown("### 📊 Market Structure Score")
+                        st.markdown("### 📊 Market Structure Analysis")
                         
                         bullish_score = 0
                         bearish_score = 0
@@ -7216,23 +7400,65 @@ def main():
                         if volume_spike > 1.5: bullish_score += 1
                         else: bearish_score += 1
                         
-                        score_df = pd.DataFrame({
-                            "Factor": ["Order Flow", "Volatility", "Reversal Risk", "Trend", "Volume"],
-                            "Bullish": ["✅" if buy_pressure > 55 else "❌",
-                                       "✅" if vol_action == "BUY" else "❌",
-                                       "✅" if reversal_risk != "⚠️ HIGH" else "❌",
-                                       "✅" if trend_pct > 0 else "❌",
-                                       "✅" if volume_spike > 1.5 else "❌"],
-                            "Weight": ["1/5"] * 5
-                        })
-                        st.dataframe(score_df, use_container_width=True)
+                        # Radar Chart
+                        categories = ["Order Flow", "Volatility", "Reversal Risk", "Trend", "Volume"]
+                        bullish_values = [
+                            buy_pressure if buy_pressure > 50 else 100 - buy_pressure,
+                            80 if vol_action == "BUY" else 50 if vol_action == "NEUTRAL" else 30,
+                            80 if reversal_risk != "⚠️ HIGH" else 20,
+                            (trend_pct + 10) if trend_pct > 0 else abs(trend_pct) + 10,
+                            min(volume_spike * 30, 100)
+                        ]
                         
+                        fig_radar = go.Figure()
+                        
+                        fig_radar.add_trace(go.Scatterpolar(
+                            r=bullish_values,
+                            theta=categories,
+                            fill='toself',
+                            name='Market Strength',
+                            line=dict(color='#00FF00'),
+                            fillcolor='#00FF0030'
+                        ))
+                        
+                        fig_radar.update_layout(
+                            polar=dict(
+                                radialaxis=dict(
+                                    visible=True,
+                                    range=[0, 100],
+                                    gridcolor='#333333'
+                                ),
+                                bgcolor='#111111'
+                            ),
+                            title="Market Structure Radar",
+                            template="plotly_dark",
+                            height=450,
+                            showlegend=False
+                        )
+                        
+                        st.plotly_chart(fig_radar, use_container_width=True)
+                        
+                        # Final Recommendation
                         if bullish_score >= 3:
-                            st.success(f"🚀 BULLISH BIAS - {bullish_score}/5 Factors Positive")
+                            rec_text = f"🚀 BULLISH BIAS"
+                            rec_color = "green"
+                            rec_box = f"**Signal Strength: {bullish_score}/5**"
                         elif bearish_score >= 3:
-                            st.error(f"🔴 BEARISH BIAS - {bearish_score}/5 Factors Positive")
+                            rec_text = f"🔴 BEARISH BIAS"
+                            rec_color = "red"
+                            rec_box = f"**Signal Strength: {bearish_score}/5**"
                         else:
-                            st.warning(f"⚖️ NEUTRAL - Awaiting Setup Clarity")
+                            rec_text = f"⚖️ NEUTRAL"
+                            rec_color = "orange"
+                            rec_box = f"**Awaiting Clarity**"
+                        
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, {rec_color}30 0%, transparent 100%); 
+                                    border-left: 4px solid {rec_color}; padding: 20px; border-radius: 8px;'>
+                        <h2>{rec_text}</h2>
+                        {rec_box}
+                        </div>
+                        """, unsafe_allow_html=True)
                         
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
