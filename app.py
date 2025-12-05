@@ -31,7 +31,8 @@ from user_management import (
     get_all_users, get_activity_log, deactivate_user, extend_license, 
     get_user_info, USER_TIERS, initialize_users_db,
     authenticate_admin, get_user_stats, change_user_tier, reset_user_daily_limit,
-    set_unlimited_access, is_legacy_password_blocked
+    set_unlimited_access, is_legacy_password_blocked,
+    create_session, validate_session, logout_session
 )
 
 db_lock = Lock()
@@ -220,6 +221,27 @@ if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "intro_shown" not in st.session_state:
     st.session_state["intro_shown"] = False
+if "session_token" not in st.session_state:
+    st.session_state["session_token"] = None
+if "current_user" not in st.session_state:
+    st.session_state["current_user"] = None
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERSISTENT SESSION VALIDATION - Restore user session from token
+# ═══════════════════════════════════════════════════════════════════════════════
+# Check if user has a saved session token in query params or local storage
+# This allows users to stay logged in across browser refreshes
+query_params = st.query_params
+if "session_token" in query_params and not st.session_state["authenticated"]:
+    token = query_params["session_token"]
+    is_valid, username = validate_session(token)
+    
+    if is_valid:
+        # Restore user session
+        st.session_state["authenticated"] = True
+        st.session_state["current_user"] = username
+        st.session_state["session_token"] = token
+        logger.info(f"Session restored for user: {username}")
 
 # Optimized introductory animation (same format, faster duration)
 if not st.session_state["intro_shown"]:
@@ -357,8 +379,15 @@ if not st.session_state["authenticated"]:
                         else:
                             success, msg = authenticate_user(login_username, login_password)
                             if success:
+                                # Create persistent session token
+                                token = create_session(login_username)
                                 st.session_state["authenticated"] = True
                                 st.session_state["current_user"] = login_username
+                                st.session_state["session_token"] = token
+                                
+                                # Update URL with session token for persistent login
+                                st.query_params["session_token"] = token
+                                
                                 st.success(f"✅ {msg}")
                                 time.sleep(0.3)
                                 st.rerun()
@@ -3849,6 +3878,34 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
+
+    # ===== SIDEBAR USER MENU & LOGOUT =====
+    with st.sidebar:
+        st.markdown("---")
+        col_user1, col_user2 = st.columns([3, 1])
+        with col_user1:
+            current_user = st.session_state.get("current_user", "User")
+            st.markdown(f"**👤 {current_user}**")
+        with col_user2:
+            if st.button("🚪 Salir", use_container_width=True, key="user_logout"):
+                # Logout: remove session token
+                token = st.session_state.get("session_token")
+                if token:
+                    logout_session(token)
+                
+                # Clear session state
+                st.session_state["authenticated"] = False
+                st.session_state["current_user"] = None
+                st.session_state["session_token"] = None
+                
+                # Clear query params
+                st.query_params.clear()
+                
+                st.success("✅ Sesión cerrada")
+                time.sleep(0.5)
+                st.rerun()
+        
+        st.markdown("---")
 
     # ===== CACHE STATS MONITOR (HIDDEN) =====
     if False:  # Hidden - uncomment to show cache stats

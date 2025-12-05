@@ -462,3 +462,103 @@ def is_legacy_password_blocked(password: str) -> bool:
 
 # Initialize on import
 initialize_users_db()
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# SESSION PERSISTENCE - Keep users logged in across browser refreshes
+# ════════════════════════════════════════════════════════════════════════════════
+import json
+import secrets
+from pathlib import Path
+
+SESSION_FILE = "auth_data/active_sessions.json"
+SESSION_TIMEOUT_HOURS = 24  # Sessions expire after 24 hours
+
+def load_sessions():
+    """Load active sessions from file"""
+    try:
+        if Path(SESSION_FILE).exists():
+            with open(SESSION_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading sessions: {e}")
+    return {}
+
+def save_sessions(sessions):
+    """Save active sessions to file"""
+    try:
+        os.makedirs("auth_data", exist_ok=True)
+        with open(SESSION_FILE, 'w') as f:
+            json.dump(sessions, f)
+    except Exception as e:
+        logger.error(f"Error saving sessions: {e}")
+
+def create_session(username: str) -> str:
+    """Create a persistent session token for user"""
+    try:
+        token = secrets.token_urlsafe(32)
+        sessions = load_sessions()
+        
+        # Clean up expired sessions
+        now = datetime.now(MARKET_TIMEZONE)
+        sessions = {t: data for t, data in sessions.items() 
+                   if datetime.fromisoformat(data['created']) + timedelta(hours=SESSION_TIMEOUT_HOURS) > now}
+        
+        sessions[token] = {
+            "username": username,
+            "created": datetime.now(MARKET_TIMEZONE).isoformat()
+        }
+        save_sessions(sessions)
+        logger.info(f"Session created for user: {username}")
+        return token
+    except Exception as e:
+        logger.error(f"Error creating session: {e}")
+        return None
+
+def validate_session(token: str) -> tuple:
+    """Validate session token and return (valid, username)"""
+    try:
+        sessions = load_sessions()
+        
+        if token not in sessions:
+            return False, None
+        
+        data = sessions[token]
+        created = datetime.fromisoformat(data['created'])
+        now = datetime.now(MARKET_TIMEZONE)
+        
+        # Check if session expired
+        if now - created > timedelta(hours=SESSION_TIMEOUT_HOURS):
+            # Remove expired session
+            del sessions[token]
+            save_sessions(sessions)
+            return False, None
+        
+        username = data['username']
+        
+        # Verify user still exists and is active
+        conn = sqlite3.connect(USERS_DB)
+        c = conn.cursor()
+        c.execute("SELECT active FROM users WHERE username = ?", (username,))
+        result = c.fetchone()
+        conn.close()
+        
+        if result and result[0]:
+            return True, username
+        
+        return False, None
+    except Exception as e:
+        logger.error(f"Error validating session: {e}")
+        return False, None
+
+def logout_session(token: str):
+    """Remove session token"""
+    try:
+        sessions = load_sessions()
+        if token in sessions:
+            del sessions[token]
+            save_sessions(sessions)
+            logger.info(f"Session logged out: {token}")
+    except Exception as e:
+        logger.error(f"Error logging out session: {e}")
+
