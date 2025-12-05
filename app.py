@@ -4236,7 +4236,13 @@ def main():
         user_info = get_user_info(current_user)
         
         if user_info:
-            username, email, active, tier, expiration_date, usage_today, daily_limit = user_info
+            username = user_info["username"]
+            email = user_info["email"]
+            active = user_info["active"]
+            tier = user_info["tier"]
+            expiration_date = user_info["expiration"]
+            usage_today = int(user_info["usage_today"]) if user_info["usage_today"] else 0
+            daily_limit = int(user_info["daily_limit"]) if user_info["daily_limit"] else 0
             
             # Validación 1: Usuario inactivo
             if not active:
