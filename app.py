@@ -379,7 +379,11 @@ if not st.session_state["authenticated"]:
                     
                     if master_submit:
                         # Master credentials: ozytargetcom@gmail.com / zxc11ASD
-                        if master_email == "ozytargetcom@gmail.com" and master_password == "zxc11ASD":
+                        # Limpiar espacios y hacer case-insensitive para email
+                        master_email_clean = master_email.strip().lower()
+                        master_password_clean = master_password.strip()
+                        
+                        if master_email_clean == "ozytargetcom@gmail.com" and master_password_clean == "zxc11ASD":
                             st.session_state["admin_authenticated"] = True
                             st.session_state["authenticated"] = True
                             st.session_state["current_user"] = "admin"
@@ -389,7 +393,7 @@ if not st.session_state["authenticated"]:
                             st.rerun()
                         else:
                             st.error("❌ Email o contraseña de Master Admin inválidos")
-                            logger.warning(f"Failed Master Admin login attempt with email: {master_email}")
+                            logger.warning(f"Failed Master Admin login attempt with email: {master_email_clean}")
         
         # TAB 2: REGISTRO NUEVO USUARIO
         with auth_tab2:
