@@ -355,29 +355,70 @@ if not st.session_state["authenticated"]:
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
         st.markdown('<div class="login-logo">ℙℝ𝕆 𝔼𝕊ℂ𝔸ℕℕ𝔼ℝ®</div>', unsafe_allow_html=True)
         
-        # TABS: Login vs Registro
-        auth_tab1, auth_tab2 = st.tabs(["🔐 Login", "📝 Registrarse"])
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # LOGIN SYSTEM: REGISTRO UNA VEZ + LOGIN PERSISTENTE
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # Sistema simple: 
+        # 1. Si NO estás registrado → REGISTRO
+        # 2. Si estás registrado → LOGIN (y se queda grabado hasta que limpies cache)
+        # ═══════════════════════════════════════════════════════════════════════════════
         
-        # TAB 1: LOGIN - NUEVO SISTEMA (Usuario/Contraseña)
+        # Check if user already has an account by checking if they try to login
+        # Simple flow: TABS between NEW USER REGISTRATION and EXISTING USER LOGIN
+        auth_tab1, auth_tab2 = st.tabs(["🆕 Nuevo Usuario", "🔐 Login - Usuario Existente"])
+        
+        # TAB 1: NEW USER REGISTRATION
         with auth_tab1:
-            st.markdown("### 🔐 Acceso a la Plataforma")
+            st.markdown("### 📝 Crear Cuenta - Registro Único")
+            st.info("⏰ **Regístrate UNA SOLA VEZ. Luego solo haz Login en la pestaña 'Usuario Existente'.**")
             
-            login_subtabs = st.tabs(["👤 Usuario", "🔑 Master Admin"])
+            with st.form(key="register_form_main"):
+                new_username = st.text_input("👤 Usuario", placeholder="Tu nombre de usuario (único)", key="reg_username_main")
+                new_email = st.text_input("📧 Email", placeholder="tu@email.com", key="reg_email_main")
+                new_password = st.text_input("🔐 Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password_main")
+                confirm_password = st.text_input("🔐 Confirmar Contraseña", type="password", placeholder="Repite tu contraseña", key="reg_confirm_main")
+                
+                register_button = st.form_submit_button(label="✅ Registrarse Ahora", use_container_width=True)
+                
+                if register_button:
+                    # Validaciones
+                    if not new_username or not new_email or not new_password:
+                        st.error("❌ Completa todos los campos")
+                    elif len(new_password) < 6:
+                        st.error("❌ La contraseña debe tener mínimo 6 caracteres")
+                    elif new_password != confirm_password:
+                        st.error("❌ Las contraseñas no coinciden")
+                    else:
+                        # Intentar crear usuario (sin plan, será "Pending")
+                        success, message = create_user(new_username, new_email, new_password)
+                        if success:
+                            st.success(f"✅ ¡REGISTRO EXITOSO!\n\n**Tu cuenta: {new_username}**\n\n👉 Ve a la pestaña '🔐 Login - Usuario Existente' e ingresa con tu usuario y contraseña\n\n📋 Tu sesión se quedará grabada automáticamente")
+                            logger.info(f"New user registered: {new_username} - Pending admin assignment")
+                        else:
+                            st.error(f"❌ {message}")
+        
+        # TAB 2: EXISTING USER LOGIN - PERSISTENT SESSION
+        with auth_tab2:
+            st.markdown("### 🔐 Login - Sesión Persistente")
+            st.info("🎯 **Inicia sesión y tu sesión se quedará grabada. NO necesitas volver a hacer login a menos que limpies el cache.**")
+            
+            login_subtabs = st.tabs(["👤 Usuario Regular", "🔑 Master Admin"])
             
             # SUBTAB: Login usuario normal
             with login_subtabs[0]:
-                st.markdown("**Inicia sesión con tu usuario y contraseña:**")
+                st.markdown("**Ingresa tu usuario y contraseña:**")
                 
                 with st.form(key="new_user_login_form"):
                     login_username = st.text_input("👤 Usuario", placeholder="Tu nombre de usuario", key="login_username")
                     login_password = st.text_input("🔐 Contraseña", type="password", placeholder="Tu contraseña", key="login_password")
-                    login_submit = st.form_submit_button(label="🔓 Ingresar", use_container_width=True)
+                    login_submit = st.form_submit_button(label="🔓 Ingresar (sesión persistente)", use_container_width=True)
                     
                     if login_submit:
                         if not login_username or not login_password:
                             st.error("❌ Completa usuario y contraseña")
                         else:
                             success, msg = authenticate_user(login_username, login_password)
+
                             if success:
                                 # Create persistent session token
                                 token = create_session(login_username)
@@ -423,37 +464,6 @@ if not st.session_state["authenticated"]:
                         else:
                             st.error("❌ Email o contraseña de Master Admin inválidos")
                             logger.warning(f"Failed Master Admin login attempt with email: {master_email_clean}")
-        
-        # TAB 2: REGISTRO NUEVO USUARIO
-        with auth_tab2:
-            st.markdown("### 📝 Crear Nueva Cuenta")
-            st.markdown("**Completa los datos para registrarte:**")
-            st.info("⚠️ Tu plan será asignado por el administrador después del registro")
-            
-            with st.form(key="register_form"):
-                new_username = st.text_input("👤 Usuario", placeholder="Tu nombre de usuario", key="reg_username")
-                new_email = st.text_input("📧 Email", placeholder="tu@email.com", key="reg_email")
-                new_password = st.text_input("🔐 Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password")
-                confirm_password = st.text_input("🔐 Confirmar Contraseña", type="password", placeholder="Repite tu contraseña", key="reg_confirm")
-                
-                register_button = st.form_submit_button(label="✅ Registrarse", use_container_width=True)
-                
-                if register_button:
-                    # Validaciones
-                    if not new_username or not new_email or not new_password:
-                        st.error("❌ Completa todos los campos")
-                    elif len(new_password) < 6:
-                        st.error("❌ La contraseña debe tener mínimo 6 caracteres")
-                    elif new_password != confirm_password:
-                        st.error("❌ Las contraseñas no coinciden")
-                    else:
-                        # Intentar crear usuario (sin plan, será "Pending")
-                        success, message = create_user(new_username, new_email, new_password)
-                        if success:
-                            st.success(f"✅ {message}\n\n📋 Estado: PENDIENTE DE ASIGNACIÓN\n\n🔔 El administrador asignará tu plan en breve.\n\n🔐 Cuando esté listo, ve a la pestaña '👤 Usuario Nuevo' en Login para ingresar")
-                            logger.info(f"New user registered: {new_username} - Pending admin assignment")
-                        else:
-                            st.error(f"❌ {message}")
 
         st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
@@ -3882,12 +3892,16 @@ def main():
     # ===== SIDEBAR USER MENU & LOGOUT =====
     with st.sidebar:
         st.markdown("---")
-        col_user1, col_user2 = st.columns([3, 1])
+        current_user = st.session_state.get("current_user", "User")
+        st.markdown(f"### 👤 {current_user}")
+        st.markdown("**✅ Sesión Persistente Activa**")
+        st.markdown("*Tu sesión se quedará grabada. Solo ciérrala manualmente.*")
+        
+        col_user1, col_user2 = st.columns([1, 1])
         with col_user1:
-            current_user = st.session_state.get("current_user", "User")
-            st.markdown(f"**👤 {current_user}**")
+            st.markdown("")  # spacer
         with col_user2:
-            if st.button("🚪 Salir", use_container_width=True, key="user_logout"):
+            if st.button("🚪 Cerrar Sesión", use_container_width=True, key="user_logout"):
                 # Logout: remove session token
                 token = st.session_state.get("session_token")
                 if token:

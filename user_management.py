@@ -472,7 +472,7 @@ import secrets
 from pathlib import Path
 
 SESSION_FILE = "auth_data/active_sessions.json"
-SESSION_TIMEOUT_HOURS = 24  # Sessions expire after 24 hours
+SESSION_TIMEOUT_HOURS = 87660  # ~10 years (effectively permanent - until user clears cache manually)
 
 def load_sessions():
     """Load active sessions from file"""
