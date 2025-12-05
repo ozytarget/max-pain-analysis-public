@@ -29,28 +29,51 @@ USER_TIERS = {
 }
 
 def initialize_users_db():
-    """Initialize professional user management database"""
+    """Initialize professional user management database with automatic migration"""
     import os
     os.makedirs("auth_data", exist_ok=True)
     conn = sqlite3.connect(USERS_DB)
     c = conn.cursor()
     
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        tier TEXT DEFAULT 'Free',
-        created_date TEXT,
-        expiration_date TEXT,
-        daily_limit INTEGER DEFAULT 10,
-        usage_today INTEGER DEFAULT 0,
-        last_reset TEXT,
-        active BOOLEAN DEFAULT 1,
-        ip_address TEXT DEFAULT '',
-        ip1 TEXT DEFAULT '',
-        ip2 TEXT DEFAULT ''
-    )''')
+    # Check if users table exists
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    table_exists = c.fetchone() is not None
+    
+    if table_exists:
+        # Check if new columns exist
+        c.execute("PRAGMA table_info(users)")
+        columns = [row[1] for row in c.fetchall()]
+        
+        # If missing new columns, migrate
+        if 'ip1' not in columns:
+            logger.info("Migrating users table - adding ip1, ip2 columns")
+            try:
+                # Add new columns
+                c.execute("ALTER TABLE users ADD COLUMN ip1 TEXT DEFAULT ''")
+                c.execute("ALTER TABLE users ADD COLUMN ip2 TEXT DEFAULT ''")
+                conn.commit()
+                logger.info("✅ Migration successful - added IP restriction columns")
+            except sqlite3.OperationalError as e:
+                logger.warning(f"⚠️ Migration issue: {e} (columns may already exist)")
+    else:
+        # Create new table with all columns
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            tier TEXT DEFAULT 'Free',
+            created_date TEXT,
+            expiration_date TEXT,
+            daily_limit INTEGER DEFAULT 10,
+            usage_today INTEGER DEFAULT 0,
+            last_reset TEXT,
+            active BOOLEAN DEFAULT 1,
+            ip_address TEXT DEFAULT '',
+            ip1 TEXT DEFAULT '',
+            ip2 TEXT DEFAULT ''
+        )''')
+        logger.info("✅ Created new users table with IP restriction columns")
     
     c.execute('''CREATE TABLE IF NOT EXISTS activity_log (
         id INTEGER PRIMARY KEY,
