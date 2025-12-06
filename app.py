@@ -355,101 +355,74 @@ if not st.session_state["authenticated"]:
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
         st.markdown('<div class="login-logo">ℙℝ𝕆 𝔼𝕊ℂ𝔸ℕℕ𝔼ℝ®</div>', unsafe_allow_html=True)
         
-        # ═══════════════════════════════════════════════════════════════════════════════
-        # LOGIN SYSTEM: REGISTRO UNA VEZ + LOGIN PERSISTENTE
-        # ═══════════════════════════════════════════════════════════════════════════════
-        # Sistema simple: 
-        # 1. Si NO estás registrado → REGISTRO
-        # 2. Si estás registrado → LOGIN (y se queda grabado hasta que limpies cache)
-        # ═══════════════════════════════════════════════════════════════════════════════
+        st.markdown("<br><br>", unsafe_allow_html=True)
         
-        # Check if user already has an account by checking if they try to login
-        # Simple flow: TABS between NEW USER REGISTRATION and EXISTING USER LOGIN
-        auth_tab1, auth_tab2 = st.tabs(["🆕 Nuevo Usuario", "🔐 Login - Usuario Existente"])
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # SIMPLE LOGIN - MINIMAL DESIGN
+        # ═══════════════════════════════════════════════════════════════════════════════
+        auth_tab1, auth_tab2 = st.tabs(["Registro", "Login"])
         
-        # TAB 1: NEW USER REGISTRATION
+        # TAB 1: REGISTRATION
         with auth_tab1:
-            st.markdown("### 📝 Crear Cuenta - Registro Único")
-            st.info("⏰ **Regístrate UNA SOLA VEZ. Luego solo haz Login en la pestaña 'Usuario Existente'.**")
-            
             with st.form(key="register_form_main"):
-                new_username = st.text_input("👤 Usuario", placeholder="Tu nombre de usuario (único)", key="reg_username_main")
-                new_email = st.text_input("📧 Email", placeholder="tu@email.com", key="reg_email_main")
-                new_password = st.text_input("🔐 Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password_main")
-                confirm_password = st.text_input("🔐 Confirmar Contraseña", type="password", placeholder="Repite tu contraseña", key="reg_confirm_main")
+                new_username = st.text_input("Usuario", placeholder="tu_usuario", key="reg_username_main")
+                new_email = st.text_input("Email", placeholder="tu@email.com", key="reg_email_main")
+                new_password = st.text_input("Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password_main")
+                confirm_password = st.text_input("Confirmar", type="password", placeholder="Repite tu contraseña", key="reg_confirm_main")
                 
-                register_button = st.form_submit_button(label="✅ Registrarse Ahora", use_container_width=True)
+                register_button = st.form_submit_button(label="Registrarse", use_container_width=True)
                 
                 if register_button:
-                    # Validaciones
                     if not new_username or not new_email or not new_password:
-                        st.error("❌ Completa todos los campos")
+                        st.error("Completa todos los campos")
                     elif len(new_password) < 6:
-                        st.error("❌ La contraseña debe tener mínimo 6 caracteres")
+                        st.error("Mínimo 6 caracteres")
                     elif new_password != confirm_password:
-                        st.error("❌ Las contraseñas no coinciden")
+                        st.error("Las contraseñas no coinciden")
                     else:
-                        # Intentar crear usuario (sin plan, será "Pending")
                         success, message = create_user(new_username, new_email, new_password)
                         if success:
-                            st.success(f"✅ ¡REGISTRO EXITOSO!\n\n**Tu cuenta: {new_username}**\n\n👉 Ve a la pestaña '🔐 Login - Usuario Existente' e ingresa con tu usuario y contraseña\n\n📋 Tu sesión se quedará grabada automáticamente")
-                            logger.info(f"New user registered: {new_username} - Pending admin assignment")
+                            st.success(f"✅ Cuenta creada: {new_username}\n\nAhora ve a Login")
+                            logger.info(f"New user registered: {new_username}")
                         else:
-                            st.error(f"❌ {message}")
+                            st.error(f"Error: {message}")
         
-        # TAB 2: EXISTING USER LOGIN - PERSISTENT SESSION
+        # TAB 2: LOGIN
         with auth_tab2:
-            st.markdown("### 🔐 Login - Sesión Persistente")
-            st.info("🎯 **Inicia sesión y tu sesión se quedará grabada. NO necesitas volver a hacer login a menos que limpies el cache.**")
+            login_subtabs = st.tabs(["Usuario", "Admin"])
             
-            login_subtabs = st.tabs(["👤 Usuario Regular", "🔑 Master Admin"])
-            
-            # SUBTAB: Login usuario normal
+            # SUBTAB: Regular User Login
             with login_subtabs[0]:
-                st.markdown("**Ingresa tu usuario y contraseña:**")
-                
                 with st.form(key="new_user_login_form"):
-                    login_username = st.text_input("👤 Usuario", placeholder="Tu nombre de usuario", key="login_username")
-                    login_password = st.text_input("🔐 Contraseña", type="password", placeholder="Tu contraseña", key="login_password")
-                    login_submit = st.form_submit_button(label="🔓 Ingresar (sesión persistente)", use_container_width=True)
+                    login_username = st.text_input("Usuario", placeholder="tu_usuario", key="login_username")
+                    login_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="login_password")
+                    login_submit = st.form_submit_button(label="Ingresar", use_container_width=True)
                     
                     if login_submit:
                         if not login_username or not login_password:
-                            st.error("❌ Completa usuario y contraseña")
+                            st.error("Completa los campos")
                         else:
                             success, msg = authenticate_user(login_username, login_password)
-
                             if success:
-                                # Create persistent session token
                                 token = create_session(login_username)
                                 st.session_state["authenticated"] = True
                                 st.session_state["current_user"] = login_username
                                 st.session_state["session_token"] = token
-                                
-                                # Update URL with session token for persistent login
                                 st.query_params["session_token"] = token
-                                
-                                st.success(f"✅ {msg}")
+                                st.success("✅ Ingreso exitoso")
                                 time.sleep(0.3)
                                 st.rerun()
                             else:
-                                # Mensaje de error con número de administración
-                                st.error(f"❌ {msg}")
-                                st.warning("⚠️ Si necesitas ayuda:\n\n📞 **Contacta al administrador:**\n\n☎️ **6789789414** (Facturación y Soporte)")
+                                st.error(f"Error: {msg}")
             
-            # SUBTAB: Master Admin Login
+            # SUBTAB: Admin Login
             with login_subtabs[1]:
-                st.markdown("**Acceso Master Admin:**")
-                st.info("Solo para administradores del sistema")
-                
                 with st.form(key="master_admin_form"):
-                    master_email = st.text_input("📧 Email", placeholder="email@example.com", key="master_email")
-                    master_password = st.text_input("🔐 Contraseña", type="password", placeholder="Contraseña", key="master_password")
-                    master_submit = st.form_submit_button(label="🔓 Ingresar como Admin", use_container_width=True)
+                    master_email = st.text_input("Email", placeholder="email@admin.com", key="master_email")
+                    master_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="master_password")
+                    master_submit = st.form_submit_button(label="Ingresar Admin", use_container_width=True)
                     
                     if master_submit:
-                        # Master credentials: ozytargetcom@gmail.com / zxc11ASD
-                        # Limpiar espacios y hacer case-insensitive para email
                         master_email_clean = master_email.strip().lower()
                         master_password_clean = master_password.strip()
                         
@@ -457,12 +430,12 @@ if not st.session_state["authenticated"]:
                             st.session_state["admin_authenticated"] = True
                             st.session_state["authenticated"] = True
                             st.session_state["current_user"] = "admin"
-                            st.success("✅ ¡Master Admin autenticado!")
+                            st.success("✅ Admin autenticado")
                             logger.info("Master Admin login successful")
                             time.sleep(0.3)
                             st.rerun()
                         else:
-                            st.error("❌ Email o contraseña de Master Admin inválidos")
+                            st.error("Credenciales inválidas")
                             logger.warning(f"Failed Master Admin login attempt with email: {master_email_clean}")
 
         st.markdown('</div>', unsafe_allow_html=True)
