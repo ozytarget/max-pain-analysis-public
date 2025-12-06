@@ -573,7 +573,7 @@ if st.session_state.get("admin_authenticated", False):
             st.session_state["current_user"] = None
             st.rerun()
     
-    # If admin wants to see dashboard
+    # If admin wants to see dashboard - STOP APP HERE
     if show_admin_panel:
         st.markdown("""
         <style>
@@ -760,7 +760,7 @@ if st.session_state.get("admin_authenticated", False):
             except Exception as e:
                 st.error(f"Error loading logs: {e}")
         
-        st.stop()  # Stop here if admin panel is open
+        st.stop()  # STOP APP - ONLY SHOW DASHBOARD
 
 
 @st.cache_data(ttl=CACHE_TTL)
