@@ -255,15 +255,19 @@ if not st.session_state["intro_shown"]:
 if not st.session_state["authenticated"]:
     st.markdown("""
     <style>
-    /* Modern Premium Design */
-    .stApp {
-        background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #16213e 100%);
-        min-height: 100vh;
+    /* Clean Professional Login - Qualtrics Style */
+    * {
         margin: 0;
         padding: 0;
+        box-sizing: border-box;
     }
     
-    .login-wrapper {
+    .stApp {
+        background-color: #f5f5f5;
+        min-height: 100vh;
+    }
+    
+    .login-container {
         display: flex;
         justify-content: center;
         align-items: center;
@@ -271,172 +275,173 @@ if not st.session_state["authenticated"]:
         padding: 20px;
     }
     
-    .login-card {
-        background: rgba(20, 33, 61, 0.85);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(0, 212, 255, 0.4);
-        border-radius: 18px;
-        padding: 28px 32px 32px 32px;
+    .login-box {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        padding: 48px 40px;
         width: 100%;
-        max-width: 380px;
-        box-shadow: 0 8px 32px 0 rgba(0, 212, 255, 0.25);
-        position: relative;
-        z-index: 10;
+        max-width: 420px;
+        text-align: center;
     }
     
-    .login-logo {
-        font-size: 36px;
+    .logo-section {
+        margin-bottom: 32px;
+    }
+    
+    .logo-text {
+        font-size: 40px;
         font-weight: 900;
-        background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 6px;
-        letter-spacing: 1.5px;
-        text-align: center;
+        color: #000;
+        letter-spacing: -0.5px;
+        margin-bottom: 4px;
     }
     
-    .login-subtitle {
-        text-align: center;
-        color: #96969e;
-        font-size: 11px;
-        margin-bottom: 14px;
-        letter-spacing: 0.6px;
+    .logo-xm {
+        color: #00a4d1;
+        font-size: 32px;
+        font-weight: 700;
     }
     
-    /* Streamlit tabs styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0;
-        background: transparent;
-        border: none;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background: transparent;
-        border: none;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-        color: #8892b0;
-        padding: 8px 0;
-        font-weight: 600;
-        font-size: 13px;
-        transition: all 0.3s ease;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        border-bottom-color: #00d4ff;
-        color: #00d4ff;
-    }
-    
-    /* Input styling */
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input {
-        background-color: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
-        color: #ffffff !important;
-        border-radius: 8px !important;
-        padding: 9px 12px !important;
-        font-size: 13px !important;
-        transition: all 0.3s ease !important;
-    }
-    
-    .stTextInput > div > div > input:focus,
-    .stNumberInput > div > div > input:focus {
-        border-color: #00d4ff !important;
-        box-shadow: 0 0 20px rgba(0, 212, 255, 0.2) !important;
-        background-color: rgba(255, 255, 255, 0.08) !important;
-    }
-    
-    /* Button styling */
-    .stFormSubmitButton > button {
-        background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%) !important;
-        color: #000000 !important;
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 10px 24px !important;
-        font-weight: 700 !important;
-        font-size: 13px !important;
-        letter-spacing: 0.4px !important;
-        transition: all 0.3s ease !important;
-        cursor: pointer !important;
-        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3) !important;
-    }
-    
-    .stFormSubmitButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 25px rgba(0, 212, 255, 0.5) !important;
-    }
-    
-    /* Form container */
+    /* Form styling */
     .stForm {
         background: transparent !important;
         border: none !important;
         padding: 0 !important;
     }
     
-    /* Labels */
-    .stTextInput > label,
-    .stNumberInput > label {
-        color: #ffffff !important;
-        font-weight: 600 !important;
-        font-size: 12px !important;
-        letter-spacing: 0.5px !important;
-        margin-bottom: 8px !important;
+    .stTabs [data-baseweb="tab-list"] {
+        display: none !important;
     }
     
-    /* Success/Error messages */
+    .stTabs [data-baseweb="tab-content"] {
+        padding: 0 !important;
+    }
+    
+    /* Input styling - clean and minimal */
+    .stTextInput > div > div > input {
+        background-color: #f9f9f9 !important;
+        border: 1px solid #d0d0d0 !important;
+        border-radius: 6px !important;
+        padding: 12px 14px !important;
+        font-size: 14px !important;
+        color: #333 !important;
+        transition: all 0.2s ease !important;
+        margin-bottom: 12px !important;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #0074ba !important;
+        box-shadow: 0 0 0 3px rgba(0, 116, 186, 0.1) !important;
+        background-color: #ffffff !important;
+    }
+    
+    .stTextInput > div > div > input::placeholder {
+        color: #999 !important;
+    }
+    
+    /* Remove labels - use placeholders instead */
+    .stTextInput > label,
+    .stNumberInput > label {
+        display: none !important;
+    }
+    
+    /* Button styling - clean blue */
+    .stFormSubmitButton > button {
+        background-color: #0074ba !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 6px !important;
+        padding: 12px 24px !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+        width: 100% !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+        margin-top: 8px !important;
+    }
+    
+    .stFormSubmitButton > button:hover {
+        background-color: #005a94 !important;
+    }
+    
+    /* Tabs as buttons */
+    .stTabs [data-baseweb="tab"] {
+        background: transparent !important;
+        border: none !important;
+        color: #0074ba !important;
+        padding: 8px 16px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        text-decoration: underline !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        color: #0074ba !important;
+    }
+    
+    /* Messages */
     .stAlert {
-        border-radius: 10px !important;
-        border: 1px solid transparent !important;
+        border-radius: 6px !important;
+        padding: 12px 14px !important;
+        margin-bottom: 12px !important;
+        font-size: 13px !important;
     }
     
     .stSuccessAlert {
-        background-color: rgba(46, 213, 115, 0.1) !important;
-        border-color: rgba(46, 213, 115, 0.3) !important;
-        color: #2ed573 !important;
+        background-color: #e8f5e9 !important;
+        border-left: 4px solid #4caf50 !important;
+        color: #2e7d32 !important;
     }
     
     .stErrorAlert {
-        background-color: rgba(255, 71, 87, 0.1) !important;
-        border-color: rgba(255, 71, 87, 0.3) !important;
-        color: #ff4757 !important;
+        background-color: #ffebee !important;
+        border-left: 4px solid #f44336 !important;
+        color: #c62828 !important;
     }
     
-    /* Hide default decorations */
+    /* Hide unwanted elements */
     .st-emotion-cache-1gv3huu {
         display: none;
     }
     
-    /* Smooth animations */
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
+    /* Form spacing */
+    .stFormSubmitButton {
+        margin-top: 16px !important;
     }
     
-    .login-card {
-        animation: fadeIn 0.6s ease-out;
+    /* Tab links styling */
+    .tab-link {
+        color: #0074ba;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
+        margin-top: 16px;
+        cursor: pointer;
     }
     </style>
     
-    <div class="login-wrapper">
-        <div class="login-card">
-            <div class="login-logo">ℙℝ𝕆 𝔼𝕊ℂ𝔸ℕℕ𝔼ℝ</div>
-            <div class="login-subtitle">MARKET ANALYSIS PLATFORM</div>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="logo-section">
+                <div class="logo-text">PRO ESCANNER</div>
+            </div>
     """, unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════════════════════════════
-    # SIMPLE LOGIN - MINIMAL DESIGN
+    # CLEAN LOGIN FORM
     # ═══════════════════════════════════════════════════════════════════════════════
-    auth_tab1, auth_tab2 = st.tabs(["Registro", "Login"])
+    auth_tab1, auth_tab2 = st.tabs(["Registrarse", "Ingresar"])
     
     # TAB 1: REGISTRATION
     with auth_tab1:
         with st.form(key="register_form_main"):
-            new_username = st.text_input("Usuario", placeholder="tu_usuario", key="reg_username_main")
+            new_username = st.text_input("Usuario", placeholder="Ingresa tu usuario", key="reg_username_main")
             new_email = st.text_input("Email", placeholder="tu@email.com", key="reg_email_main")
             new_password = st.text_input("Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password_main")
-            confirm_password = st.text_input("Confirmar", type="password", placeholder="Repite tu contraseña", key="reg_confirm_main")
+            confirm_password = st.text_input("Confirmar contraseña", type="password", placeholder="Repite tu contraseña", key="reg_confirm_main")
             
-            register_button = st.form_submit_button(label="Registrarse", use_container_width=True)
+            register_button = st.form_submit_button(label="Crear Cuenta", use_container_width=True)
             
             if register_button:
                 if not new_username or not new_email or not new_password:
@@ -448,7 +453,7 @@ if not st.session_state["authenticated"]:
                 else:
                     success, message = create_user(new_username, new_email, new_password)
                     if success:
-                        st.success(f"✅ Cuenta creada: {new_username}\n\nAhora ve a Login")
+                        st.success(f"✅ Cuenta creada exitosamente")
                         logger.info(f"New user registered: {new_username}")
                     else:
                         st.error(f"Error: {message}")
@@ -461,12 +466,12 @@ if not st.session_state["authenticated"]:
         with login_subtabs[0]:
             with st.form(key="new_user_login_form"):
                 login_username = st.text_input("Usuario", placeholder="tu_usuario", key="login_username")
-                login_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="login_password")
-                login_submit = st.form_submit_button(label="Ingresar", use_container_width=True)
+                login_password = st.text_input("Contraseña", type="password", placeholder="tu contraseña", key="login_password")
+                login_submit = st.form_submit_button(label="Iniciar Sesión", use_container_width=True)
                 
                 if login_submit:
                     if not login_username or not login_password:
-                        st.error("Completa los campos")
+                        st.error("Completa los campos requeridos")
                     else:
                         success, msg = authenticate_user(login_username, login_password)
                         if success:
@@ -484,9 +489,9 @@ if not st.session_state["authenticated"]:
         # SUBTAB: Admin Login
         with login_subtabs[1]:
             with st.form(key="master_admin_form"):
-                master_email = st.text_input("Email", placeholder="email@admin.com", key="master_email")
+                master_email = st.text_input("Email Administrador", placeholder="email@admin.com", key="master_email")
                 master_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="master_password")
-                master_submit = st.form_submit_button(label="Ingresar Admin", use_container_width=True)
+                master_submit = st.form_submit_button(label="Acceso Administrador", use_container_width=True)
                 
                 if master_submit:
                     master_email_clean = master_email.strip().lower()
