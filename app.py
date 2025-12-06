@@ -272,36 +272,36 @@ if not st.session_state["authenticated"]:
     }
     
     .login-card {
-        background: rgba(20, 33, 61, 0.7);
-        backdrop-filter: blur(15px);
-        border: 1px solid rgba(0, 212, 255, 0.3);
-        border-radius: 20px;
-        padding: 45px 40px 40px 40px;
+        background: rgba(20, 33, 61, 0.85);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(0, 212, 255, 0.4);
+        border-radius: 18px;
+        padding: 28px 32px 32px 32px;
         width: 100%;
-        max-width: 440px;
-        box-shadow: 0 8px 32px 0 rgba(0, 212, 255, 0.15);
+        max-width: 380px;
+        box-shadow: 0 8px 32px 0 rgba(0, 212, 255, 0.25);
         position: relative;
         z-index: 10;
     }
     
     .login-logo {
-        font-size: 42px;
+        font-size: 36px;
         font-weight: 900;
         background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        margin-bottom: 10px;
-        letter-spacing: 2px;
+        margin-bottom: 6px;
+        letter-spacing: 1.5px;
         text-align: center;
     }
     
     .login-subtitle {
         text-align: center;
         color: #96969e;
-        font-size: 12px;
-        margin-bottom: 20px;
-        letter-spacing: 0.8px;
+        font-size: 11px;
+        margin-bottom: 14px;
+        letter-spacing: 0.6px;
     }
     
     /* Streamlit tabs styling */
@@ -316,8 +316,9 @@ if not st.session_state["authenticated"]:
         border: none;
         border-bottom: 2px solid rgba(255, 255, 255, 0.2);
         color: #8892b0;
-        padding: 12px 0;
+        padding: 8px 0;
         font-weight: 600;
+        font-size: 13px;
         transition: all 0.3s ease;
     }
     
@@ -332,9 +333,9 @@ if not st.session_state["authenticated"]:
         background-color: rgba(255, 255, 255, 0.05) !important;
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
         color: #ffffff !important;
-        border-radius: 10px !important;
-        padding: 12px 16px !important;
-        font-size: 14px !important;
+        border-radius: 8px !important;
+        padding: 9px 12px !important;
+        font-size: 13px !important;
         transition: all 0.3s ease !important;
     }
     
@@ -350,11 +351,11 @@ if not st.session_state["authenticated"]:
         background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%) !important;
         color: #000000 !important;
         border: none !important;
-        border-radius: 10px !important;
-        padding: 12px 30px !important;
+        border-radius: 8px !important;
+        padding: 10px 24px !important;
         font-weight: 700 !important;
-        font-size: 15px !important;
-        letter-spacing: 0.5px !important;
+        font-size: 13px !important;
+        letter-spacing: 0.4px !important;
         transition: all 0.3s ease !important;
         cursor: pointer !important;
         box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3) !important;
@@ -377,7 +378,7 @@ if not st.session_state["authenticated"]:
     .stNumberInput > label {
         color: #ffffff !important;
         font-weight: 600 !important;
-        font-size: 13px !important;
+        font-size: 12px !important;
         letter-spacing: 0.5px !important;
         margin-bottom: 8px !important;
     }
