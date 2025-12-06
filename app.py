@@ -458,118 +458,36 @@ if not st.session_state["authenticated"]:
         display: block;
     }
     
-    .form-label .required {
-        color: #ff6b6b;
-    }
-    
-    .forgot-link {
-        color: #00d4ff;
-        text-decoration: none;
-        font-size: 12px;
-        font-weight: 600;
-    }
-    
-    .forgot-link:hover {
-        text-decoration: underline;
-    }
     </style>
-    
-    <div class="login-wrapper">
-        <div class="login-container">
-            <div class="logo-container">
-                <div class="logo-text">PRO <span class="logo-cyan">ESCANNER</span></div>
-                <div class="subtitle">Sign in to your account</div>
-                <div class="subtitle-light">or start your free trial</div>
-            </div>
     """, unsafe_allow_html=True)
 
-    # Login Tabs - Direct without columns
-    login_choice = st.tabs(["Login", "Register"])
+    st.markdown("<h2 style='text-align: center; color: white; margin-top: 100px;'>Login</h2>", unsafe_allow_html=True)
     
-    # LOGIN TAB
-    with login_choice[0]:
-        user_type = st.radio("", ["Usuario", "Admin"], horizontal=True, label_visibility="collapsed")
-        
-        if user_type == "Usuario":
-            with st.form(key="user_login_form"):
-                st.markdown('<label class="form-label">Usuario o Email <span class="required">*</span></label>', unsafe_allow_html=True)
-                login_user = st.text_input("", placeholder="usuario / email@company.com", key="login_user", label_visibility="collapsed")
-                
-                st.markdown('<label class="form-label">Contraseña <span class="required">*</span> <a href="#" class="forgot-link" style="float:right;">¿Olvidaste tu contraseña?</a></label>', unsafe_allow_html=True)
-                login_pass = st.text_input("", type="password", placeholder="••••••••", key="login_pass", label_visibility="collapsed")
-                
-                login_btn = st.form_submit_button("Sign In", use_container_width=True)
-                
-                if login_btn:
-                    if not login_user or not login_pass:
-                        st.error("Completa todos los campos")
-                    else:
-                        success, msg = authenticate_user(login_user, login_pass)
-                        if success:
-                            token = create_session(login_user)
-                            st.session_state["authenticated"] = True
-                            st.session_state["current_user"] = login_user
-                            st.session_state["session_token"] = token
-                            st.query_params["session_token"] = token
-                            st.success("✅ Ingreso exitoso")
-                            time.sleep(0.3)
-                            st.rerun()
-                        else:
-                            st.error(f"Error: {msg}")
-        else:
-            with st.form(key="admin_login_form"):
-                st.markdown('<label class="form-label">Email Admin <span class="required">*</span></label>', unsafe_allow_html=True)
-                admin_user = st.text_input("", placeholder="admin@company.com", key="admin_user", label_visibility="collapsed")
-                
-                st.markdown('<label class="form-label">Contraseña <span class="required">*</span></label>', unsafe_allow_html=True)
-                admin_pass = st.text_input("", type="password", placeholder="••••••••", key="admin_pass", label_visibility="collapsed")
-                
-                admin_btn = st.form_submit_button("Sign In", use_container_width=True)
-                
-                if admin_btn:
-                    if admin_user.strip().lower() == "ozytargetcom@gmail.com" and admin_pass.strip() == "zxc11ASD":
-                        st.session_state["admin_authenticated"] = True
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form(key="login_form"):
+            username = st.text_input("Username or Email", placeholder="Enter your username or email")
+            password = st.text_input("Password", type="password", placeholder="Enter your password")
+            
+            submit = st.form_submit_button("Login", use_container_width=True)
+            
+            if submit:
+                if not username or not password:
+                    st.error("Please fill in all fields")
+                else:
+                    success, msg = authenticate_user(username, password)
+                    if success:
+                        token = create_session(username)
                         st.session_state["authenticated"] = True
-                        st.session_state["current_user"] = "admin"
-                        st.success("✅ Admin autenticado")
-                        logger.info("Admin login successful")
-                        time.sleep(0.3)
+                        st.session_state["current_user"] = username
+                        st.session_state["session_token"] = token
+                        st.query_params["session_token"] = token
+                        st.success("✅ Login successful!")
+                        time.sleep(0.5)
                         st.rerun()
                     else:
-                        st.error("Credenciales inválidas")
+                        st.error(f"Login failed: {msg}")
     
-    # REGISTER TAB
-    with login_choice[1]:
-        with st.form(key="register_form"):
-            st.markdown('<label class="form-label">Usuario <span class="required">*</span></label>', unsafe_allow_html=True)
-            reg_user = st.text_input("", placeholder="elige un usuario", key="reg_user", label_visibility="collapsed")
-            
-            st.markdown('<label class="form-label">Email <span class="required">*</span></label>', unsafe_allow_html=True)
-            reg_email = st.text_input("", placeholder="tu@company.com", key="reg_email", label_visibility="collapsed")
-            
-            st.markdown('<label class="form-label">Contraseña <span class="required">*</span></label>', unsafe_allow_html=True)
-            reg_pass = st.text_input("", type="password", placeholder="Mínimo 6 caracteres", key="reg_pass1", label_visibility="collapsed")
-            
-            st.markdown('<label class="form-label">Confirmar Contraseña <span class="required">*</span></label>', unsafe_allow_html=True)
-            reg_pass_confirm = st.text_input("", type="password", placeholder="Repite tu contraseña", key="reg_pass2", label_visibility="collapsed")
-            
-            reg_btn = st.form_submit_button("Create Account", use_container_width=True)
-            
-            if reg_btn:
-                if not reg_user or not reg_email or not reg_pass:
-                    st.error("Completa todos los campos")
-                elif len(reg_pass) < 6:
-                    st.error("Mínimo 6 caracteres")
-                elif reg_pass != reg_pass_confirm:
-                    st.error("Las contraseñas no coinciden")
-                else:
-                    success, message = create_user(reg_user, reg_email, reg_pass)
-                    if success:
-                        st.success("✅ Cuenta creada. Ahora inicia sesión")
-                    else:
-                        st.error(f"Error: {message}")
-    
-    st.markdown("</div></div>", unsafe_allow_html=True)
     st.stop()
 
 
