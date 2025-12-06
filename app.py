@@ -251,56 +251,97 @@ if "session_token" in query_params and not st.session_state["authenticated"]:
 if not st.session_state["intro_shown"]:
     st.session_state["intro_shown"] = True
 
-# Optimized login screen (same format, faster authentication delay)
+# Professional Dark Login Screen - QuantData Style
 if not st.session_state["authenticated"]:
     st.markdown("""
     <style>
-    /* Clean Professional Login - Qualtrics Style */
+    @keyframes float-dots {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.8; }
+    }
+    
     * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
     }
     
-    .stApp {
-        background-color: #f5f5f5;
+    html, body, .stApp {
+        background: linear-gradient(135deg, #0a1628 0%, #0f1f35 50%, #081622 100%) !important;
         min-height: 100vh;
+        overflow: hidden;
     }
     
-    .login-container {
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: 
+            radial-gradient(2px 2px at 20% 30%, #1e90ff, rgba(30, 144, 255, 0)),
+            radial-gradient(2px 2px at 60% 70%, #00d4ff, rgba(0, 212, 255, 0)),
+            radial-gradient(1px 1px at 50% 50%, #1e90ff, rgba(30, 144, 255, 0)),
+            radial-gradient(1px 1px at 80% 10%, #00d4ff, rgba(0, 212, 255, 0)),
+            radial-gradient(2px 2px at 90% 60%, #1e90ff, rgba(30, 144, 255, 0)),
+            radial-gradient(1px 1px at 30% 80%, #00d4ff, rgba(0, 212, 255, 0));
+        background-repeat: repeat;
+        background-size: 200% 200%;
+        pointer-events: none;
+        z-index: 0;
+        animation: float-dots 8s ease-in-out infinite;
+    }
+    
+    .login-wrapper {
         display: flex;
         justify-content: center;
         align-items: center;
         min-height: 100vh;
         padding: 20px;
+        position: relative;
+        z-index: 1;
     }
     
-    .login-box {
-        background: white;
+    .login-container {
+        background: rgba(15, 31, 53, 0.85);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 212, 255, 0.2);
         border-radius: 12px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-        padding: 48px 40px;
+        padding: 50px 40px;
         width: 100%;
-        max-width: 420px;
+        max-width: 480px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         text-align: center;
     }
     
-    .logo-section {
-        margin-bottom: 32px;
+    .logo-container {
+        margin-bottom: 40px;
     }
     
     .logo-text {
-        font-size: 40px;
+        font-size: 48px;
         font-weight: 900;
-        color: #000;
-        letter-spacing: -0.5px;
-        margin-bottom: 4px;
+        color: white;
+        letter-spacing: -1px;
+        margin-bottom: 8px;
     }
     
-    .logo-xm {
-        color: #00a4d1;
-        font-size: 32px;
-        font-weight: 700;
+    .logo-cyan {
+        color: #00d4ff;
+    }
+    
+    .subtitle {
+        color: #00d4ff;
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 16px;
+    }
+    
+    .subtitle-light {
+        color: #8fa3b0;
+        font-size: 13px;
+        margin-top: 4px;
     }
     
     /* Form styling */
@@ -310,45 +351,59 @@ if not st.session_state["authenticated"]:
         padding: 0 !important;
     }
     
+    .stTabs {
+        margin-top: 0 !important;
+    }
+    
     .stTabs [data-baseweb="tab-list"] {
-        display: none !important;
+        background: transparent !important;
+        border-bottom: none !important;
+        gap: 0 !important;
     }
     
-    .stTabs [data-baseweb="tab-content"] {
-        padding: 0 !important;
+    .stTabs [data-baseweb="tab"] {
+        background: transparent !important;
+        border: none !important;
+        padding: 12px 0 !important;
+        color: #8fa3b0 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
     }
     
-    /* Input styling - clean and minimal */
+    .stTabs [aria-selected="true"] {
+        color: #00d4ff !important;
+        border-bottom: 2px solid #00d4ff !important;
+    }
+    
+    /* Input styling */
     .stTextInput > div > div > input {
-        background-color: #f9f9f9 !important;
-        border: 1px solid #d0d0d0 !important;
+        background-color: rgba(20, 40, 60, 0.8) !important;
+        border: 1px solid rgba(0, 212, 255, 0.3) !important;
         border-radius: 6px !important;
         padding: 12px 14px !important;
         font-size: 14px !important;
-        color: #333 !important;
-        transition: all 0.2s ease !important;
-        margin-bottom: 12px !important;
+        color: #ffffff !important;
+        margin-bottom: 14px !important;
     }
     
     .stTextInput > div > div > input:focus {
-        border-color: #0074ba !important;
-        box-shadow: 0 0 0 3px rgba(0, 116, 186, 0.1) !important;
-        background-color: #ffffff !important;
+        border-color: #00d4ff !important;
+        box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.15) !important;
+        background-color: rgba(20, 40, 60, 1) !important;
     }
     
     .stTextInput > div > div > input::placeholder {
-        color: #999 !important;
+        color: #5a7a8f !important;
     }
     
-    /* Remove labels - use placeholders instead */
-    .stTextInput > label,
-    .stNumberInput > label {
+    /* Remove labels */
+    .stTextInput > label {
         display: none !important;
     }
     
-    /* Button styling - clean blue */
+    /* Button styling */
     .stFormSubmitButton > button {
-        background-color: #0074ba !important;
+        background: linear-gradient(90deg, #1e90ff 0%, #0074ba 100%) !important;
         color: white !important;
         border: none !important;
         border-radius: 6px !important;
@@ -357,27 +412,13 @@ if not st.session_state["authenticated"]:
         font-size: 14px !important;
         width: 100% !important;
         cursor: pointer !important;
-        transition: all 0.2s ease !important;
-        margin-top: 8px !important;
+        margin-top: 12px !important;
+        transition: all 0.3s ease !important;
     }
     
     .stFormSubmitButton > button:hover {
-        background-color: #005a94 !important;
-    }
-    
-    /* Tabs as buttons */
-    .stTabs [data-baseweb="tab"] {
-        background: transparent !important;
-        border: none !important;
-        color: #0074ba !important;
-        padding: 8px 16px !important;
-        font-size: 13px !important;
-        font-weight: 600 !important;
-        text-decoration: underline !important;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        color: #0074ba !important;
+        background: linear-gradient(90deg, #2a9eff 0%, #0084cc 100%) !important;
+        box-shadow: 0 4px 12px rgba(30, 144, 255, 0.4) !important;
     }
     
     /* Messages */
@@ -389,128 +430,147 @@ if not st.session_state["authenticated"]:
     }
     
     .stSuccessAlert {
-        background-color: #e8f5e9 !important;
-        border-left: 4px solid #4caf50 !important;
-        color: #2e7d32 !important;
+        background-color: rgba(46, 213, 115, 0.15) !important;
+        border-left: 4px solid #2ed573 !important;
+        color: #2ed573 !important;
     }
     
     .stErrorAlert {
-        background-color: #ffebee !important;
-        border-left: 4px solid #f44336 !important;
-        color: #c62828 !important;
+        background-color: rgba(255, 71, 87, 0.15) !important;
+        border-left: 4px solid #ff4757 !important;
+        color: #ff8a8a !important;
     }
     
     /* Hide unwanted elements */
-    .st-emotion-cache-1gv3huu {
+    [data-testid="stDecoration"] {
         display: none;
     }
     
-    /* Form spacing */
-    .stFormSubmitButton {
-        margin-top: 16px !important;
+    /* Form label styling */
+    .form-label {
+        color: #8fa3b0;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 6px;
+        display: block;
     }
     
-    /* Tab links styling */
-    .tab-link {
-        color: #0074ba;
+    .form-label .required {
+        color: #ff6b6b;
+    }
+    
+    .forgot-link {
+        color: #00d4ff;
         text-decoration: none;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
-        margin-top: 16px;
-        cursor: pointer;
+    }
+    
+    .forgot-link:hover {
+        text-decoration: underline;
     }
     </style>
     
-    <div class="login-container">
-        <div class="login-box">
-            <div class="logo-section">
-                <div class="logo-text">PRO ESCANNER</div>
+    <div class="login-wrapper">
+        <div class="login-container">
+            <div class="logo-container">
+                <div class="logo-text">PRO <span class="logo-cyan">ESCANNER</span></div>
+                <div class="subtitle">Sign in to your account</div>
+                <div class="subtitle-light">or start your free trial</div>
             </div>
     """, unsafe_allow_html=True)
 
-    # ═══════════════════════════════════════════════════════════════════════════════
-    # CLEAN LOGIN FORM
-    # ═══════════════════════════════════════════════════════════════════════════════
-    auth_tab1, auth_tab2 = st.tabs(["Registrarse", "Ingresar"])
-    
-    # TAB 1: REGISTRATION
-    with auth_tab1:
-        with st.form(key="register_form_main"):
-            new_username = st.text_input("Usuario", placeholder="Ingresa tu usuario", key="reg_username_main")
-            new_email = st.text_input("Email", placeholder="tu@email.com", key="reg_email_main")
-            new_password = st.text_input("Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password_main")
-            confirm_password = st.text_input("Confirmar contraseña", type="password", placeholder="Repite tu contraseña", key="reg_confirm_main")
-            
-            register_button = st.form_submit_button(label="Crear Cuenta", use_container_width=True)
-            
-            if register_button:
-                if not new_username or not new_email or not new_password:
-                    st.error("Completa todos los campos")
-                elif len(new_password) < 6:
-                    st.error("Mínimo 6 caracteres")
-                elif new_password != confirm_password:
-                    st.error("Las contraseñas no coinciden")
-                else:
-                    success, message = create_user(new_username, new_email, new_password)
-                    if success:
-                        st.success(f"✅ Cuenta creada exitosamente")
-                        logger.info(f"New user registered: {new_username}")
-                    else:
-                        st.error(f"Error: {message}")
-    
-    # TAB 2: LOGIN
-    with auth_tab2:
-        login_subtabs = st.tabs(["Usuario", "Admin"])
+    # Login Tabs
+    col_left, col_center, col_right = st.columns([0.15, 0.7, 0.15])
+    with col_center:
+        login_choice = st.tabs(["Login", "Register"])
         
-        # SUBTAB: Regular User Login
-        with login_subtabs[0]:
-            with st.form(key="new_user_login_form"):
-                login_username = st.text_input("Usuario", placeholder="tu_usuario", key="login_username")
-                login_password = st.text_input("Contraseña", type="password", placeholder="tu contraseña", key="login_password")
-                login_submit = st.form_submit_button(label="Iniciar Sesión", use_container_width=True)
-                
-                if login_submit:
-                    if not login_username or not login_password:
-                        st.error("Completa los campos requeridos")
-                    else:
-                        success, msg = authenticate_user(login_username, login_password)
-                        if success:
-                            token = create_session(login_username)
+        # LOGIN TAB
+        with login_choice[0]:
+            user_type = st.radio("", ["Usuario", "Admin"], horizontal=True, label_visibility="collapsed")
+            
+            if user_type == "Usuario":
+                with st.form(key="user_login_form"):
+                    st.markdown('<label class="form-label">Usuario o Email <span class="required">*</span></label>', unsafe_allow_html=True)
+                    login_user = st.text_input("", placeholder="usuario / email@company.com", key="login_user", label_visibility="collapsed")
+                    
+                    st.markdown('<label class="form-label">Contraseña <span class="required">*</span> <a href="#" class="forgot-link" style="float:right;">¿Olvidaste tu contraseña?</a></label>', unsafe_allow_html=True)
+                    login_pass = st.text_input("", type="password", placeholder="••••••••", key="login_pass", label_visibility="collapsed")
+                    
+                    login_btn = st.form_submit_button("Sign In", use_container_width=True)
+                    
+                    if login_btn:
+                        if not login_user or not login_pass:
+                            st.error("Completa todos los campos")
+                        else:
+                            success, msg = authenticate_user(login_user, login_pass)
+                            if success:
+                                token = create_session(login_user)
+                                st.session_state["authenticated"] = True
+                                st.session_state["current_user"] = login_user
+                                st.session_state["session_token"] = token
+                                st.query_params["session_token"] = token
+                                st.success("✅ Ingreso exitoso")
+                                time.sleep(0.3)
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {msg}")
+            else:
+                with st.form(key="admin_login_form"):
+                    st.markdown('<label class="form-label">Email Admin <span class="required">*</span></label>', unsafe_allow_html=True)
+                    admin_user = st.text_input("", placeholder="admin@company.com", key="admin_user", label_visibility="collapsed")
+                    
+                    st.markdown('<label class="form-label">Contraseña <span class="required">*</span></label>', unsafe_allow_html=True)
+                    admin_pass = st.text_input("", type="password", placeholder="••••••••", key="admin_pass", label_visibility="collapsed")
+                    
+                    admin_btn = st.form_submit_button("Sign In", use_container_width=True)
+                    
+                    if admin_btn:
+                        if admin_user.strip().lower() == "ozytargetcom@gmail.com" and admin_pass.strip() == "zxc11ASD":
+                            st.session_state["admin_authenticated"] = True
                             st.session_state["authenticated"] = True
-                            st.session_state["current_user"] = login_username
-                            st.session_state["session_token"] = token
-                            st.query_params["session_token"] = token
-                            st.success("✅ Ingreso exitoso")
+                            st.session_state["current_user"] = "admin"
+                            st.success("✅ Admin autenticado")
+                            logger.info("Admin login successful")
                             time.sleep(0.3)
                             st.rerun()
                         else:
-                            st.error(f"Error: {msg}")
+                            st.error("Credenciales inválidas")
         
-        # SUBTAB: Admin Login
-        with login_subtabs[1]:
-            with st.form(key="master_admin_form"):
-                master_email = st.text_input("Email Administrador", placeholder="email@admin.com", key="master_email")
-                master_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="master_password")
-                master_submit = st.form_submit_button(label="Acceso Administrador", use_container_width=True)
+        # REGISTER TAB
+        with login_choice[1]:
+            with st.form(key="register_form"):
+                st.markdown('<label class="form-label">Usuario <span class="required">*</span></label>', unsafe_allow_html=True)
+                reg_user = st.text_input("", placeholder="elige un usuario", key="reg_user", label_visibility="collapsed")
                 
-                if master_submit:
-                    master_email_clean = master_email.strip().lower()
-                    master_password_clean = master_password.strip()
-                    
-                    if master_email_clean == "ozytargetcom@gmail.com" and master_password_clean == "zxc11ASD":
-                        st.session_state["admin_authenticated"] = True
-                        st.session_state["authenticated"] = True
-                        st.session_state["current_user"] = "admin"
-                        st.success("✅ Admin autenticado")
-                        logger.info("Master Admin login successful")
-                        time.sleep(0.3)
-                        st.rerun()
+                st.markdown('<label class="form-label">Email <span class="required">*</span></label>', unsafe_allow_html=True)
+                reg_email = st.text_input("", placeholder="tu@company.com", key="reg_email", label_visibility="collapsed")
+                
+                st.markdown('<label class="form-label">Contraseña <span class="required">*</span></label>', unsafe_allow_html=True)
+                reg_pass = st.text_input("", type="password", placeholder="Mínimo 6 caracteres", key="reg_pass1", label_visibility="collapsed")
+                
+                st.markdown('<label class="form-label">Confirmar Contraseña <span class="required">*</span></label>', unsafe_allow_html=True)
+                reg_pass_confirm = st.text_input("", type="password", placeholder="Repite tu contraseña", key="reg_pass2", label_visibility="collapsed")
+                
+                reg_btn = st.form_submit_button("Create Account", use_container_width=True)
+                
+                if reg_btn:
+                    if not reg_user or not reg_email or not reg_pass:
+                        st.error("Completa todos los campos")
+                    elif len(reg_pass) < 6:
+                        st.error("Mínimo 6 caracteres")
+                    elif reg_pass != reg_pass_confirm:
+                        st.error("Las contraseñas no coinciden")
                     else:
-                        st.error("Credenciales inválidas")
-                        logger.warning(f"Failed Master Admin login attempt with email: {master_email_clean}")
-
-    st.markdown('</div></div>', unsafe_allow_html=True)
+                        success, message = create_user(reg_user, reg_email, reg_pass)
+                        if success:
+                            st.success("✅ Cuenta creada. Ahora inicia sesión")
+                        else:
+                            st.error(f"Error: {message}")
+    
+    st.markdown("</div></div>", unsafe_allow_html=True)
     st.stop()
+
 
 # Rest of the original application code (unchanged)
 @st.cache_data(ttl=CACHE_TTL)
