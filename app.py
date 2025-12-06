@@ -7211,7 +7211,52 @@ def main():
                         target_extreme_up = current_price_mm + (expected_move * 2)
                         target_extreme_down = current_price_mm - (expected_move * 2)
                         
+                        # ════════════════════════════════════════════════════════
+                        # COLOR LEGEND WITH NUMERIC TARGETS
+                        # ════════════════════════════════════════════════════════
+                        st.markdown("### 🎨 Target Color Legend")
+                        
+                        # Create color legend with numeric values
+                        legend_cols = st.columns(4)
+                        
+                        # Define legend items: (emoji, name, price, color_hex)
+                        legend_items = [
+                            ("🔴", "Gamma Zone", target_gamma, "#FF6B6B"),
+                            ("🔽", "Down/Support", target_downside, "#FF0000"),
+                            ("🟡", "Max Pain", target_max_pain, "#FFD700"),
+                            ("🔼", "Up/Resistance", target_upside, "#00FF00"),
+                            ("🟦", "Resistance (80%)", target_resistance, "#90EE90"),
+                            ("🟦", "Support (20%)", target_support, "#87CEEB"),
+                            ("🔵", "Extreme Up (2σ)", target_extreme_up, "#00FFFF"),
+                            ("🟣", "Extreme Down (2σ)", target_extreme_down, "#FF69B4")
+                        ]
+                        
+                        # Display legend items in grid (4 columns per row)
+                        for idx, (emoji, name, price, color) in enumerate(legend_items):
+                            col_idx = idx % 4
+                            if col_idx == 0 and idx > 0:
+                                legend_cols = st.columns(4)
+                            
+                            with legend_cols[col_idx]:
+                                # Create colored box with numeric value
+                                if price > 0:
+                                    st.markdown(f"""
+                                    <div style="background-color: {color}; opacity: 0.3; border-left: 4px solid {color}; padding: 12px; border-radius: 5px; margin: 5px 0;">
+                                        <div style="font-weight: bold; color: #ffffff; font-size: 14px;">{emoji} {name}</div>
+                                        <div style="color: #ffffff; font-size: 18px; font-weight: bold;">${price:.2f}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"""
+                                    <div style="background-color: {color}; opacity: 0.2; border-left: 4px solid {color}; padding: 12px; border-radius: 5px; margin: 5px 0;">
+                                        <div style="font-weight: bold; color: #999999; font-size: 14px;">{emoji} {name}</div>
+                                        <div style="color: #999999; font-size: 18px; font-weight: bold;">N/A</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                        
                         # Visualización de Targets - CÍRCULOS EN ESCALA DE PRECIO
+                        st.markdown("#### 📊 Target Price Distribution Chart")
+                        
                         targets_all = [
                             ("Gamma", target_gamma, "#FF6B6B", 10),
                             ("Up", target_upside, "#00FF00", 8),
@@ -7227,23 +7272,39 @@ def main():
                         
                         fig_targets = go.Figure()
                         
+                        # Track y-axis positions for better spacing
+                        y_positions = {name: i for i, (name, _, _, _) in enumerate(targets_valid)}
+                        
                         for i, (name, price, color, size) in enumerate(targets_valid):
+                            # Add main marker with price value displayed
                             fig_targets.add_trace(go.Scatter(
                                 x=[price],
                                 y=[i],
                                 mode='markers+text',
                                 name=name,
-                                marker=dict(size=size*3, color=color, opacity=0.7,
-                                           line=dict(width=2, color='white')),
-                                text=f"${price:.2f}",
+                                marker=dict(
+                                    size=size*3,
+                                    color=color,
+                                    opacity=0.8,
+                                    line=dict(width=3, color='white')
+                                ),
+                                text=[f"${price:.2f}"],
                                 textposition="top center",
-                                textfont=dict(size=11, color='white'),
-                                hovertemplate=f'<b>{name}</b><br>Price: $%{{x:.2f}}<br>Distance: {((price/current_price_mm-1)*100):+.2f}%<extra></extra>'
+                                textfont=dict(size=12, color='white', family='Arial Black'),
+                                hovertemplate=f'<b>{name}</b><br>Price: ${price:.2f}<br>Distance: {((price/current_price_mm-1)*100):+.2f}%<extra></extra>',
+                                showlegend=True
                             ))
                         
-                        # Agregar precio actual
-                        fig_targets.add_vline(x=current_price_mm, line_dash="solid", line_color="white", line_width=3,
-                                             annotation_text=f"NOW: ${current_price_mm:.2f}", annotation_position="top right")
+                        # Agregar línea del precio actual con anotación clara
+                        fig_targets.add_vline(
+                            x=current_price_mm,
+                            line_dash="solid",
+                            line_color="white",
+                            line_width=4,
+                            annotation_text=f"CURRENT: ${current_price_mm:.2f}",
+                            annotation_position="top right",
+                            annotation_font=dict(size=12, color='white')
+                        )
                         
                         fig_targets.update_layout(
                             title="Price Targets Distribution",
