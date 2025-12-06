@@ -5833,54 +5833,64 @@ def main():
                                     # Crear tabla con highlight amarillo
                                     df_table = df_display[display_cols].head(max_results).reset_index(drop=True)
                                     
-                                    # Crear HTML para tabla estilizada
-                                    def style_table_with_highlights(df, highlight_column='_Highlight'):
-                                        """Crea tabla HTML con filas amarillas para highlights"""
-                                        html = '<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse;">'
-                                        html += '<thead><tr style="background-color: #1a1a1a; color: #39FF14; font-weight: bold;">'
-                                        
-                                        for col in df.columns:
-                                            if col != '_Highlight':
-                                                html += f'<th style="padding: 10px; text-align: left; border: 1px solid #333;">{col}</th>'
-                                        html += '</tr></thead><tbody>'
-                                        
-                                        for idx, row in df.iterrows():
-                                            bg_color = '#FFD700' if (highlight_column in df.columns and row[highlight_column]) else '#0a0a0a'
-                                            text_color = '#000' if bg_color == '#FFD700' else '#fff'
-                                            html += f'<tr style="background-color: {bg_color}; color: {text_color};">'
-                                            
-                                            for col in df.columns:
-                                                if col != '_Highlight':
-                                                    value = str(row[col])
-                                                    # Bold para tickers y tipo
-                                                    if col in ['Ticker', '_Type']:
-                                                        html += f'<td style="padding: 10px; border: 1px solid #333; font-weight: bold;">{value}</td>'
-                                                    else:
-                                                        html += f'<td style="padding: 10px; border: 1px solid #333;">{value}</td>'
-                                            html += '</tr>'
-                                        
-                                        html += '</tbody></table></div>'
-                                        return html
+                                    # ════════════════════════════════════════════════════════
+                                    # TABLA INTERACTIVA Y ORDENABLE
+                                    # ════════════════════════════════════════════════════════
+                                    st.markdown("### 📊 Scanned Results - Click Headers to Sort")
                                     
-                                    # Mostrar tabla
-                                    if display_cols:
-                                        # Crear versión sin la columna _Highlight para mostrar
-                                        df_to_display = df_table.copy()
-                                        
-                                        # Mostrar con HTML personalizado
-                                        html_table = style_table_with_highlights(df_to_display)
-                                        st.markdown(html_table, unsafe_allow_html=True)
-                                        
-                                        # Leyenda
-                                        col_legend1, col_legend2, col_legend3 = st.columns(3)
-                                        with col_legend1:
-                                            st.markdown("🟨 **FONDO AMARILLO** = Potencial Bullish / Short Squeeze")
-                                        with col_legend2:
-                                            st.markdown("📊 **Signals** = Razones detectadas")
-                                        with col_legend3:
-                                            st.markdown(f"**Score** = Puntuación (40+ = Highlight)")
-                                    else:
-                                        st.dataframe(df_finviz[['Ticker', '_Type', '📊 Signals', '_Score']].head(max_results), use_container_width=True)
+                                    # Crear columnas de control
+                                    col_sort1, col_sort2 = st.columns([3, 1])
+                                    
+                                    with col_sort1:
+                                        sort_column = st.selectbox(
+                                            "Sort by:",
+                                            options=display_cols,
+                                            index=len(display_cols) - 1,  # Default to _Score (last column)
+                                            key="scanner_sort_column"
+                                        )
+                                    
+                                    with col_sort2:
+                                        sort_order = st.radio(
+                                            "Order:",
+                                            ["Descending ↓", "Ascending ↑"],
+                                            key="scanner_sort_order"
+                                        )
+                                    
+                                    # Aplicar ordenamiento
+                                    ascending = sort_order == "Ascending ↑"
+                                    df_sorted = df_table.sort_values(by=sort_column, ascending=ascending)
+                                    
+                                    # Mostrar tabla interactiva con Streamlit
+                                    st.dataframe(
+                                        df_sorted,
+                                        use_container_width=True,
+                                        height=600,
+                                        column_config={
+                                            "Ticker": st.column_config.TextColumn("🔖 Ticker", width="small"),
+                                            "Company": st.column_config.TextColumn("🏢 Company", width="medium"),
+                                            "Price": st.column_config.NumberColumn("💰 Price", format="$%.2f"),
+                                            "Change": st.column_config.TextColumn("📈 Change", width="small"),
+                                            "Volume": st.column_config.TextColumn("📊 Volume", width="small"),
+                                            "Market Cap": st.column_config.TextColumn("🏦 Market Cap", width="medium"),
+                                            "RSI (14)": st.column_config.NumberColumn("📉 RSI", format="%.2f"),
+                                            "_Type": st.column_config.TextColumn("⚡ Type", width="small"),
+                                            "📊 Signals": st.column_config.TextColumn("📢 Signals", width="large"),
+                                            "_Score": st.column_config.NumberColumn("⭐ Score", format="%d")
+                                        },
+                                        hide_index=True
+                                    )
+                                    
+                                    # Leyenda mejorada
+                                    st.markdown("---")
+                                    st.markdown("### 🎯 Legend & Quick Help")
+                                    col_legend1, col_legend2, col_legend3 = st.columns(3)
+                                    
+                                    with col_legend1:
+                                        st.info("**📈 Bullish** = Strong upside momentum signals")
+                                    with col_legend2:
+                                        st.success("**🔥 Squeeze** = Short squeeze candidates")
+                                    with col_legend3:
+                                        st.warning("**⭐ Score 40+** = High confidence signals")
                         
                         except Exception as e:
                             st.error(f"Error processing data: {str(e)}")
