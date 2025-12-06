@@ -461,32 +461,100 @@ if not st.session_state["authenticated"]:
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<h2 style='text-align: center; color: white; margin-top: 100px;'>Login</h2>", unsafe_allow_html=True)
-    
+    # Professional Login/Register Interface
     col1, col2, col3 = st.columns([1, 2, 1])
+    
     with col2:
-        with st.form(key="login_form"):
-            username = st.text_input("Username or Email", placeholder="Enter your username or email")
-            password = st.text_input("Password", type="password", placeholder="Enter your password")
-            
-            submit = st.form_submit_button("Login", use_container_width=True)
-            
-            if submit:
-                if not username or not password:
-                    st.error("Please fill in all fields")
-                else:
-                    success, msg = authenticate_user(username, password)
-                    if success:
-                        token = create_session(username)
+        st.markdown("<div style='margin-top: 80px;'></div>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #00d4ff; margin-bottom: 30px;'>Pro Scanner</h1>", unsafe_allow_html=True)
+        
+        # Tab selection
+        tab1, tab2, tab3 = st.tabs(["📊 Login", "📝 Register", "🔐 Admin"])
+        
+        # ==================== LOGIN TAB ====================
+        with tab1:
+            st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
+            with st.form(key="user_login"):
+                st.markdown("<p style='text-align: center; color: #8fa3b0; font-size: 14px; margin-bottom: 20px;'>Sign in to your account</p>", unsafe_allow_html=True)
+                
+                username = st.text_input("Username or Email", placeholder="Enter your username or email", key="login_user")
+                password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_pass")
+                
+                col_btn1, col_btn2 = st.columns([1, 1])
+                with col_btn1:
+                    login_submit = st.form_submit_button("Sign In", use_container_width=True)
+                
+                if login_submit:
+                    if not username or not password:
+                        st.error("❌ Please fill in all fields")
+                    else:
+                        success, msg = authenticate_user(username, password)
+                        if success:
+                            token = create_session(username)
+                            st.session_state["authenticated"] = True
+                            st.session_state["current_user"] = username
+                            st.session_state["session_token"] = token
+                            st.query_params["session_token"] = token
+                            st.success("✅ Login successful!")
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg}")
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        # ==================== REGISTER TAB ====================
+        with tab2:
+            st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
+            with st.form(key="user_register"):
+                st.markdown("<p style='text-align: center; color: #8fa3b0; font-size: 14px; margin-bottom: 20px;'>Create new account</p>", unsafe_allow_html=True)
+                
+                new_username = st.text_input("Username", placeholder="Choose a username", key="reg_user")
+                new_email = st.text_input("Email", placeholder="your@email.com", key="reg_email")
+                new_password = st.text_input("Password", type="password", placeholder="Min 6 characters", key="reg_pass1")
+                confirm_password = st.text_input("Confirm Password", type="password", placeholder="Repeat password", key="reg_pass2")
+                
+                register_submit = st.form_submit_button("Create Account", use_container_width=True)
+                
+                if register_submit:
+                    if not new_username or not new_email or not new_password:
+                        st.error("❌ Please fill in all fields")
+                    elif len(new_password) < 6:
+                        st.error("❌ Password must be at least 6 characters")
+                    elif new_password != confirm_password:
+                        st.error("❌ Passwords do not match")
+                    else:
+                        success, message = create_user(new_username, new_email, new_password)
+                        if success:
+                            st.success("✅ Account created! Now sign in.")
+                        else:
+                            st.error(f"❌ {message}")
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        # ==================== ADMIN TAB ====================
+        with tab3:
+            st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
+            with st.form(key="admin_login"):
+                st.markdown("<p style='text-align: center; color: #8fa3b0; font-size: 14px; margin-bottom: 20px;'>Admin Access</p>", unsafe_allow_html=True)
+                
+                admin_email = st.text_input("Admin Email", placeholder="admin@email.com", key="admin_email")
+                admin_password = st.text_input("Admin Password", type="password", placeholder="Enter password", key="admin_password")
+                
+                admin_submit = st.form_submit_button("Admin Sign In", use_container_width=True)
+                
+                if admin_submit:
+                    if not admin_email or not admin_password:
+                        st.error("❌ Please fill in all fields")
+                    elif admin_email.strip().lower() == "ozytargetcom@gmail.com" and admin_password.strip() == "zxc11ASD":
+                        st.session_state["admin_authenticated"] = True
                         st.session_state["authenticated"] = True
-                        st.session_state["current_user"] = username
-                        st.session_state["session_token"] = token
-                        st.query_params["session_token"] = token
-                        st.success("✅ Login successful!")
+                        st.session_state["current_user"] = "admin"
+                        st.success("✅ Admin access granted!")
+                        logger.info("Admin login successful")
                         time.sleep(0.5)
                         st.rerun()
                     else:
-                        st.error(f"Login failed: {msg}")
+                        st.error("❌ Invalid credentials")
+            st.markdown("</div>", unsafe_allow_html=True)
     
     st.stop()
 
