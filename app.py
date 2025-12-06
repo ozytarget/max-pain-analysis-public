@@ -251,27 +251,27 @@ if "session_token" in query_params and not st.session_state["authenticated"]:
 if not st.session_state["intro_shown"]:
     st.session_state["intro_shown"] = True
 
-# Professional Dark Login Screen - QuantData Style
+# MODERN DYNAMIC LOGIN - Ultra Professional Design
 if not st.session_state["authenticated"]:
+    # Ultra-modern CSS with animations
     st.markdown("""
     <style>
-    @keyframes float-dots {
-        0%, 100% { opacity: 0.3; }
-        50% { opacity: 0.8; }
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
     
     * {
+        font-family: 'Inter', sans-serif;
         margin: 0;
         padding: 0;
         box-sizing: border-box;
     }
     
     html, body, .stApp {
-        background: linear-gradient(135deg, #0a1628 0%, #0f1f35 50%, #081622 100%) !important;
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) !important;
         min-height: 100vh;
         overflow: hidden;
     }
     
+    /* Animated Background */
     .stApp::before {
         content: '';
         position: fixed;
@@ -279,283 +279,341 @@ if not st.session_state["authenticated"]:
         left: 0;
         width: 100%;
         height: 100%;
-        background-image: 
-            radial-gradient(2px 2px at 20% 30%, #1e90ff, rgba(30, 144, 255, 0)),
-            radial-gradient(2px 2px at 60% 70%, #00d4ff, rgba(0, 212, 255, 0)),
-            radial-gradient(1px 1px at 50% 50%, #1e90ff, rgba(30, 144, 255, 0)),
-            radial-gradient(1px 1px at 80% 10%, #00d4ff, rgba(0, 212, 255, 0)),
-            radial-gradient(2px 2px at 90% 60%, #1e90ff, rgba(30, 144, 255, 0)),
-            radial-gradient(1px 1px at 30% 80%, #00d4ff, rgba(0, 212, 255, 0));
-        background-repeat: repeat;
-        background-size: 200% 200%;
+        background: radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 80%, rgba(100, 200, 255, 0.1) 0%, transparent 50%),
+                    radial-gradient(circle at 40% 40%, rgba(0, 150, 255, 0.05) 0%, transparent 50%);
+        animation: flow 15s ease-in-out infinite;
         pointer-events: none;
         z-index: 0;
-        animation: float-dots 8s ease-in-out infinite;
     }
     
-    .login-wrapper {
+    @keyframes flow {
+        0%, 100% { transform: translate(0, 0); }
+        25% { transform: translate(30px, -30px); }
+        50% { transform: translate(0, 50px); }
+        75% { transform: translate(-30px, 0); }
+    }
+    
+    .auth-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 100vh;
-        padding: 20px;
-        position: relative;
-        z-index: 1;
+        z-index: 100;
     }
     
-    .login-container {
-        background: rgba(15, 31, 53, 0.85);
+    .auth-card {
+        background: rgba(20, 20, 40, 0.9);
         backdrop-filter: blur(10px);
         border: 1px solid rgba(0, 212, 255, 0.2);
-        border-radius: 12px;
-        padding: 35px 40px 45px 40px;
+        border-radius: 20px;
+        padding: 60px 50px;
         width: 100%;
-        max-width: 480px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        max-width: 450px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        animation: slideIn 0.6s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .auth-header {
         text-align: center;
+        margin-bottom: 40px;
     }
     
-    .logo-container {
-        margin-bottom: 28px;
-    }
-    
-    .logo-text {
-        font-size: 48px;
-        font-weight: 900;
-        color: white;
-        letter-spacing: -1px;
-        margin-bottom: 8px;
-    }
-    
-    .logo-cyan {
+    .auth-title {
+        font-size: 32px;
+        font-weight: 700;
         color: #00d4ff;
+        margin-bottom: 10px;
+        text-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
     }
     
-    .subtitle {
-        color: #00d4ff;
+    .auth-subtitle {
         font-size: 14px;
-        font-weight: 500;
-        margin-bottom: 16px;
-    }
-    
-    .subtitle-light {
         color: #8fa3b0;
-        font-size: 13px;
-        margin-top: 4px;
+        font-weight: 300;
+        letter-spacing: 0.5px;
     }
     
-    /* Form styling */
-    .stForm {
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
+    .form-group {
+        margin-bottom: 25px;
     }
     
-    .stTabs {
-        margin-top: 0 !important;
-    }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        background: transparent !important;
-        border-bottom: 1px solid rgba(0, 212, 255, 0.15) !important;
-        gap: 20px !important;
-        padding: 0 !important;
-        margin: 24px 0 20px 0 !important;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background: transparent !important;
-        border: none !important;
-        padding: 10px 16px !important;
-        color: #8fa3b0 !important;
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        margin: 0 !important;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        color: #00d4ff !important;
-        border-bottom: 2px solid #00d4ff !important;
-    }
-    
-    /* Input styling */
-    .stTextInput > div > div > input {
-        background-color: rgba(20, 40, 60, 0.8) !important;
-        border: 1px solid rgba(0, 212, 255, 0.3) !important;
-        border-radius: 6px !important;
-        padding: 12px 14px !important;
-        font-size: 14px !important;
-        color: #ffffff !important;
-        margin-bottom: 14px !important;
-    }
-    
-    .stTextInput > div > div > input:focus {
-        border-color: #00d4ff !important;
-        box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.15) !important;
-        background-color: rgba(20, 40, 60, 1) !important;
-    }
-    
-    .stTextInput > div > div > input::placeholder {
-        color: #5a7a8f !important;
-    }
-    
-    /* Remove labels */
-    .stTextInput > label {
-        display: none !important;
-    }
-    
-    /* Button styling */
-    .stFormSubmitButton > button {
-        background: linear-gradient(90deg, #1e90ff 0%, #0074ba 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 6px !important;
-        padding: 12px 24px !important;
-        font-weight: 600 !important;
-        font-size: 14px !important;
-        width: 100% !important;
-        cursor: pointer !important;
-        margin-top: 12px !important;
-        transition: all 0.3s ease !important;
-    }
-    
-    .stFormSubmitButton > button:hover {
-        background: linear-gradient(90deg, #2a9eff 0%, #0084cc 100%) !important;
-        box-shadow: 0 4px 12px rgba(30, 144, 255, 0.4) !important;
-    }
-    
-    /* Messages */
-    .stAlert {
-        border-radius: 6px !important;
-        padding: 12px 14px !important;
-        margin-bottom: 12px !important;
-        font-size: 13px !important;
-    }
-    
-    .stSuccessAlert {
-        background-color: rgba(46, 213, 115, 0.15) !important;
-        border-left: 4px solid #2ed573 !important;
-        color: #2ed573 !important;
-    }
-    
-    .stErrorAlert {
-        background-color: rgba(255, 71, 87, 0.15) !important;
-        border-left: 4px solid #ff4757 !important;
-        color: #ff8a8a !important;
-    }
-    
-    /* Hide unwanted elements */
-    [data-testid="stDecoration"] {
-        display: none;
-    }
-    
-    /* Form label styling */
     .form-label {
-        color: #8fa3b0;
+        display: block;
         font-size: 12px;
         font-weight: 600;
-        margin-bottom: 6px;
-        display: block;
+        color: #00d4ff;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
     }
     
+    .form-input {
+        width: 100%;
+        padding: 14px 16px;
+        background: rgba(30, 30, 60, 0.8);
+        border: 1px solid rgba(0, 212, 255, 0.3);
+        border-radius: 10px;
+        color: #ffffff;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    
+    .form-input:hover {
+        border-color: rgba(0, 212, 255, 0.6);
+        background: rgba(30, 30, 60, 1);
+    }
+    
+    .form-input:focus {
+        outline: none;
+        border-color: #00d4ff;
+        box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+        background: rgba(40, 40, 80, 0.8);
+    }
+    
+    .submit-btn {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+        color: #000;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 10px;
+    }
+    
+    .submit-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+    }
+    
+    .submit-btn:active {
+        transform: translateY(0);
+    }
+    
+    .divider {
+        display: flex;
+        align-items: center;
+        margin: 30px 0;
+        gap: 10px;
+    }
+    
+    .divider::before,
+    .divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: rgba(0, 212, 255, 0.2);
+    }
+    
+    .divider-text {
+        color: #8fa3b0;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .tab-switcher {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 40px;
+    }
+    
+    .tab-btn {
+        flex: 1;
+        padding: 12px;
+        background: rgba(30, 30, 60, 0.6);
+        border: 1px solid rgba(0, 212, 255, 0.2);
+        color: #8fa3b0;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .tab-btn:hover {
+        border-color: rgba(0, 212, 255, 0.5);
+        color: #00d4ff;
+    }
+    
+    .tab-btn.active {
+        background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+        border-color: #00d4ff;
+        color: #000;
+    }
+    
+    .helper-link {
+        font-size: 12px;
+        color: #00d4ff;
+        text-decoration: none;
+        float: right;
+        margin-top: -5px;
+    }
+    
+    .helper-link:hover {
+        text-decoration: underline;
+    }
+    
+    .success-msg {
+        padding: 15px;
+        background: rgba(46, 213, 115, 0.1);
+        border: 1px solid #2ed573;
+        border-radius: 8px;
+        color: #2ed573;
+        font-size: 13px;
+        margin-bottom: 20px;
+    }
+    
+    .error-msg {
+        padding: 15px;
+        background: rgba(255, 71, 87, 0.1);
+        border: 1px solid #ff4757;
+        border-radius: 8px;
+        color: #ff8a8a;
+        font-size: 13px;
+        margin-bottom: 20px;
+    }
     </style>
     """, unsafe_allow_html=True)
-
-    # Professional Login/Register Interface
-    col1, col2, col3 = st.columns([1, 2, 1])
     
+    # Main container
+    st.markdown('<div class="auth-container">', unsafe_allow_html=True)
+    st.markdown('<div class="auth-card">', unsafe_allow_html=True)
+    
+    # Header
+    st.markdown('''
+    <div class="auth-header">
+        <div class="auth-title">Pro Scanner</div>
+        <div class="auth-subtitle">Professional Market Analysis Tool</div>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    # Tabs using columns
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        if st.button("📊 LOGIN", use_container_width=True, key="tab_login"):
+            st.session_state["auth_tab"] = "login"
     with col2:
-        st.markdown("<div style='margin-top: 80px;'></div>", unsafe_allow_html=True)
-        st.markdown("<h1 style='text-align: center; color: #00d4ff; margin-bottom: 30px;'>Pro Scanner</h1>", unsafe_allow_html=True)
-        
-        # Tab selection
-        tab1, tab2, tab3 = st.tabs(["📊 Login", "📝 Register", "🔐 Admin"])
-        
-        # ==================== LOGIN TAB ====================
-        with tab1:
-            st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
-            with st.form(key="user_login"):
-                st.markdown("<p style='text-align: center; color: #8fa3b0; font-size: 14px; margin-bottom: 20px;'>Sign in to your account</p>", unsafe_allow_html=True)
-                
-                username = st.text_input("Username or Email", placeholder="Enter your username or email", key="login_user")
-                password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_pass")
-                
-                col_btn1, col_btn2 = st.columns([1, 1])
-                with col_btn1:
-                    login_submit = st.form_submit_button("Sign In", use_container_width=True)
-                
-                if login_submit:
-                    if not username or not password:
-                        st.error("❌ Please fill in all fields")
-                    else:
-                        success, msg = authenticate_user(username, password)
-                        if success:
-                            token = create_session(username)
-                            st.session_state["authenticated"] = True
-                            st.session_state["current_user"] = username
-                            st.session_state["session_token"] = token
-                            st.query_params["session_token"] = token
-                            st.success("✅ Login successful!")
-                            time.sleep(0.5)
-                            st.rerun()
-                        else:
-                            st.error(f"❌ {msg}")
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # ==================== REGISTER TAB ====================
-        with tab2:
-            st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
-            with st.form(key="user_register"):
-                st.markdown("<p style='text-align: center; color: #8fa3b0; font-size: 14px; margin-bottom: 20px;'>Create new account</p>", unsafe_allow_html=True)
-                
-                new_username = st.text_input("Username", placeholder="Choose a username", key="reg_user")
-                new_email = st.text_input("Email", placeholder="your@email.com", key="reg_email")
-                new_password = st.text_input("Password", type="password", placeholder="Min 6 characters", key="reg_pass1")
-                confirm_password = st.text_input("Confirm Password", type="password", placeholder="Repeat password", key="reg_pass2")
-                
-                register_submit = st.form_submit_button("Create Account", use_container_width=True)
-                
-                if register_submit:
-                    if not new_username or not new_email or not new_password:
-                        st.error("❌ Please fill in all fields")
-                    elif len(new_password) < 6:
-                        st.error("❌ Password must be at least 6 characters")
-                    elif new_password != confirm_password:
-                        st.error("❌ Passwords do not match")
-                    else:
-                        success, message = create_user(new_username, new_email, new_password)
-                        if success:
-                            st.success("✅ Account created! Now sign in.")
-                        else:
-                            st.error(f"❌ {message}")
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # ==================== ADMIN TAB ====================
-        with tab3:
-            st.markdown("<div style='padding: 20px;'>", unsafe_allow_html=True)
-            with st.form(key="admin_login"):
-                st.markdown("<p style='text-align: center; color: #8fa3b0; font-size: 14px; margin-bottom: 20px;'>Admin Access</p>", unsafe_allow_html=True)
-                
-                admin_email = st.text_input("Admin Email", placeholder="admin@email.com", key="admin_email")
-                admin_password = st.text_input("Admin Password", type="password", placeholder="Enter password", key="admin_password")
-                
-                admin_submit = st.form_submit_button("Admin Sign In", use_container_width=True)
-                
-                if admin_submit:
-                    if not admin_email or not admin_password:
-                        st.error("❌ Please fill in all fields")
-                    elif admin_email.strip().lower() == "ozytargetcom@gmail.com" and admin_password.strip() == "zxc11ASD":
-                        st.session_state["admin_authenticated"] = True
+        if st.button("📝 REGISTER", use_container_width=True, key="tab_register"):
+            st.session_state["auth_tab"] = "register"
+    with col3:
+        if st.button("🔐 ADMIN", use_container_width=True, key="tab_admin"):
+            st.session_state["auth_tab"] = "admin"
+    
+    auth_tab = st.session_state.get("auth_tab", "login")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # LOGIN TAB
+    if auth_tab == "login":
+        with st.form(key="login_form_modern", clear_on_submit=False):
+            st.markdown('<label class="form-label">Username or Email</label>', unsafe_allow_html=True)
+            username = st.text_input("", placeholder="Enter your username or email", label_visibility="collapsed", key="login_user_mod")
+            
+            st.markdown('<label class="form-label">Password</label>', unsafe_allow_html=True)
+            password = st.text_input("", type="password", placeholder="Enter your password", label_visibility="collapsed", key="login_pass_mod")
+            
+            submit = st.form_submit_button("Sign In", use_container_width=True)
+            
+            if submit:
+                if not username or not password:
+                    st.error("Please fill in all fields")
+                else:
+                    success, msg = authenticate_user(username, password)
+                    if success:
+                        token = create_session(username)
                         st.session_state["authenticated"] = True
-                        st.session_state["current_user"] = "admin"
-                        st.success("✅ Admin access granted!")
-                        logger.info("Admin login successful")
+                        st.session_state["current_user"] = username
+                        st.session_state["session_token"] = token
+                        st.query_params["session_token"] = token
+                        st.success("✅ Welcome back!")
                         time.sleep(0.5)
                         st.rerun()
                     else:
-                        st.error("❌ Invalid credentials")
-            st.markdown("</div>", unsafe_allow_html=True)
+                        st.error(f"❌ {msg}")
     
+    # REGISTER TAB
+    elif auth_tab == "register":
+        with st.form(key="register_form_modern", clear_on_submit=False):
+            st.markdown('<label class="form-label">Username</label>', unsafe_allow_html=True)
+            new_username = st.text_input("", placeholder="Choose a username", label_visibility="collapsed", key="reg_user_mod")
+            
+            st.markdown('<label class="form-label">Email Address</label>', unsafe_allow_html=True)
+            new_email = st.text_input("", placeholder="your@email.com", label_visibility="collapsed", key="reg_email_mod")
+            
+            st.markdown('<label class="form-label">Password</label>', unsafe_allow_html=True)
+            new_password = st.text_input("", type="password", placeholder="Min 6 characters", label_visibility="collapsed", key="reg_pass1_mod")
+            
+            st.markdown('<label class="form-label">Confirm Password</label>', unsafe_allow_html=True)
+            confirm_password = st.text_input("", type="password", placeholder="Repeat password", label_visibility="collapsed", key="reg_pass2_mod")
+            
+            submit = st.form_submit_button("Create Account", use_container_width=True)
+            
+            if submit:
+                if not new_username or not new_email or not new_password:
+                    st.error("❌ All fields required")
+                elif len(new_password) < 6:
+                    st.error("❌ Password must be 6+ characters")
+                elif new_password != confirm_password:
+                    st.error("❌ Passwords don't match")
+                else:
+                    success, message = create_user(new_username, new_email, new_password)
+                    if success:
+                        st.success("✅ Account created! Now sign in.")
+                        time.sleep(1)
+                        st.session_state["auth_tab"] = "login"
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+    
+    # ADMIN TAB
+    elif auth_tab == "admin":
+        with st.form(key="admin_login_modern", clear_on_submit=False):
+            st.markdown('<label class="form-label">Admin Email</label>', unsafe_allow_html=True)
+            admin_email = st.text_input("", placeholder="admin@email.com", label_visibility="collapsed", key="admin_email_mod")
+            
+            st.markdown('<label class="form-label">Admin Password</label>', unsafe_allow_html=True)
+            admin_password = st.text_input("", type="password", placeholder="Enter password", label_visibility="collapsed", key="admin_pass_mod")
+            
+            submit = st.form_submit_button("Enter Admin Panel", use_container_width=True)
+            
+            if submit:
+                if not admin_email or not admin_password:
+                    st.error("❌ Please fill in all fields")
+                elif admin_email.strip().lower() == "ozytargetcom@gmail.com" and admin_password.strip() == "zxc11ASD":
+                    st.session_state["admin_authenticated"] = True
+                    st.session_state["authenticated"] = True
+                    st.session_state["current_user"] = "admin"
+                    st.success("✅ Admin access granted!")
+                    logger.info("Admin login successful")
+                    time.sleep(0.5)
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid admin credentials")
+    
+    st.markdown('</div></div>', unsafe_allow_html=True)
     st.stop()
 
 # ==================== ADMIN DASHBOARD ====================
