@@ -12,7 +12,7 @@ from time import sleep
 from typing import List, Dict, Optional, Tuple
 import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import multiprocessing
 from threading import Lock
 from contextlib import contextmanager
@@ -1869,7 +1869,7 @@ def get_financial_metrics(symbol: str) -> Dict[str, float]:
     logger.error(f"Unable to fetch financial metrics for {symbol}")
     return {}
 
-def get_historical_prices_fmp(symbol: str, period: str = "daily", limit: int = 30) -> (List[float], List[int]):
+def get_historical_prices_fmp(symbol: str, period: str = "daily", limit: int = 30) -> tuple[List[float], List[int]]:
     try:
         response = requests.get(f"{FMP_BASE_URL}/historical-price-full/{symbol}?apikey={FMP_API_KEY}&timeseries={limit}")
         response.raise_for_status()
@@ -1883,7 +1883,7 @@ def get_historical_prices_fmp(symbol: str, period: str = "daily", limit: int = 3
         
         return [], []
 
-def speculate_next_day_movement(metrics: Dict[str, float], prices: List[float], volumes: List[int]) -> (str, float, Optional[float]):
+def speculate_next_day_movement(metrics: Dict[str, float], prices: List[float], volumes: List[int]) -> tuple[str, float, Optional[float]]:
     sma = calculate_sma(prices, period=50)
     rsi = calculate_rsi(prices, period=14)
     recent_high = max(prices[-10:]) if len(prices) >= 10 else None

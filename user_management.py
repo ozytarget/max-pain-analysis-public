@@ -438,7 +438,8 @@ def set_unlimited_access(username: str, days: int = 365) -> bool:
         c.execute("UPDATE users SET tier = ?, daily_limit = ?, expiration_date = ? WHERE username = ?", 
                   ("Unlimited", 999999, new_expiration, username))
         
-        log_admin_action(username, f"Unlimited access assigned for {days} days")
+        # Log the action
+        logger.info(f"Unlimited access assigned to {username} for {days} days")
         
         conn.commit()
         conn.close()
