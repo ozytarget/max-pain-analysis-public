@@ -4129,177 +4129,6 @@ def main():
             "current_price": current_price
         }
 
-    # ===== ADMIN PANEL IN SIDEBAR =====
-    with st.sidebar:
-        st.markdown("---")
-        
-        # Check if admin is logged in
-        if "admin_authenticated" not in st.session_state:
-            st.session_state["admin_authenticated"] = False
-        
-        if not st.session_state["admin_authenticated"]:
-            with st.expander("🔐 Admin Panel", expanded=False):
-                admin_email = st.text_input("Admin Email", type="default", key="admin_email_input")
-                admin_pass = st.text_input("Admin Password", type="password", key="admin_pass_input")
-                
-                if st.button("🔓 Admin Login", use_container_width=True):
-                    success, msg = authenticate_admin(admin_email, admin_pass)
-                    if success:
-                        st.session_state["admin_authenticated"] = True
-                        st.success("✅ Admin logged in!")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {msg}")
-        
-        else:
-            with st.expander("⚙️ Admin Dashboard", expanded=True):
-                st.markdown("### 📊 User Statistics")
-                
-                stats = get_user_stats()
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.metric("👥 Total Active", stats["total_active"])
-                    st.metric("🆓 Free Users", stats["free_users"])
-                
-                with col2:
-                    st.metric("⭐ Pro Users", stats["pro_users"])
-                    st.metric("👑 Premium Users", stats["premium_users"])
-                
-                st.metric("📈 Total Logins", stats["total_logins"])
-                
-                st.markdown("---")
-                
-                # PENDING USERS SECTION
-                users_df = get_all_users()
-                if not users_df.empty:
-                    pending_users = users_df[users_df['tier'] == 'Pending']
-                    if not pending_users.empty:
-                        st.markdown("### ⏳ PENDING USERS (Awaiting Tier Assignment)")
-                        st.warning(f"⚠️ {len(pending_users)} user(s) pending admin tier assignment")
-                        
-                        pending_display = pending_users[['username', 'email', 'created_date']].copy()
-                        pending_display['created_date'] = pd.to_datetime(pending_display['created_date'], errors='coerce').dt.strftime("%Y-%m-%d")
-                        st.dataframe(pending_display, use_container_width=True, hide_index=True)
-                        
-                        # Quick assign for pending users
-                        st.markdown("#### ⚡ Quick Assign Tier")
-                        pending_col1, pending_col2, pending_col3 = st.columns(3)
-                        
-                        with pending_col1:
-                            pending_user = st.selectbox("Select Pending User", pending_users['username'].tolist(), key="pending_user_select")
-                        
-                        with pending_col2:
-                            assign_tier = st.selectbox("Assign Tier", ["Free", "Pro", "Premium"], key="pending_tier_select")
-                        
-                        with pending_col3:
-                            if st.button("✅ Assign Tier", use_container_width=True, key="assign_pending_btn"):
-                                if change_user_tier(pending_user, assign_tier):
-                                    st.success(f"✅ {pending_user} assigned to {assign_tier} plan")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Failed to assign tier")
-                        
-                        st.markdown("---")
-                
-                st.markdown("### 👤 Manage Users")
-                
-                admin_tab1, admin_tab2, admin_tab3 = st.tabs(["All Users", "Activity Log", "Tools"])
-                
-                with admin_tab1:
-                    users_df = get_all_users()
-                    if not users_df.empty:
-                        users_df = users_df.copy()
-                        # Convert dates safely, handling None/empty values
-                        users_df["expiration_date"] = pd.to_datetime(users_df["expiration_date"], errors='coerce').dt.strftime("%Y-%m-%d")
-                        users_df["created_date"] = pd.to_datetime(users_df["created_date"], errors='coerce').dt.strftime("%Y-%m-%d")
-                        users_df["Status"] = users_df["active"].apply(lambda x: "🟢 Active" if x else "🔴 Inactive")
-                        
-                        display_cols = ["username", "email", "tier", "created_date", "expiration_date", "usage_today", "daily_limit", "Status"]
-                        st.dataframe(users_df[display_cols], use_container_width=True, hide_index=True)
-                        
-                        # User actions
-                        st.markdown("#### User Actions")
-                        selected_user = st.selectbox("Select User", users_df["username"].tolist(), key="admin_select_user")
-                        
-                        action_col1, action_col2, action_col3 = st.columns(3)
-                        
-                        with action_col1:
-                            if st.button("🔄 Reset Daily Limit", use_container_width=True, key="reset_limit_btn"):
-                                if reset_user_daily_limit(selected_user):
-                                    st.success(f"✅ Reset {selected_user}'s daily limit")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Failed to reset")
-                        
-                        with action_col2:
-                            new_tier = st.selectbox("Change Tier", ["Free", "Pro", "Premium"], key="tier_select")
-                            if st.button("✏️ Update Tier", use_container_width=True, key="update_tier_btn"):
-                                if change_user_tier(selected_user, new_tier):
-                                    st.success(f"✅ {selected_user} → {new_tier}")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Failed to update")
-                        
-                        with action_col3:
-                            if st.button("🚫 Deactivate", use_container_width=True, key="deactivate_btn"):
-                                if deactivate_user(selected_user):
-                                    st.success(f"✅ {selected_user} deactivated")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Failed")
-                    else:
-                        st.info("No users found")
-                
-                with admin_tab2:
-                    activity_df = get_activity_log()
-                    if not activity_df.empty:
-                        activity_df = activity_df.copy()
-                        activity_df["timestamp"] = pd.to_datetime(activity_df["timestamp"], errors='coerce').dt.strftime("%Y-%m-%d %H:%M")
-                        st.dataframe(activity_df, use_container_width=True, hide_index=True)
-                    else:
-                        st.info("No activity logs")
-                
-                with admin_tab3:
-                    st.markdown("#### 🛠️ Admin Tools")
-                    
-                    # EXTEND LICENSE SECTION
-                    st.markdown("**📅 Extend License**")
-                    extend_col1, extend_col2 = st.columns(2)
-                    with extend_col1:
-                        extend_user = st.selectbox("Extend License", get_all_users()["username"].tolist() if not get_all_users().empty else [], key="extend_user")
-                    with extend_col2:
-                        extend_days = st.number_input("Days to Add", min_value=1, max_value=365, value=30, key="extend_days")
-                    
-                    if st.button("🔄 Extend License", use_container_width=True, key="extend_btn"):
-                        if extend_license(extend_user, extend_days):
-                            st.success(f"✅ Extended {extend_user} by {extend_days} days")
-                            st.rerun()
-                        else:
-                            st.error("❌ Failed to extend")
-                    
-                    st.divider()
-                    
-                    # UNLIMITED ACCESS SECTION
-                    st.markdown("**♾️ Assign Unlimited Access**")
-                    unlimited_col1, unlimited_col2 = st.columns(2)
-                    with unlimited_col1:
-                        unlimited_user = st.selectbox("Select User", get_all_users()["username"].tolist() if not get_all_users().empty else [], key="unlimited_user")
-                    with unlimited_col2:
-                        unlimited_days = st.number_input("Days Valid", min_value=1, max_value=3650, value=365, key="unlimited_days", help="Duración de acceso ilimitado")
-                    
-                    if st.button("🚀 Assign Unlimited Access", use_container_width=True, key="unlimited_btn"):
-                        if set_unlimited_access(unlimited_user, unlimited_days):
-                            st.success(f"✅ {unlimited_user} now has UNLIMITED access for {unlimited_days} days! ♾️")
-                            st.rerun()
-                        else:
-                            st.error("❌ Failed to assign unlimited access")
-                
-                st.divider()
-                if st.button("🔒 Admin Logout", use_container_width=True, key="admin_logout"):
-                    st.session_state["admin_authenticated"] = False
-                    st.rerun()
-    
     # ===== VALIDATION: CHECK USER STATUS =====
     if "current_user" in st.session_state and st.session_state["current_user"] != "admin":
         current_user = st.session_state["current_user"]
@@ -4393,6 +4222,176 @@ def main():
             logger.warning(f"Error fetching latest news for {ticker_symbol}: {e}")
     
     # Definición de los tabs
+    # ═════════════════════════════════════════════════════════════════════════════════
+    # ADMIN DASHBOARD - SI EL USUARIO ES ADMIN
+    # ═════════════════════════════════════════════════════════════════════════════════
+    if st.session_state.get("admin_authenticated", False) and st.session_state.get("current_user") == "admin":
+        # MOSTRAR ADMIN DASHBOARD COMPLETO
+        st.markdown("""
+        <div style='text-align: center; padding: 20px; background: linear-gradient(90deg, #FF0000, #FF8C00); border-radius: 10px;'>
+            <h1 style='color: white; font-size: 48px; text-shadow: 0 0 10px rgba(255,255,255,0.8);'>
+                🔐 ADMIN DASHBOARD 🔐
+            </h1>
+            <p style='color: white; font-size: 16px;'>Sistema de Gestión de Usuarios</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # ESTADÍSTICAS
+        st.markdown("### 📊 User Statistics")
+        stats = get_user_stats()
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.metric("👥 Total Active", stats["total_active"])
+        with col2:
+            st.metric("🆓 Free Users", stats["free_users"])
+        with col3:
+            st.metric("⭐ Pro Users", stats["pro_users"])
+        with col4:
+            st.metric("👑 Premium Users", stats["premium_users"])
+        with col5:
+            st.metric("📈 Total Logins", stats["total_logins"])
+        
+        st.markdown("---")
+        
+        # PENDING USERS
+        users_df = get_all_users()
+        if not users_df.empty:
+            pending_users = users_df[users_df['tier'] == 'Pending']
+            if not pending_users.empty:
+                st.markdown("### ⏳ PENDING USERS (Awaiting Tier Assignment)")
+                st.warning(f"⚠️ {len(pending_users)} user(s) pending admin tier assignment")
+                
+                pending_display = pending_users[['username', 'email', 'created_date']].copy()
+                pending_display['created_date'] = pd.to_datetime(pending_display['created_date'], errors='coerce').dt.strftime("%Y-%m-%d")
+                st.dataframe(pending_display, use_container_width=True, hide_index=True)
+                
+                # Quick assign for pending users
+                st.markdown("#### ⚡ Quick Assign Tier")
+                pending_col1, pending_col2, pending_col3 = st.columns(3)
+                
+                with pending_col1:
+                    pending_user = st.selectbox("Select Pending User", pending_users['username'].tolist(), key="pending_user_select_admin")
+                
+                with pending_col2:
+                    assign_tier = st.selectbox("Assign Tier", ["Free", "Pro", "Premium"], key="pending_tier_select_admin")
+                
+                with pending_col3:
+                    if st.button("✅ Assign Tier", use_container_width=True, key="assign_pending_btn_admin"):
+                        if change_user_tier(pending_user, assign_tier):
+                            st.success(f"✅ {pending_user} assigned to {assign_tier} plan")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to assign tier")
+                
+                st.markdown("---")
+        
+        # MAIN ADMIN TABS
+        st.markdown("### 👤 Manage Users")
+        admin_tab1, admin_tab2, admin_tab3 = st.tabs(["All Users", "Activity Log", "Tools"])
+        
+        with admin_tab1:
+            users_df = get_all_users()
+            if not users_df.empty:
+                users_df = users_df.copy()
+                # Convert dates safely
+                users_df["expiration_date"] = pd.to_datetime(users_df["expiration_date"], errors='coerce').dt.strftime("%Y-%m-%d")
+                users_df["created_date"] = pd.to_datetime(users_df["created_date"], errors='coerce').dt.strftime("%Y-%m-%d")
+                users_df["Status"] = users_df["active"].apply(lambda x: "🟢 Active" if x else "🔴 Inactive")
+                
+                display_cols = ["username", "email", "tier", "created_date", "expiration_date", "usage_today", "daily_limit", "Status"]
+                
+                # Mostrar tabla con opciones de ordenamiento
+                st.markdown("#### 📋 All Registered Users")
+                sort_by = st.selectbox("Sort by:", display_cols, index=0, key="admin_sort_users")
+                sort_desc = st.checkbox("Sort Descending", value=False, key="admin_sort_desc")
+                
+                users_sorted = users_df[display_cols].sort_values(by=sort_by, ascending=not sort_desc)
+                st.dataframe(users_sorted, use_container_width=True, hide_index=True, height=500)
+                
+                # User actions
+                st.markdown("---")
+                st.markdown("#### User Actions")
+                selected_user = st.selectbox("Select User", users_df["username"].tolist(), key="admin_select_user_main")
+                
+                action_col1, action_col2, action_col3 = st.columns(3)
+                
+                with action_col1:
+                    if st.button("🔄 Reset Daily Limit", use_container_width=True, key="reset_limit_btn_main"):
+                        if reset_user_daily_limit(selected_user):
+                            st.success(f"✅ Reset {selected_user}'s daily limit")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to reset")
+                
+                with action_col2:
+                    new_tier = st.selectbox("Change Tier", ["Free", "Pro", "Premium"], key="tier_select_main")
+                    if st.button("✏️ Update Tier", use_container_width=True, key="update_tier_btn_main"):
+                        if change_user_tier(selected_user, new_tier):
+                            st.success(f"✅ {selected_user} → {new_tier}")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to update")
+                
+                with action_col3:
+                    if st.button("🚫 Deactivate", use_container_width=True, key="deactivate_btn_main"):
+                        if deactivate_user(selected_user):
+                            st.success(f"✅ {selected_user} deactivated")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed")
+            else:
+                st.info("📭 No users found in the system")
+        
+        with admin_tab2:
+            st.markdown("#### 📜 Activity Log")
+            activity_df = get_activity_log()
+            if not activity_df.empty:
+                activity_df = activity_df.copy()
+                activity_df["timestamp"] = pd.to_datetime(activity_df["timestamp"], errors='coerce').dt.strftime("%Y-%m-%d %H:%M:%S")
+                st.dataframe(activity_df, use_container_width=True, hide_index=True, height=600)
+            else:
+                st.info("📭 No activity logs found")
+        
+        with admin_tab3:
+            st.markdown("#### 🛠️ Admin Tools")
+            
+            # EXTEND LICENSE
+            st.markdown("**📅 Extend User License**")
+            extend_col1, extend_col2 = st.columns(2)
+            with extend_col1:
+                extend_user_list = get_all_users()["username"].tolist() if not get_all_users().empty else []
+                if extend_user_list:
+                    extend_user = st.selectbox("Extend License for User", extend_user_list, key="extend_user_admin")
+                else:
+                    extend_user = None
+            with extend_col2:
+                extend_days = st.number_input("Days to Add", min_value=1, max_value=365, value=30, key="extend_days_admin")
+            
+            if extend_user and st.button("🔄 Extend License", use_container_width=True, key="extend_btn_admin"):
+                if extend_license(extend_user, extend_days):
+                    st.success(f"✅ Extended {extend_user} by {extend_days} days")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to extend")
+        
+        st.markdown("---")
+        
+        # LOGOUT BUTTON
+        if st.button("🚪 Logout Admin", use_container_width=True, key="admin_logout_btn"):
+            st.session_state["admin_authenticated"] = False
+            st.session_state["authenticated"] = False
+            st.session_state["current_user"] = None
+            st.success("✅ Admin logout successful")
+            st.rerun()
+        
+        st.stop()  # Detener acá para que no muestre tabs normales
+    
+    # ═════════════════════════════════════════════════════════════════════════════════
+    # REGULAR USER TABS (Non-Admin)
+    # ═════════════════════════════════════════════════════════════════════════════════
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",
         "| MM Market Analysis |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
