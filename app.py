@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
