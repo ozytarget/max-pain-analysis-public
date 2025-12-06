@@ -225,6 +225,10 @@ if "session_token" not in st.session_state:
     st.session_state["session_token"] = None
 if "current_user" not in st.session_state:
     st.session_state["current_user"] = None
+if "admin_authenticated" not in st.session_state:
+    st.session_state["admin_authenticated"] = False
+if "show_admin_panel" not in st.session_state:
+    st.session_state["show_admin_panel"] = False
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PERSISTENT SESSION VALIDATION - Restore user session from token
@@ -268,14 +272,14 @@ if not st.session_state["authenticated"]:
     }
     
     .login-card {
-        background: rgba(255, 255, 255, 0.02);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(20, 33, 61, 0.7);
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(0, 212, 255, 0.3);
         border-radius: 20px;
-        padding: 60px 40px;
+        padding: 45px 40px 40px 40px;
         width: 100%;
-        max-width: 450px;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        max-width: 440px;
+        box-shadow: 0 8px 32px 0 rgba(0, 212, 255, 0.15);
         position: relative;
         z-index: 10;
     }
@@ -294,10 +298,10 @@ if not st.session_state["authenticated"]:
     
     .login-subtitle {
         text-align: center;
-        color: #8892b0;
-        font-size: 14px;
-        margin-bottom: 40px;
-        letter-spacing: 1px;
+        color: #96969e;
+        font-size: 12px;
+        margin-bottom: 20px;
+        letter-spacing: 0.8px;
     }
     
     /* Streamlit tabs styling */
@@ -418,92 +422,86 @@ if not st.session_state["authenticated"]:
             <div class="login-subtitle">MARKET ANALYSIS PLATFORM</div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-
-        
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        
-        # ═══════════════════════════════════════════════════════════════════════════════
-        # SIMPLE LOGIN - MINIMAL DESIGN
-        # ═══════════════════════════════════════════════════════════════════════════════
-        auth_tab1, auth_tab2 = st.tabs(["Registro", "Login"])
-        
-        # TAB 1: REGISTRATION
-        with auth_tab1:
-            with st.form(key="register_form_main"):
-                new_username = st.text_input("Usuario", placeholder="tu_usuario", key="reg_username_main")
-                new_email = st.text_input("Email", placeholder="tu@email.com", key="reg_email_main")
-                new_password = st.text_input("Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password_main")
-                confirm_password = st.text_input("Confirmar", type="password", placeholder="Repite tu contraseña", key="reg_confirm_main")
-                
-                register_button = st.form_submit_button(label="Registrarse", use_container_width=True)
-                
-                if register_button:
-                    if not new_username or not new_email or not new_password:
-                        st.error("Completa todos los campos")
-                    elif len(new_password) < 6:
-                        st.error("Mínimo 6 caracteres")
-                    elif new_password != confirm_password:
-                        st.error("Las contraseñas no coinciden")
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # SIMPLE LOGIN - MINIMAL DESIGN
+    # ═══════════════════════════════════════════════════════════════════════════════
+    auth_tab1, auth_tab2 = st.tabs(["Registro", "Login"])
+    
+    # TAB 1: REGISTRATION
+    with auth_tab1:
+        with st.form(key="register_form_main"):
+            new_username = st.text_input("Usuario", placeholder="tu_usuario", key="reg_username_main")
+            new_email = st.text_input("Email", placeholder="tu@email.com", key="reg_email_main")
+            new_password = st.text_input("Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password_main")
+            confirm_password = st.text_input("Confirmar", type="password", placeholder="Repite tu contraseña", key="reg_confirm_main")
+            
+            register_button = st.form_submit_button(label="Registrarse", use_container_width=True)
+            
+            if register_button:
+                if not new_username or not new_email or not new_password:
+                    st.error("Completa todos los campos")
+                elif len(new_password) < 6:
+                    st.error("Mínimo 6 caracteres")
+                elif new_password != confirm_password:
+                    st.error("Las contraseñas no coinciden")
+                else:
+                    success, message = create_user(new_username, new_email, new_password)
+                    if success:
+                        st.success(f"✅ Cuenta creada: {new_username}\n\nAhora ve a Login")
+                        logger.info(f"New user registered: {new_username}")
                     else:
-                        success, message = create_user(new_username, new_email, new_password)
-                        if success:
-                            st.success(f"✅ Cuenta creada: {new_username}\n\nAhora ve a Login")
-                            logger.info(f"New user registered: {new_username}")
-                        else:
-                            st.error(f"Error: {message}")
+                        st.error(f"Error: {message}")
+    
+    # TAB 2: LOGIN
+    with auth_tab2:
+        login_subtabs = st.tabs(["Usuario", "Admin"])
         
-        # TAB 2: LOGIN
-        with auth_tab2:
-            login_subtabs = st.tabs(["Usuario", "Admin"])
-            
-            # SUBTAB: Regular User Login
-            with login_subtabs[0]:
-                with st.form(key="new_user_login_form"):
-                    login_username = st.text_input("Usuario", placeholder="tu_usuario", key="login_username")
-                    login_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="login_password")
-                    login_submit = st.form_submit_button(label="Ingresar", use_container_width=True)
-                    
-                    if login_submit:
-                        if not login_username or not login_password:
-                            st.error("Completa los campos")
-                        else:
-                            success, msg = authenticate_user(login_username, login_password)
-                            if success:
-                                token = create_session(login_username)
-                                st.session_state["authenticated"] = True
-                                st.session_state["current_user"] = login_username
-                                st.session_state["session_token"] = token
-                                st.query_params["session_token"] = token
-                                st.success("✅ Ingreso exitoso")
-                                time.sleep(0.3)
-                                st.rerun()
-                            else:
-                                st.error(f"Error: {msg}")
-            
-            # SUBTAB: Admin Login
-            with login_subtabs[1]:
-                with st.form(key="master_admin_form"):
-                    master_email = st.text_input("Email", placeholder="email@admin.com", key="master_email")
-                    master_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="master_password")
-                    master_submit = st.form_submit_button(label="Ingresar Admin", use_container_width=True)
-                    
-                    if master_submit:
-                        master_email_clean = master_email.strip().lower()
-                        master_password_clean = master_password.strip()
-                        
-                        if master_email_clean == "ozytargetcom@gmail.com" and master_password_clean == "zxc11ASD":
-                            st.session_state["admin_authenticated"] = True
+        # SUBTAB: Regular User Login
+        with login_subtabs[0]:
+            with st.form(key="new_user_login_form"):
+                login_username = st.text_input("Usuario", placeholder="tu_usuario", key="login_username")
+                login_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="login_password")
+                login_submit = st.form_submit_button(label="Ingresar", use_container_width=True)
+                
+                if login_submit:
+                    if not login_username or not login_password:
+                        st.error("Completa los campos")
+                    else:
+                        success, msg = authenticate_user(login_username, login_password)
+                        if success:
+                            token = create_session(login_username)
                             st.session_state["authenticated"] = True
-                            st.session_state["current_user"] = "admin"
-                            st.success("✅ Admin autenticado")
-                            logger.info("Master Admin login successful")
+                            st.session_state["current_user"] = login_username
+                            st.session_state["session_token"] = token
+                            st.query_params["session_token"] = token
+                            st.success("✅ Ingreso exitoso")
                             time.sleep(0.3)
                             st.rerun()
                         else:
-                            st.error("Credenciales inválidas")
-                            logger.warning(f"Failed Master Admin login attempt with email: {master_email_clean}")
+                            st.error(f"Error: {msg}")
+        
+        # SUBTAB: Admin Login
+        with login_subtabs[1]:
+            with st.form(key="master_admin_form"):
+                master_email = st.text_input("Email", placeholder="email@admin.com", key="master_email")
+                master_password = st.text_input("Contraseña", type="password", placeholder="contraseña", key="master_password")
+                master_submit = st.form_submit_button(label="Ingresar Admin", use_container_width=True)
+                
+                if master_submit:
+                    master_email_clean = master_email.strip().lower()
+                    master_password_clean = master_password.strip()
+                    
+                    if master_email_clean == "ozytargetcom@gmail.com" and master_password_clean == "zxc11ASD":
+                        st.session_state["admin_authenticated"] = True
+                        st.session_state["authenticated"] = True
+                        st.session_state["current_user"] = "admin"
+                        st.success("✅ Admin autenticado")
+                        logger.info("Master Admin login successful")
+                        time.sleep(0.3)
+                        st.rerun()
+                    else:
+                        st.error("Credenciales inválidas")
+                        logger.warning(f"Failed Master Admin login attempt with email: {master_email_clean}")
 
     st.markdown('</div></div>', unsafe_allow_html=True)
     st.stop()
@@ -4419,18 +4417,102 @@ def main():
         
         st.markdown("---")
         
-        # LOGOUT BUTTON
-        if st.button("🚪 Logout Admin", use_container_width=True, key="admin_logout_btn"):
-            st.session_state["admin_authenticated"] = False
-            st.session_state["authenticated"] = False
-            st.session_state["current_user"] = None
-            st.success("✅ Admin logout successful")
-            st.rerun()
+        col_nav1, col_nav2, col_nav3 = st.columns(3)
+        with col_nav1:
+            if st.button("🚀 Ver App Completa", use_container_width=True, key="admin_view_full_app"):
+                st.session_state["show_admin_dashboard"] = False
+        with col_nav3:
+            if st.button("🚪 Logout", use_container_width=True, key="admin_logout_btn_bottom"):
+                st.session_state["admin_authenticated"] = False
+                st.session_state["authenticated"] = False
+                st.session_state["current_user"] = None
+                st.success("✅ Logout exitoso")
+                time.sleep(0.5)
+                st.rerun()
         
-        st.stop()  # Detener acá para que no muestre tabs normales
+        # NO st.stop() - permitir que la app continúe cargando
+    else:
+        st.session_state["show_admin_panel"] = False
     
     # ═════════════════════════════════════════════════════════════════════════════════
-    # REGULAR USER TABS (Non-Admin)
+    # ADMIN PANEL + APP ACCESS
+    # ═════════════════════════════════════════════════════════════════════════════════
+    
+    # ADMIN SIDEBAR CONTROLS
+    if st.session_state.get("admin_authenticated", False):
+        with st.sidebar:
+            st.markdown("---")
+            st.warning("🔐 **ADMIN SESSION ACTIVE**")
+            if st.button("👥 Manage Users", use_container_width=True, key="admin_view_users_btn"):
+                st.session_state["show_admin_panel"] = True
+            if st.button("🚪 Logout", use_container_width=True, key="admin_logout_sidebar"):
+                st.session_state["admin_authenticated"] = False
+                st.session_state["authenticated"] = False
+                st.session_state["current_user"] = None
+                st.info("✅ Logout successful")
+                time.sleep(0.5)
+                st.rerun()
+            st.markdown("---")
+    
+    # SHOW ADMIN PANEL IF ENABLED
+    if st.session_state.get("show_admin_panel", False):
+        col_close1, col_close2 = st.columns([0.95, 0.05])
+        with col_close2:
+            if st.button("✕", key="close_admin_panel", help="Close admin panel"):
+                st.session_state["show_admin_panel"] = False
+                st.rerun()
+        
+        st.markdown("""
+        <div style='text-align: center; padding: 20px; background: linear-gradient(90deg, #FF0000, #FF8C00); border-radius: 10px;'>
+            <h2 style='color: white;'>🔐 ADMIN DASHBOARD - USER MANAGEMENT</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Stats
+        st.markdown("### 📊 User Statistics")
+        stats = get_user_stats()
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.metric("👥 Total", stats["total_active"])
+        with col2:
+            st.metric("🆓 Free", stats["free_users"])
+        with col3:
+            st.metric("⭐ Pro", stats["pro_users"])
+        with col4:
+            st.metric("👑 Premium", stats["premium_users"])
+        with col5:
+            st.metric("📈 Logins", stats["total_logins"])
+        
+        st.markdown("---")
+        
+        # Users table
+        users_df = get_all_users()
+        if not users_df.empty:
+            st.markdown("### 👤 All Registered Users")
+            users_display = users_df.copy()
+            users_display["created_date"] = pd.to_datetime(users_display["created_date"], errors='coerce').dt.strftime("%Y-%m-%d")
+            users_display["expiration_date"] = pd.to_datetime(users_display["expiration_date"], errors='coerce').dt.strftime("%Y-%m-%d")
+            users_display["Status"] = users_display["active"].apply(lambda x: "🟢 Active" if x else "🔴 Inactive")
+            
+            display_cols = ["username", "email", "tier", "created_date", "expiration_date", "usage_today", "daily_limit", "Status"]
+            
+            col_sort1, col_sort2 = st.columns(2)
+            with col_sort1:
+                sort_by = st.selectbox("Sort by:", display_cols, index=0, key="admin_sort_col")
+            with col_sort2:
+                sort_desc = st.checkbox("Descending", value=False, key="admin_sort_desc_panel")
+            
+            users_sorted = users_display[display_cols].sort_values(by=sort_by, ascending=not sort_desc)
+            st.dataframe(users_sorted, use_container_width=True, hide_index=True, height=600)
+        
+        st.markdown("---")
+        if st.button("← Back to App", use_container_width=True, key="back_to_app_btn"):
+            st.session_state["show_admin_panel"] = False
+            st.rerun()
+    
+    # ═════════════════════════════════════════════════════════════════════════════════
+    # MAIN APPLICATION TABS
+    # ═════════════════════════════════════════════════════════════════════════════════
     # ═════════════════════════════════════════════════════════════════════════════════
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",
