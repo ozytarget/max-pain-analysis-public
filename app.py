@@ -558,8 +558,209 @@ if not st.session_state["authenticated"]:
     
     st.stop()
 
+# ==================== ADMIN DASHBOARD ====================
+if st.session_state.get("admin_authenticated", False):
+    st.set_page_config(page_title="Pro Scanner - Admin", layout="wide")
+    
+    # Sidebar logout
+    with st.sidebar:
+        st.markdown("### 🔐 Admin Panel")
+        st.markdown(f"**User:** {st.session_state.get('current_user', 'Unknown')}")
+        if st.button("🚪 Logout"):
+            st.session_state["admin_authenticated"] = False
+            st.session_state["authenticated"] = False
+            st.session_state["current_user"] = None
+            st.rerun()
+    
+    # Main admin dashboard
+    st.markdown("""
+    <style>
+    .admin-header {
+        background: linear-gradient(135deg, #00d4ff 0%, #0066ff 100%);
+        padding: 30px;
+        border-radius: 10px;
+        color: white;
+        margin-bottom: 30px;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #1a2a4a 0%, #0f1f35 100%);
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 4px solid #00d4ff;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class='admin-header'>
+        <h1>👑 Pro Scanner - Admin Dashboard</h1>
+        <p>Gestión de usuarios y sistema</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Tabs for admin functions
+    admin_tab1, admin_tab2, admin_tab3, admin_tab4 = st.tabs([
+        "📊 Usuarios",
+        "📈 Estadísticas", 
+        "⚙️ Configuración",
+        "📋 Logs"
+    ])
+    
+    # ========== TAB 1: USUARIOS ==========
+    with admin_tab1:
+        st.subheader("👥 Gestión de Usuarios")
+        
+        try:
+            conn = sqlite3.connect("auth_data/users.db")
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            
+            c.execute("SELECT * FROM users")
+            users = c.fetchall()
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.markdown("""
+                <div class='metric-card'>
+                    <h3>Total Usuarios</h3>
+                    <p style='font-size: 28px; color: #00d4ff; margin: 0;'>{}</p>
+                </div>
+                """.format(len(users)), unsafe_allow_html=True)
+            
+            active_count = sum(1 for u in users if u['active'])
+            with col2:
+                st.markdown("""
+                <div class='metric-card'>
+                    <h3>Activos</h3>
+                    <p style='font-size: 28px; color: #2ed573; margin: 0;'>{}</p>
+                </div>
+                """.format(active_count), unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown("""
+                <div class='metric-card'>
+                    <h3>Inactivos</h3>
+                    <p style='font-size: 28px; color: #ff4757; margin: 0;'>{}</p>
+                </div>
+                """.format(len(users) - active_count), unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown("""
+                <div class='metric-card'>
+                    <h3>Pendientes</h3>
+                    <p style='font-size: 28px; color: #ffa502; margin: 0;'>{}</p>
+                </div>
+                """.format(sum(1 for u in users if u['tier'] == 'Pending')), unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            if len(users) > 0:
+                st.markdown("### 📋 Lista de Usuarios")
+                user_data = []
+                for user in users:
+                    user_data.append({
+                        "Username": user['username'],
+                        "Email": user['email'],
+                        "Tier": user['tier'],
+                        "Active": "✅" if user['active'] else "❌",
+                        "Created": user['created_date'],
+                        "Expiration": user['expiration_date'],
+                        "Daily Usage": f"{user['usage_today']}/{user['daily_limit']}"
+                    })
+                
+                df_users = pd.DataFrame(user_data)
+                st.dataframe(df_users, use_container_width=True)
+            else:
+                st.info("📌 No hay usuarios registrados aún")
+            
+            conn.close()
+        except Exception as e:
+            st.error(f"Error loading users: {e}")
+    
+    # ========== TAB 2: ESTADÍSTICAS ==========
+    with admin_tab2:
+        st.subheader("📈 Estadísticas del Sistema")
+        
+        try:
+            conn = sqlite3.connect("auth_data/users.db")
+            c = conn.cursor()
+            
+            c.execute("SELECT tier, COUNT(*) as count FROM users GROUP BY tier")
+            tier_stats = c.fetchall()
+            
+            if tier_stats:
+                tier_data = {row[0]: row[1] for row in tier_stats}
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### Usuarios por Tier")
+                    fig = px.pie(
+                        values=list(tier_data.values()),
+                        names=list(tier_data.keys()),
+                        color_discrete_sequence=["#FFA500", "#808080", "#39FF14", "#FFD700"]
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col2:
+                    st.markdown("### Detalles por Tier")
+                    for tier, count in tier_data.items():
+                        st.metric(tier, count)
+            
+            conn.close()
+        except Exception as e:
+            st.error(f"Error loading statistics: {e}")
+    
+    # ========== TAB 3: CONFIGURACIÓN ==========
+    with admin_tab3:
+        st.subheader("⚙️ Configuración del Sistema")
+        
+        st.markdown("### Tiers Disponibles")
+        tier_config = {
+            "Free": {"daily_limit": 10, "days_valid": 30},
+            "Pro": {"daily_limit": 100, "days_valid": 365},
+            "Premium": {"daily_limit": 999, "days_valid": 365}
+        }
+        
+        for tier_name, config in tier_config.items():
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**{tier_name}**")
+            with col2:
+                st.write(f"Límite: {config['daily_limit']} | Válido: {config['days_valid']} días")
+    
+    # ========== TAB 4: LOGS ==========
+    with admin_tab4:
+        st.subheader("📋 Activity Logs")
+        
+        try:
+            conn = sqlite3.connect("auth_data/users.db")
+            c = conn.cursor()
+            
+            c.execute("SELECT * FROM activity_log ORDER BY timestamp DESC LIMIT 50")
+            logs = c.fetchall()
+            
+            if logs:
+                log_data = []
+                for log in logs:
+                    log_data.append({
+                        "User": log[1],
+                        "Action": log[2],
+                        "Timestamp": log[3]
+                    })
+                
+                df_logs = pd.DataFrame(log_data)
+                st.dataframe(df_logs, use_container_width=True)
+            else:
+                st.info("No hay logs disponibles")
+            
+            conn.close()
+        except Exception as e:
+            st.error(f"Error loading logs: {e}")
+    
+    st.stop()
 
-# Rest of the original application code (unchanged)
+
 @st.cache_data(ttl=CACHE_TTL)
 def fetch_logo_url(symbol: str) -> str:
     """Obtiene la URL del logo de Clearbit con un fallback como base64."""
