@@ -251,109 +251,176 @@ if not st.session_state["intro_shown"]:
 if not st.session_state["authenticated"]:
     st.markdown("""
     <style>
-    /* Fondo global negro puro */
+    /* Modern Premium Design */
     .stApp {
-        background-color: #000000;
-        display: flex;
-        justify-content: center;
-        align-items: flex-start;
+        background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #16213e 100%);
         min-height: 100vh;
         margin: 0;
         padding: 0;
     }
-    /* Eliminar cualquier contenedor superior */
-    .st-emotion-cache-1gv3huu {
-        display: none;
-    }
-    .login-container {
-        padding: 20px;
-        text-align: center;
-        margin-top: 25vh;
-        position: relative;
-        z-index: 10;
-    }
-    .login-logo {
-        font-size: 18px;
-        font-weight: 700;
-        color: #FFFFFF;
-        margin-bottom: 15px;
-        letter-spacing: 1px;
-        position: relative;
-        z-index: 10;
-    }
-    /* Estilo del formulario (el recuadro que rodea el input y botón) */
-    div.stForm {
-        border: 2px solid #39FF14 !important; /* Borde neón verde */
-        border-radius: 5px !important;
-        box-shadow: 0 0 15px rgba(57, 255, 20, 0.5) !important; /* Sombra neón */
-        background: rgba(0, 0, 0, 0.1) !important; /* Fondo ligeramente transparente */
-    }
-    .login-input {
-        background-color: #2D2D2D;
-        color: #FFFFFF;
-        border: 2px solid #39FF14 !important;
-        border-radius: 5px;
-        padding: 3px;
-        width: 50px !important;
-        font-size: 6px;
-        box-shadow: 0 0 15px rgba(57, 255, 20, 0.5);
-        position: relative;
-        z-index: 10;
-    }
-    .login-button {
-        background-color: #FFFFFF;
-        color: #000000;
-        padding: 3px 6px;
-        border: 2px solid #39FF14 !important;
-        border-radius: 5px;
-        font-size: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        width: 50px !important;
-        box-shadow: 0 0 15px rgba(57, 255, 20, 0.5);
-        position: relative;
-        z-index: 10;
-    }
-    .login-button:hover {
-        background-color: #E0E0E0;
-    }
-    .hacker-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.8);
+    
+    .login-wrapper {
         display: flex;
         justify-content: center;
         align-items: center;
-        z-index: 9999;
+        min-height: 100vh;
+        padding: 20px;
     }
-    .hacker-text {
-        font-size: 24px;
-        font-weight: 700;
-        color: #FFFF00; /* Amarillo */
-        text-shadow: 0 0 15px #FFFF00;
-        letter-spacing: 2px;
-        position: relative;
-        z-index: 10000;
-    }
-    .hacker-canvas {
-        position: absolute;
-        top: 0;
-        left: 0;
+    
+    .login-card {
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 60px 40px;
         width: 100%;
-        height: 100%;
-        z-index: 9998;
+        max-width: 450px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        position: relative;
+        z-index: 10;
+    }
+    
+    .login-logo {
+        font-size: 42px;
+        font-weight: 900;
+        background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 10px;
+        letter-spacing: 2px;
+        text-align: center;
+    }
+    
+    .login-subtitle {
+        text-align: center;
+        color: #8892b0;
+        font-size: 14px;
+        margin-bottom: 40px;
+        letter-spacing: 1px;
+    }
+    
+    /* Streamlit tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0;
+        background: transparent;
+        border: none;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+        color: #8892b0;
+        padding: 12px 0;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        border-bottom-color: #00d4ff;
+        color: #00d4ff;
+    }
+    
+    /* Input styling */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        color: #ffffff !important;
+        border-radius: 10px !important;
+        padding: 12px 16px !important;
+        font-size: 14px !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus {
+        border-color: #00d4ff !important;
+        box-shadow: 0 0 20px rgba(0, 212, 255, 0.2) !important;
+        background-color: rgba(255, 255, 255, 0.08) !important;
+    }
+    
+    /* Button styling */
+    .stFormSubmitButton > button {
+        background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%) !important;
+        color: #000000 !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 30px !important;
+        font-weight: 700 !important;
+        font-size: 15px !important;
+        letter-spacing: 0.5px !important;
+        transition: all 0.3s ease !important;
+        cursor: pointer !important;
+        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3) !important;
+    }
+    
+    .stFormSubmitButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(0, 212, 255, 0.5) !important;
+    }
+    
+    /* Form container */
+    .stForm {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }
+    
+    /* Labels */
+    .stTextInput > label,
+    .stNumberInput > label {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+        letter-spacing: 0.5px !important;
+        margin-bottom: 8px !important;
+    }
+    
+    /* Success/Error messages */
+    .stAlert {
+        border-radius: 10px !important;
+        border: 1px solid transparent !important;
+    }
+    
+    .stSuccessAlert {
+        background-color: rgba(46, 213, 115, 0.1) !important;
+        border-color: rgba(46, 213, 115, 0.3) !important;
+        color: #2ed573 !important;
+    }
+    
+    .stErrorAlert {
+        background-color: rgba(255, 71, 87, 0.1) !important;
+        border-color: rgba(255, 71, 87, 0.3) !important;
+        color: #ff4757 !important;
+    }
+    
+    /* Hide default decorations */
+    .st-emotion-cache-1gv3huu {
+        display: none;
+    }
+    
+    /* Smooth animations */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .login-card {
+        animation: fadeIn 0.6s ease-out;
     }
     </style>
+    
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-logo">ℙℝ𝕆 𝔼𝕊ℂ𝔸ℕℕ𝔼ℝ</div>
+            <div class="login-subtitle">MARKET ANALYSIS PLATFORM</div>
     """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        st.markdown('<div class="login-logo">ℙℝ𝕆 𝔼𝕊ℂ𝔸ℕℕ𝔼ℝ®</div>', unsafe_allow_html=True)
+
         
         st.markdown("<br><br>", unsafe_allow_html=True)
         
@@ -438,7 +505,7 @@ if not st.session_state["authenticated"]:
                             st.error("Credenciales inválidas")
                             logger.warning(f"Failed Master Admin login attempt with email: {master_email_clean}")
 
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
     st.stop()
 
 # Rest of the original application code (unchanged)
