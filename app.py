@@ -258,17 +258,27 @@ if not st.session_state["authenticated"]:
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
     
+    /* BACKGROUND */
+    html, body {
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) !important;
+    }
+    
+    /* Hide default Streamlit UI elements */
+    #MainMenu { display: none; }
+    header { display: none; }
+    footer { display: none; }
+    
     /* Background Gradient */
-    html, body, [data-testid="stAppViewContainer"] {
+    [data-testid="stAppViewContainer"] {
         background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) !important;
         color: #fff !important;
     }
     
-    [data-testid="stAppViewContainer"] {
-        padding: 0 !important;
+    [data-testid="stApp"] {
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) !important;
     }
     
-    /* Streamlit containers */
+    /* Streamlit containers - transparent */
     .stContainer {
         background: transparent !important;
     }
@@ -277,16 +287,19 @@ if not st.session_state["authenticated"]:
         background: transparent !important;
     }
     
-    /* Center content */
-    .stMainBlockContainer {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        padding: 20px !important;
+    /* Hide all default spacing */
+    .main .block-container {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        max-width: 100% !important;
     }
     
-    /* Card styling */
+    /* Center all columns */
+    .stColumns > div {
+        text-align: center !important;
+    }
+    
+    /* Card styling - PERFECTLY CENTERED */
     .auth-card {
         background: rgba(20, 20, 40, 0.95);
         backdrop-filter: blur(10px);
@@ -296,7 +309,10 @@ if not st.session_state["authenticated"]:
         width: 100%;
         max-width: 450px;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        margin: 0 auto !important;
     }
+    
+    /* Input fields - FULLY VISIBLE AND FUNCTIONAL */
     
     /* Input fields - FULLY VISIBLE AND FUNCTIONAL */
     .stTextInput > div > div > input,
@@ -356,11 +372,6 @@ if not st.session_state["authenticated"]:
         transform: translateY(0) !important;
     }
     
-    /* Tab buttons */
-    .stButton > button {
-        width: 100% !important;
-    }
-    
     /* Messages */
     .stSuccess, .stError, .stWarning, .stInfo {
         border-radius: 8px !important;
@@ -397,10 +408,10 @@ if not st.session_state["authenticated"]:
     </style>
     """, unsafe_allow_html=True)
     
-    # Center columns
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # Perfect centering with column layout
+    col_left, col_center, col_right = st.columns([1, 2, 1], gap="small")
     
-    with col2:
+    with col_center:
         st.markdown('<div class="auth-card">', unsafe_allow_html=True)
         
         # Header
@@ -4443,7 +4454,13 @@ def main():
             st.plotly_chart(skew_fig, use_container_width=True)
             st.write(f"**Total CALLS:** {total_calls} | **Total PUTS:** {total_puts}")
             
-            skew_df = pd.DataFrame(options_data)[["strike", "option_type", "open_interest", "volume"]]
+            # ✅ FIX: Build DataFrame safely with available columns
+            skew_df = pd.DataFrame(options_data)
+            # Select only columns that exist in the data
+            available_cols = [col for col in ["strike", "option_type", "open_interest", "volume"] if col in skew_df.columns]
+            if available_cols:
+                skew_df = skew_df[available_cols]
+            
             skew_csv = skew_df.to_csv(index=False)
             st.download_button(
                 label="📥 Download Skew Analysis Data",
