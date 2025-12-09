@@ -299,31 +299,29 @@ if not st.session_state["authenticated"]:
         text-align: center !important;
     }
     
-    /* Card styling - PERFECTLY CENTERED */
+    /* Card styling - PERFECTLY CENTERED & COMPACT */
     .auth-card {
         background: rgba(20, 20, 40, 0.95);
         backdrop-filter: blur(10px);
         border: 1px solid rgba(0, 212, 255, 0.3);
         border-radius: 20px;
-        padding: 50px;
+        padding: 30px 35px;
         width: 100%;
-        max-width: 450px;
+        max-width: 350px;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
         margin: 0 auto !important;
     }
     
-    /* Input fields - FULLY VISIBLE AND FUNCTIONAL */
-    
-    /* Input fields - FULLY VISIBLE AND FUNCTIONAL */
+    /* Input fields - COMPACT */
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input {
         background: rgba(30, 30, 60, 0.9) !important;
         border: 1px solid rgba(0, 212, 255, 0.4) !important;
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         color: #fff !important;
-        padding: 12px 14px !important;
-        font-size: 14px !important;
-        margin-bottom: 14px !important;
+        padding: 8px 10px !important;
+        font-size: 13px !important;
+        margin-bottom: 8px !important;
     }
     
     .stTextInput > div > div > input:hover,
@@ -344,26 +342,26 @@ if not st.session_state["authenticated"]:
         color: #5a7a8f !important;
     }
     
-    /* Buttons - FULLY FUNCTIONAL */
+    /* Buttons - COMPACT */
     .stFormSubmitButton > button,
     .stButton > button {
         background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%) !important;
         color: #000 !important;
         border: none !important;
-        border-radius: 8px !important;
-        padding: 12px 24px !important;
-        font-weight: 700 !important;
-        font-size: 14px !important;
+        border-radius: 6px !important;
+        padding: 8px 16px !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
         cursor: pointer !important;
         width: 100% !important;
         transition: all 0.3s ease !important;
-        margin-top: 10px !important;
+        margin-top: 6px !important;
     }
     
     .stFormSubmitButton > button:hover,
     .stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 10px 30px rgba(0, 212, 255, 0.4) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 8px 24px rgba(0, 212, 255, 0.3) !important;
         background: linear-gradient(135deg, #00e5ff 0%, #00aadd 100%) !important;
     }
     
@@ -399,11 +397,21 @@ if not st.session_state["authenticated"]:
     .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         color: #00d4ff !important;
         text-align: center !important;
+        margin: 4px 0 !important;
+        padding: 0 !important;
+        font-size: 24px !important;
     }
     
     .stMarkdown p {
         color: #8fa3b0 !important;
         text-align: center !important;
+        margin: 2px 0 !important;
+        padding: 0 !important;
+        font-size: 12px !important;
+    }
+    
+    .stMarkdown hr {
+        margin: 8px 0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
