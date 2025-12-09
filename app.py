@@ -260,7 +260,7 @@ if not st.session_state["authenticated"]:
     
     /* BACKGROUND */
     html, body {
-        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) !important;
+        background: linear-gradient(135deg, #3d3d1f 0%, #5a5a2e 50%, #4a4a28 100%) !important;
     }
     
     /* Hide default Streamlit UI elements */
@@ -273,12 +273,12 @@ if not st.session_state["authenticated"]:
     
     /* Background Gradient */
     [data-testid="stAppViewContainer"] {
-        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) !important;
+        background: linear-gradient(135deg, #3d3d1f 0%, #5a5a2e 50%, #4a4a28 100%) !important;
         color: #fff !important;
     }
     
     [data-testid="stApp"] {
-        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) !important;
+        background: linear-gradient(135deg, #3d3d1f 0%, #5a5a2e 50%, #4a4a28 100%) !important;
     }
     
     /* Streamlit containers - transparent */
