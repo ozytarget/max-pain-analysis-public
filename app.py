@@ -231,21 +231,53 @@ if "show_admin_panel" not in st.session_state:
     st.session_state["show_admin_panel"] = False
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PERSISTENT SESSION VALIDATION - Restore user session from token
+# PERSISTENT SESSION VALIDATION - Restore user session from stored token file
 # ═══════════════════════════════════════════════════════════════════════════════
-# Check if user has a saved session token in query params or local storage
-# This allows users to stay logged in across browser refreshes
-query_params = st.query_params
-if "session_token" in query_params and not st.session_state["authenticated"]:
-    token = query_params["session_token"]
-    is_valid, username = validate_session(token)
+# Try to restore user session from multiple sources (in order of priority):
+# 1. Check if token is already in st.session_state (from previous load)
+# 2. Check query params (from URL if user shared link)
+# 3. Load all valid sessions from file and auto-restore if only one exists
+# This allows users to stay logged in across browser refreshes and app restarts
+
+if not st.session_state["authenticated"]:
+    token = None
+    username = None
     
-    if is_valid:
-        # Restore user session
-        st.session_state["authenticated"] = True
-        st.session_state["current_user"] = username
-        st.session_state["session_token"] = token
-        logger.info(f"Session restored for user: {username}")
+    # Priority 1: Check session_state for existing token
+    if st.session_state.get("session_token"):
+        token = st.session_state["session_token"]
+        is_valid, username = validate_session(token)
+        if is_valid:
+            st.session_state["authenticated"] = True
+            st.session_state["current_user"] = username
+            logger.info(f"Session restored from state for user: {username}")
+    
+    # Priority 2: Check query params for token
+    if not st.session_state["authenticated"]:
+        query_params = st.query_params
+        if "session_token" in query_params:
+            token = query_params["session_token"]
+            is_valid, username = validate_session(token)
+            if is_valid:
+                st.session_state["authenticated"] = True
+                st.session_state["current_user"] = username
+                st.session_state["session_token"] = token
+                logger.info(f"Session restored from query params for user: {username}")
+    
+    # Priority 3: Load all valid sessions and restore if available
+    if not st.session_state["authenticated"]:
+        from user_management import load_sessions
+        sessions = load_sessions()
+        if sessions:
+            # Try the first valid session found
+            for token, data in sessions.items():
+                is_valid, username = validate_session(token)
+                if is_valid:
+                    st.session_state["authenticated"] = True
+                    st.session_state["current_user"] = username
+                    st.session_state["session_token"] = token
+                    logger.info(f"Session auto-restored from file for user: {username}")
+                    break
 
 # Optimized introductory animation (same format, faster duration)
 if not st.session_state["intro_shown"]:
