@@ -267,6 +267,11 @@ if not st.session_state["authenticated"]:
     #MainMenu { display: none; }
     header { display: none; }
     footer { display: none; }
+    [data-testid="stToolbar"] { display: none; }
+    [data-testid="stDecoration"] { display: none; }
+    
+    /* Hide empty blocks */
+    .stVerticalBlockBorderWrapper:empty { display: none; }
     
     /* Background Gradient */
     [data-testid="stAppViewContainer"] {
@@ -421,6 +426,13 @@ if not st.session_state["authenticated"]:
     
     with col_center:
         st.markdown('<div class="auth-card">', unsafe_allow_html=True)
+        
+        # Logo/Icon at top
+        st.markdown("""
+        <div style='text-align: center; margin-bottom: 8px;'>
+            <div style='font-size: 32px; color: #00d4ff; margin-bottom: 4px;'>📊</div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Header
         st.markdown("# Pro Scanner")
