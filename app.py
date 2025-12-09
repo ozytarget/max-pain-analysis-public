@@ -268,6 +268,9 @@ if not st.session_state["authenticated"]:
     header { display: none; }
     footer { display: none; }
     
+    /* Hide empty boxes at top */
+    .stVerticalBlockBorderWrapper:nth-child(1) { display: none !important; }
+    
     /* Background Gradient */
     [data-testid="stAppViewContainer"] {
         background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%) !important;
