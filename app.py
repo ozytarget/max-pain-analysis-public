@@ -638,21 +638,50 @@ if st.session_state.get("admin_authenticated", False):
                 st.markdown("---")
                 
                 if len(users) > 0:
-                    st.markdown("### 📋 Lista de Usuarios")
-                    user_data = []
-                    for user in users:
-                        user_data.append({
-                            "Username": user['username'],
-                            "Email": user['email'],
-                            "Tier": user['tier'],
-                            "Active": "✅" if user['active'] else "❌",
-                            "Created": user['created_date'],
-                            "Expiration": user['expiration_date'],
-                            "Daily Usage": f"{user['usage_today']}/{user['daily_limit']}"
-                        })
+                    st.markdown("### 📋 Lista de Usuarios - Gestión")
                     
-                    df_users = pd.DataFrame(user_data)
-                    st.dataframe(df_users, use_container_width=True)
+                    # Create a table with action buttons
+                    for user in users:
+                        col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 1, 1, 1, 1])
+                        
+                        with col1:
+                            st.write(f"**{user['username']}**")
+                        with col2:
+                            st.write(user['email'])
+                        with col3:
+                            st.write(f"Tier: {user['tier']}")
+                        with col4:
+                            status = "🟢 Activo" if user['active'] else "🔴 Bloqueado"
+                            st.write(status)
+                        with col5:
+                            # Block/Unblock button
+                            if user['active']:
+                                if st.button("🔒 Bloquear", key=f"block_{user['username']}"):
+                                    deactivate_user(user['username'])
+                                    st.success(f"✅ {user['username']} bloqueado")
+                                    st.rerun()
+                            else:
+                                if st.button("🔓 Desbloquear", key=f"unblock_{user['username']}"):
+                                    # Reactivate user
+                                    try:
+                                        c.execute("UPDATE users SET active = 1 WHERE username = ?", (user['username'],))
+                                        conn.commit()
+                                        st.success(f"✅ {user['username']} desbloqueado")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error: {e}")
+                        with col6:
+                            # Delete button
+                            if st.button("🗑️ Eliminar", key=f"delete_{user['username']}"):
+                                try:
+                                    c.execute("DELETE FROM users WHERE username = ?", (user['username'],))
+                                    conn.commit()
+                                    st.success(f"✅ {user['username']} eliminado")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+                        
+                        st.divider()
                 else:
                     st.info("📌 No hay usuarios registrados aún")
                 
