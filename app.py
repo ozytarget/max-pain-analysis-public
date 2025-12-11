@@ -4570,50 +4570,62 @@ def main():
             call_df = pd.DataFrame([d for d in call_data if d["option_type"] == "call"])
             put_df = pd.DataFrame([d for d in call_data if d["option_type"] == "put"])
             
-            call_df['open_interest'] = call_df['open_interest'].fillna(0).astype(int).clip(lower=0)
-            put_df['open_interest'] = put_df['open_interest'].fillna(0).astype(int).clip(lower=0)
+            # Only process if dataframes have data
+            if not call_df.empty and 'open_interest' in call_df.columns:
+                call_df['open_interest'] = call_df['open_interest'].fillna(0).astype(int).clip(lower=0)
+            if not put_df.empty and 'open_interest' in put_df.columns:
+                put_df['open_interest'] = put_df['open_interest'].fillna(0).astype(int).clip(lower=0)
             
-            fig_options = go.Figure()
-            fig_options.add_trace(go.Scatter(
-                x=call_df['strike'],
-                y=call_df['bid'],
-                mode='markers',
-                marker=dict(
-                    size=call_df['open_interest'].apply(lambda x: max(5, min(30, x / 1000))),
-                    color='blue',
-                    opacity=0.7
-                ),
-                name='CALL Options',
-                hovertemplate="<b>Strike:</b> %{x:.2f}<br><b>Bid:</b> ${%y:.2f}<br><b>Open Interest:</b> %{customdata:,}",
-                customdata=call_df['open_interest']
-            ))
-            fig_options.add_trace(go.Scatter(
-                x=put_df['strike'],
-                y=put_df['bid'],
-                mode='markers',
-                marker=dict(
-                    size=put_df['open_interest'].apply(lambda x: max(5, min(30, x / 1000))),
-                    color='red',
-                    opacity=0.7
-                ),
-                name='PUT Options',
-                hovertemplate="<b>Strike:</b> %{x:.2f}<br><b>Bid:</b> ${%y:.2f}<br><b>Open Interest:</b> %{customdata:,}",
-                customdata=put_df['open_interest']
-            ))
-            fig_options.update_layout(
-                title=f"CALL and PUT Options for {ticker}",
-                xaxis_title="Strike Price",
-                yaxis_title="Bid Price",
-                template="plotly_white",
-                legend=dict(
-                    yanchor="top",
-                    y=0.99,
-                    xanchor="left",
-                    x=0.01
-                ),
-                hovermode="closest"
-            )
-            st.plotly_chart(fig_options, use_container_width=True)
+            # Only display chart if we have data
+            if not call_df.empty or not put_df.empty:
+                fig_options = go.Figure()
+                
+                if not call_df.empty:
+                    fig_options.add_trace(go.Scatter(
+                        x=call_df['strike'],
+                        y=call_df['bid'],
+                        mode='markers',
+                        marker=dict(
+                            size=call_df['open_interest'].apply(lambda x: max(5, min(30, x / 1000))) if 'open_interest' in call_df.columns else 10,
+                            color='blue',
+                            opacity=0.7
+                        ),
+                        name='CALL Options',
+                        hovertemplate="<b>Strike:</b> %{x:.2f}<br><b>Bid:</b> ${%y:.2f}<br><b>Open Interest:</b> %{customdata:,}",
+                        customdata=call_df['open_interest'] if 'open_interest' in call_df.columns else 0
+                    ))
+                
+                if not put_df.empty:
+                    fig_options.add_trace(go.Scatter(
+                        x=put_df['strike'],
+                        y=put_df['bid'],
+                        mode='markers',
+                        marker=dict(
+                            size=put_df['open_interest'].apply(lambda x: max(5, min(30, x / 1000))) if 'open_interest' in put_df.columns else 10,
+                            color='red',
+                            opacity=0.7
+                        ),
+                        name='PUT Options',
+                        hovertemplate="<b>Strike:</b> %{x:.2f}<br><b>Bid:</b> ${%y:.2f}<br><b>Open Interest:</b> %{customdata:,}",
+                        customdata=put_df['open_interest'] if 'open_interest' in put_df.columns else 0
+                    ))
+                
+                fig_options.update_layout(
+                    title=f"CALL and PUT Options for {ticker}",
+                    xaxis_title="Strike Price",
+                    yaxis_title="Bid Price",
+                    template="plotly_white",
+                    legend=dict(
+                        yanchor="top",
+                        y=0.99,
+                        xanchor="left",
+                        x=0.01
+                    ),
+                    hovermode="closest"
+                )
+                st.plotly_chart(fig_options, use_container_width=True)
+            else:
+                st.warning("⚠️ No options data available for the selected date")
 
 
             # ==============================================
