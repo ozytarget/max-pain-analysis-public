@@ -520,11 +520,11 @@ if not st.session_state["authenticated"]:
                     if not username or not password:
                         st.error("❌ Please fill in all fields")
                     else:
-                        success, msg = authenticate_user(username, password)
+                        success, msg, actual_username = authenticate_user(username, password)
                         if success:
-                            token = create_session(username)
+                            token = create_session(actual_username)
                             st.session_state["authenticated"] = True
-                            st.session_state["current_user"] = username
+                            st.session_state["current_user"] = actual_username
                             st.session_state["session_token"] = token
                             st.query_params["session_token"] = token
                             st.success("✅ Welcome back!")

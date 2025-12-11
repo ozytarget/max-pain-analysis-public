@@ -146,62 +146,64 @@ def create_user(username: str, email: str, password: str, tier: str = "Premium")
         return False, str(e)
 
 def authenticate_user(username: str, password: str) -> tuple:
-    """Authenticate user and check license validity - Max 2 IPs per user"""
+    """Authenticate user and check license validity - Max 2 IPs per user
+    Returns: (success: bool, message: str, actual_username: str)"""
     try:
         conn = sqlite3.connect(USERS_DB)
         c = conn.cursor()
         
-        c.execute("SELECT password_hash, expiration_date, active, tier, ip1, ip2 FROM users WHERE username = ?", (username,))
+        # Allow login by username OR email
+        c.execute("SELECT username, password_hash, expiration_date, active, tier, ip1, ip2 FROM users WHERE username = ? OR email = ?", (username, username))
         result = c.fetchone()
         
         if not result:
-            return False, "User not found"
+            return False, "User not found", None
         
-        password_hash, expiration_date, active, tier, ip1, ip2 = result
+        actual_username, password_hash, expiration_date, active, tier, ip1, ip2 = result
         
         if not active:
-            return False, "❌ Account is deactivated"
+            return False, "❌ Account is deactivated", actual_username
         
         # Check license expiration for Pro/Premium only
         # Free tier users don't expire (30 day period still applies for safety)
         if tier in ["Pro", "Premium"]:
             exp_date = datetime.fromisoformat(expiration_date)
             if datetime.now(MARKET_TIMEZONE) > exp_date:
-                return False, f"❌ License expired on {exp_date.strftime('%Y-%m-%d')}. Contact support to renew."
+                return False, f"❌ License expired on {exp_date.strftime('%Y-%m-%d')}. Contact support to renew.", actual_username
         elif tier == "Free":
             # Free tier: check 30-day validity
             exp_date = datetime.fromisoformat(expiration_date)
             if datetime.now(MARKET_TIMEZONE) > exp_date:
-                return False, f"❌ Free trial expired. Upgrade to Pro/Premium for continued access."
+                return False, f"❌ Free trial expired. Upgrade to Pro/Premium for continued access.", actual_username
         
         if not bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
-            return False, "Incorrect password"
+            return False, "Incorrect password", actual_username
         
         # VALIDATE IP - Maximum 2 IPs allowed
         current_ip = get_local_ip()
         
         # If both IP slots are filled and current IP doesn't match either, DENY
         if ip1 and ip2 and current_ip != ip1 and current_ip != ip2:
-            return False, f"❌ Access denied: This password is already in use from 2 other IPs. Maximum 2 IPs allowed per user."
+            return False, f"❌ Access denied: This password is already in use from 2 other IPs. Maximum 2 IPs allowed per user.", actual_username
         
         # If IP1 is empty, register it
         if not ip1:
-            c.execute("UPDATE users SET ip1 = ? WHERE username = ?", (current_ip, username))
+            c.execute("UPDATE users SET ip1 = ? WHERE username = ?", (current_ip, actual_username))
         # If IP2 is empty and current IP doesn't match IP1, register it
         elif not ip2 and current_ip != ip1:
-            c.execute("UPDATE users SET ip2 = ? WHERE username = ?", (current_ip, username))
+            c.execute("UPDATE users SET ip2 = ? WHERE username = ?", (current_ip, actual_username))
         
         # Update last IP used
-        c.execute("UPDATE users SET ip_address = ? WHERE username = ?", (current_ip, username))
+        c.execute("UPDATE users SET ip_address = ? WHERE username = ?", (current_ip, actual_username))
         c.execute("INSERT INTO activity_log (username, action, timestamp, ip_address) VALUES (?, ?, ?, ?)",
-                  (username, "LOGIN", datetime.now(MARKET_TIMEZONE).isoformat(), current_ip))
+                  (actual_username, "LOGIN", datetime.now(MARKET_TIMEZONE).isoformat(), current_ip))
         conn.commit()
         conn.close()
         
-        return True, f"Welcome {username}!"
+        return True, f"Welcome {actual_username}!", actual_username
     
     except Exception as e:
-        return False, str(e)
+        return False, str(e), None
 
 def check_daily_limit(username: str) -> tuple:
     """Check if user has scans remaining today"""
