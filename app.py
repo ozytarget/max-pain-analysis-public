@@ -102,7 +102,7 @@ logger = logging.getLogger(__name__)
 st.set_page_config(
     page_title="Pro Scanner",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # --- Autenticación con SQLite ---
@@ -3558,38 +3558,6 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
-
-    # ===== SIDEBAR USER MENU & LOGOUT =====
-    with st.sidebar:
-        st.markdown("---")
-        current_user = st.session_state.get("current_user", "User")
-        st.markdown(f"### 👤 {current_user}")
-        st.markdown("**✅ Sesión Persistente Activa**")
-        st.markdown("*Tu sesión se quedará grabada. Solo ciérrala manualmente.*")
-        
-        col_user1, col_user2 = st.columns([1, 1])
-        with col_user1:
-            st.markdown("")  # spacer
-        with col_user2:
-            if st.button("🚪 Cerrar Sesión", use_container_width=True, key="user_logout"):
-                # Logout: remove session token
-                token = st.session_state.get("session_token")
-                if token:
-                    logout_session(token)
-                
-                # Clear session state
-                st.session_state["authenticated"] = False
-                st.session_state["current_user"] = None
-                st.session_state["session_token"] = None
-                
-                # Clear query params
-                st.query_params.clear()
-                
-                st.success("✅ Sesión cerrada")
-                time.sleep(0.5)
-                st.rerun()
-        
-        st.markdown("---")
 
     # ===== CACHE STATS MONITOR (HIDDEN) =====
     if False:  # Hidden - uncomment to show cache stats
