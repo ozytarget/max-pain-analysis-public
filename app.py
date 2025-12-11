@@ -448,6 +448,35 @@ if not st.session_state["authenticated"]:
     .stMarkdown hr {
         margin: 8px 0 !important;
     }
+
+    /* Tab7 Card Text Enhancement - Target Generator */
+    .stMarkdown h4 {
+        color: #00d4ff !important;
+        font-weight: 700 !important;
+        text-shadow: 0 2px 8px rgba(0, 212, 255, 0.5) !important;
+        letter-spacing: 1px !important;
+        margin-bottom: 12px !important;
+    }
+
+    /* Enhanced visibility for bold text in cards */
+    .stMarkdown strong {
+        color: #e0e8ef !important;
+        font-weight: 700 !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7) !important;
+    }
+
+    /* Better contrast for card content */
+    .stMarkdown {
+        color: #d4d9e0 !important;
+    }
+
+    /* Specific enhancement for Tab7 markdown cards */
+    .stColumn > .stMarkdown {
+        background: linear-gradient(135deg, rgba(30, 30, 50, 0.4), rgba(40, 40, 60, 0.4)) !important;
+        border-radius: 8px !important;
+        padding: 16px !important;
+        border-left: 3px solid #00d4ff !important;
+    }
     </style>
     """, unsafe_allow_html=True)
     
