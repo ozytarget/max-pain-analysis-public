@@ -520,18 +520,29 @@ if not st.session_state["authenticated"]:
                     if not username or not password:
                         st.error("❌ Please fill in all fields")
                     else:
-                        success, msg, actual_username = authenticate_user(username, password)
-                        if success:
-                            token = create_session(actual_username)
-                            st.session_state["authenticated"] = True
-                            st.session_state["current_user"] = actual_username
-                            st.session_state["session_token"] = token
-                            st.query_params["session_token"] = token
-                            st.success("✅ Welcome back!")
-                            time.sleep(0.5)
-                            st.rerun()
-                        else:
-                            st.error(f"❌ {msg}")
+                        try:
+                            result = authenticate_user(username, password)
+                            if len(result) == 3:
+                                success, msg, actual_username = result
+                            else:
+                                # Fallback para código viejo que solo retorna 2 valores
+                                success, msg = result
+                                actual_username = username
+                            
+                            if success:
+                                token = create_session(actual_username)
+                                st.session_state["authenticated"] = True
+                                st.session_state["current_user"] = actual_username
+                                st.session_state["session_token"] = token
+                                st.query_params["session_token"] = token
+                                st.success("✅ Welcome back!")
+                                time.sleep(0.5)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
+                        except Exception as e:
+                            st.error(f"❌ ERROR: {str(e)}")
+
         
         # ==================== REGISTER TAB ====================
         elif auth_tab == "register":
