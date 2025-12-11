@@ -220,6 +220,10 @@ if "admin_authenticated" not in st.session_state:
     st.session_state["admin_authenticated"] = False
 if "show_admin_panel" not in st.session_state:
     st.session_state["show_admin_panel"] = False
+if "admin_failed_attempts" not in st.session_state:
+    st.session_state["admin_failed_attempts"] = 0
+if "admin_lockout_time" not in st.session_state:
+    st.session_state["admin_lockout_time"] = None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PERSISTENT SESSION VALIDATION - Restore user session from stored token file
@@ -564,27 +568,55 @@ if not st.session_state["authenticated"]:
         
         # ==================== ADMIN TAB ====================
         elif auth_tab == "admin":
-            with st.form(key="admin_login_func", clear_on_submit=False):
-                st.markdown("### Admin Access")
-                
-                admin_email = st.text_input("Admin Email", placeholder="admin@email.com")
-                admin_password = st.text_input("Admin Password", type="password", placeholder="Password")
-                
-                submit = st.form_submit_button("🔐 Enter Admin Panel", use_container_width=True)
-                
-                if submit:
-                    if not admin_email or not admin_password:
-                        st.error("❌ Please fill in all fields")
-                    elif admin_email.strip().lower() == "ozytargetcom@gmail.com" and admin_password.strip() == "zxc11ASD":
-                        st.session_state["admin_authenticated"] = True
-                        st.session_state["authenticated"] = True
-                        st.session_state["current_user"] = "admin"
-                        st.success("✅ Admin access granted!")
-                        logger.info("Admin login successful")
-                        time.sleep(0.5)
-                        st.rerun()
-                    else:
-                        st.error("❌ Invalid admin credentials")
+            st.warning("⚠️ **Admin access is restricted.** Unauthorized access attempts are logged.")
+            
+            # Check if account is locked due to too many failed attempts
+            from datetime import datetime, timedelta
+            lockout_time = st.session_state.get("admin_lockout_time")
+            if lockout_time:
+                time_passed = datetime.now() - lockout_time
+                if time_passed < timedelta(minutes=15):
+                    remaining = 15 - int(time_passed.total_seconds() / 60)
+                    st.error(f"❌ **Account temporarily locked** due to multiple failed attempts. Try again in {remaining} minutes.")
+                else:
+                    st.session_state["admin_lockout_time"] = None
+                    st.session_state["admin_failed_attempts"] = 0
+            
+            if not lockout_time or (datetime.now() - lockout_time) >= timedelta(minutes=15):
+                with st.form(key="admin_login_func", clear_on_submit=False):
+                    st.markdown("### Admin Access")
+                    
+                    admin_email = st.text_input("Admin Email", placeholder="admin@email.com")
+                    admin_password = st.text_input("Admin Password", type="password", placeholder="Password")
+                    
+                    submit = st.form_submit_button("🔐 Enter Admin Panel", use_container_width=True)
+                    
+                    if submit:
+                        if not admin_email or not admin_password:
+                            st.error("❌ Please fill in all fields")
+                        elif admin_email.strip().lower() == "ozytargetcom@gmail.com" and admin_password.strip() == "zxc11ASD":
+                            st.session_state["admin_authenticated"] = True
+                            st.session_state["authenticated"] = True
+                            st.session_state["current_user"] = "admin"
+                            st.session_state["admin_failed_attempts"] = 0
+                            st.session_state["admin_lockout_time"] = None
+                            st.success("✅ Admin access granted!")
+                            logger.info("Admin login successful")
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.session_state["admin_failed_attempts"] += 1
+                            attempts = st.session_state["admin_failed_attempts"]
+                            
+                            if attempts >= 5:
+                                st.session_state["admin_lockout_time"] = datetime.now()
+                                st.error("❌ **Too many failed attempts.** Account locked for 15 minutes.")
+                                logger.warning(f"Admin login lockout triggered after {attempts} failed attempts. IP: {get_local_ip()}")
+                            else:
+                                remaining_attempts = 5 - attempts
+                                st.error(f"❌ Invalid admin credentials. ({remaining_attempts} attempts remaining)")
+                                logger.warning(f"Failed admin login attempt {attempts}. IP: {get_local_ip()}")
+
         
         st.markdown('</div>', unsafe_allow_html=True)
     
