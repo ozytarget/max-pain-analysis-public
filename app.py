@@ -535,7 +535,7 @@ if not st.session_state["authenticated"]:
                     else:
                         success, message = create_user(new_username, new_email, new_password)
                         if success:
-                            st.success("✅ Account created! Now sign in.")
+                            st.success("✅ Account created! You have Premium access (unlimited). Now sign in.")
                             time.sleep(1)
                             st.session_state["auth_tab"] = "login"
                             st.rerun()

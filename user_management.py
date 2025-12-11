@@ -113,10 +113,11 @@ def get_local_ip():
     except:
         return "Unknown"
 
-def create_user(username: str, email: str, password: str, tier: str = "Pending") -> tuple:
-    """Create new user - automatically set to Pending tier (admin will assign plan)"""
-    # Force tier to "Pending" - admin assigns tier later
-    tier = "Pending"
+def create_user(username: str, email: str, password: str, tier: str = "Premium") -> tuple:
+    """Create new user - automatically set to Premium tier (instant full access)"""
+    # Auto-assign Premium tier for instant full access (999 analyses/day)
+    # Admin can still block/delete malicious users from dashboard
+    tier = "Premium"
     
     if tier not in USER_TIERS:
         return False, "Invalid tier"
@@ -137,7 +138,7 @@ def create_user(username: str, email: str, password: str, tier: str = "Pending")
         conn.commit()
         conn.close()
         
-        return True, f"User {username} created. Pending admin tier assignment."
+        return True, f"✅ Account created successfully! You have Premium access (unlimited analyses)."
     
     except sqlite3.IntegrityError:
         return False, "Username or email already exists"
@@ -159,13 +160,19 @@ def authenticate_user(username: str, password: str) -> tuple:
         password_hash, expiration_date, active, tier, ip1, ip2 = result
         
         if not active:
-            return False, "Account is deactivated"
+            return False, "❌ Account is deactivated"
         
-        # PENDING users allowed but with Premium access temporarily
-        if tier != "Pending":
+        # Check license expiration for Pro/Premium only
+        # Free tier users don't expire (30 day period still applies for safety)
+        if tier in ["Pro", "Premium"]:
             exp_date = datetime.fromisoformat(expiration_date)
             if datetime.now(MARKET_TIMEZONE) > exp_date:
-                return False, f"License expired on {exp_date.strftime('%Y-%m-%d')}. Contact support to renew."
+                return False, f"❌ License expired on {exp_date.strftime('%Y-%m-%d')}. Contact support to renew."
+        elif tier == "Free":
+            # Free tier: check 30-day validity
+            exp_date = datetime.fromisoformat(expiration_date)
+            if datetime.now(MARKET_TIMEZONE) > exp_date:
+                return False, f"❌ Free trial expired. Upgrade to Pro/Premium for continued access."
         
         if not bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
             return False, "Incorrect password"
