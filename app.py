@@ -4466,48 +4466,47 @@ def main():
         
         expiration_dates = get_expiration_dates(ticker)
         if not expiration_dates:
-            st.error(f"No future expiration dates found for '{ticker}'. Please enter a valid ticker (e.g., SPY, AAPL).")
-            st.stop()
-        
-        expiration_date = st.selectbox("Expiration Date", expiration_dates, key="expiration_date")
-        
-        # ═══════════════════════════════════════════════════════════════════════════════
-        # SHOW LATEST NEWS FOR THIS TICKER
-        # ═══════════════════════════════════════════════════════════════════════════════
-        show_latest_news_ticker(ticker)
-        
-        with st.spinner("Fetching price..."):
-            current_price = get_current_price(ticker)
-            if current_price == 0.0:
-                st.error(f"⏳ Price data for '{ticker}' is temporarily unavailable. Please try again shortly.")
-                logger.error(f"Price fetch failed for {ticker}")
-                st.stop()
-        
-        st.markdown(f"**Current Price:** ${current_price:.2f}")
-        
-        with st.spinner(f"Fetching data for {expiration_date}..."):
-            processed_data, touched_strikes, max_pain, max_pain_df = process_options_data(ticker, expiration_date)
-            if not processed_data:
-                next_expiration = expiration_dates[expiration_dates.index(expiration_date) + 1] if expiration_date != expiration_dates[-1] else None
-                if next_expiration:
-                    st.warning(f"No data for {expiration_date}. Trying next expiration: {next_expiration}")
-                    processed_data, touched_strikes, max_pain, max_pain_df = process_options_data(ticker, next_expiration)
+            st.error(f"❌ No future expiration dates found for '{ticker}'. Please enter a valid ticker (e.g., SPY, AAPL).")
+        else:
+            expiration_date = st.selectbox("Expiration Date", expiration_dates, key="expiration_date")
+            
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # SHOW LATEST NEWS FOR THIS TICKER
+            # ═══════════════════════════════════════════════════════════════════════════════
+            show_latest_news_ticker(ticker)
+            
+            with st.spinner("Fetching price..."):
+                current_price = get_current_price(ticker)
+                if current_price == 0.0:
+                    st.error(f"⏳ Price data for '{ticker}' is temporarily unavailable. Please try again shortly.")
+                    logger.error(f"Price fetch failed for {ticker}")
+                    current_price = None
+            
+            if current_price and current_price > 0:
+                st.markdown(f"**Current Price:** ${current_price:.2f}")
+                
+                with st.spinner(f"Fetching data for {expiration_date}..."):
+                    processed_data, touched_strikes, max_pain, max_pain_df = process_options_data(ticker, expiration_date)
                     if not processed_data:
-                        st.error(f"No valid options data for {ticker} on {next_expiration} either.")
-                        st.stop()
-                else:
-                    st.error(f"No valid options data for {ticker} on {expiration_date}.")
-                    st.stop()
-            
-            options_data = get_options_data(ticker, expiration_date)
-            if max_pain_df.empty:
-                st.warning("No max pain data available for this ticker and expiration date.")
-            
-            gamma_fig = gamma_exposure_chart(processed_data, current_price, touched_strikes)
-            st.plotly_chart(gamma_fig, use_container_width=True)
-            
-            gamma_df = pd.DataFrame({
-                "Strike": list(processed_data.keys()),
+                        next_expiration = expiration_dates[expiration_dates.index(expiration_date) + 1] if expiration_date != expiration_dates[-1] else None
+                        if next_expiration:
+                            st.warning(f"No data for {expiration_date}. Trying next expiration: {next_expiration}")
+                            processed_data, touched_strikes, max_pain, max_pain_df = process_options_data(ticker, next_expiration)
+                            if not processed_data:
+                                st.error(f"❌ No valid options data for {ticker} on {next_expiration} either.")
+                        else:
+                            st.error(f"❌ No valid options data for {ticker} on {expiration_date}.")
+                    
+                    if processed_data:
+                        options_data = get_options_data(ticker, expiration_date)
+                        if max_pain_df.empty:
+                            st.warning("No max pain data available for this ticker and expiration date.")
+                        
+                        gamma_fig = gamma_exposure_chart(processed_data, current_price, touched_strikes)
+                        st.plotly_chart(gamma_fig, use_container_width=True)
+                        
+                        gamma_df = pd.DataFrame({
+                            "Strike": list(processed_data.keys()),
                 "CALL_Gamma": [processed_data[s]["CALL"]["Gamma"] for s in processed_data],
                 "PUT_Gamma": [processed_data[s]["PUT"]["Gamma"] for s in processed_data],
                 "CALL_OI": [processed_data[s]["CALL"]["OI"] for s in processed_data],
