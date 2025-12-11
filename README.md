@@ -1,33 +1,113 @@
-# Pro Scanner 🚀
+# Pro Scanner - Trading Analysis Platform 🚀
 
-**Advanced Financial Market Scanner with AI-Powered Options Analysis**
+**Advanced Financial Market Scanner with Options Analysis**
 
-## Overview
+## Quick Start
 
-Pro Scanner is a sophisticated Streamlit-based financial analysis application that combines real-time market data, options analytics, and gamma exposure analysis to identify trading opportunities.
+### For Users
+1. Open the app
+2. Click **📝 REGISTER** to create account
+3. Get **Premium access instantly** (999 analyses/day)
+4. Use all 7 trading tabs
 
-### Key Features
+### For CEO/Master Admin (You)
+```bash
+# Check registered users
+python audit_cleanup.py audit
 
-- **🎯 Gummy Data Bubbles®** - Gamma exposure analysis with real-time visualization
-- **🔍 Market Scanner** - FinViz Elite integration for pattern detection (Cup & Handle, Head & Shoulders, Wedges, etc.)
-- **📰 News Integration** - Real-time sentiment analysis from market news
-- **📊 Stock Insights** - Institutional holdings, financial metrics, and analyst ratings
-- **⚡ Options Order Flow** - Advanced options chain analysis with Greeks
-- **🎭 Elliott Wave Analysis** - Technical pattern recognition
-- **🔐 VIP Authentication** - Secure user access with password protection
+# Reset all users (delete from database)
+python audit_cleanup.py reset
 
-## Technology Stack
+# See detailed access instructions
+python audit_cleanup.py explain
+```
 
-### Core Framework
-- **Streamlit** - Interactive web application framework
-- **Python 3.12+** - Programming language
-- **Plotly** - Professional interactive visualizations
+## System Architecture
 
-### Market Data APIs
-- **Tradier** - Real-time options data and quotes
-- **Financial Modeling Prep (FMP)** - Financial metrics and historical data
-- **Kraken** - Cryptocurrency data
-- **FinViz Elite** - Stock screener with technical patterns
+### User Experience
+- **Only LOGIN and REGISTER** buttons visible
+- **No admin panel** (hidden for security)
+- Users cannot see other users
+- All 7 trading tabs available to Premium users
+
+### Admin Management (CEO Only)
+- Direct database access via `auth_data/users.db`
+- Python scripts for user management
+- SQLite commands for granular control
+- Master credentials: `ozytargetcom@gmail.com` / `zxc11ASD`
+
+## Features
+
+### 7 Trading Tabs
+1. **Gummy Data Bubbles®** - Gamma exposure analysis
+2. **Market Scanner** - Pattern detection
+3. **News** - Sentiment analysis
+4. **MM Market Analysis** - Market maker logic
+5. **Analyst Rating Flow** - Rating trends
+6. **Elliott Pulse®** - Wave analysis
+7. **Target Generator** - Trade targets
+
+### Security
+✅ Bcrypt password hashing (industrial strength)  
+✅ Session persistence with token validation  
+✅ IP limiting (max 2 per user)  
+✅ No master password bypass  
+✅ Rate limiting on failed logins  
+✅ All actions logged  
+
+## Management Commands
+
+| Command | Purpose |
+|---------|---------|
+| `python audit_cleanup.py audit` | View all registered users |
+| `python audit_cleanup.py reset` | Delete all users from database |
+| `python audit_cleanup.py explain` | Show detailed admin guide |
+
+## User Tiers
+
+| Tier | Daily Limit | Validity |
+|------|------------|----------|
+| Free | 10 | 30 days |
+| Pro | 100 | 365 days |
+| **Premium** | 999 | 365 days |
+
+*Default for new registrations: **Premium*** 
+
+## Database Structure
+
+```
+auth_data/
+├── users.db              # SQLite database
+├── active_sessions.json  # Active user sessions
+```
+
+### Users Table
+- `id` - User ID
+- `username` - Login name
+- `email` - Email address
+- `password_hash` - Bcrypt hash
+- `tier` - Access level (Free/Pro/Premium)
+- `daily_limit` - Daily analysis limit
+- `usage_today` - Today's usage count
+- `active` - Account status (1=active, 0=blocked)
+- `created_date` - Registration date
+- `expiration_date` - Tier expiration date
+
+## Security Notes
+
+⚠️ **Important:**
+- Master password `zxc11ASD` cannot be used to log in
+- Admin panel is completely hidden from users
+- Only direct database access available to CEO
+- Rate limiting: 5 failed attempts → 15 min lockout
+- IP limiting: Maximum 2 IPs per user account
+
+## Support
+
+For issues or questions about user management:
+```bash
+python audit_cleanup.py explain
+```
 - **Yahoo Finance** - Alternative data source
 
 ### Security & Authentication
