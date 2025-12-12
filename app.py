@@ -3559,6 +3559,10 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
+    # Sidebar removed - no user info displayed
+        
+        st.markdown("---")
+
     # ===== CACHE STATS MONITOR (HIDDEN) =====
     if False:  # Hidden - uncomment to show cache stats
         with st.sidebar:
