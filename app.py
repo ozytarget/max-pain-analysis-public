@@ -7504,29 +7504,71 @@ def main():
                         # PRICE TARGETS SECTION
                         if targets["conservative"] is not None:
                             st.markdown("### 🎯 Price Targets")
+                            st.caption("Calculated using: **Formula = Fair P/E × Current EPS** | Adjusted for valuation regime")
                             
+                            # Show calculation basis
+                            col_calc1, col_calc2, col_calc3, col_calc4 = st.columns(4)
+                            with col_calc1:
+                                st.metric("Current P/E", fmt(pe, 1) if pe else "N/A",
+                                         help="Current market P/E ratio. Used as baseline for fair value estimation.")
+                            with col_calc2:
+                                eps_val = eps if eps else 0
+                                st.metric("Current EPS", f"${fmt(eps_val, 2)}",
+                                         help="Earnings Per Share (last 12 months). Multiplied by target P/E to get price target.")
+                            with col_calc3:
+                                st.metric("Volatility", f"{fmt(vol, 1)}%",
+                                         help="Historical volatility. Higher vol = wider target range for conservative/aggressive.")
+                            with col_calc4:
+                                st.metric("Regime", regime,
+                                         help="Valuation regime determines P/E compression/expansion factors.")
+                            
+                            st.markdown("---")
+                            
+                            # Price targets with detailed breakdown
                             col_t1, col_t2, col_t3 = st.columns(3)
+                            
                             with col_t1:
                                 conservative_change = ((targets["conservative"] - price) / price * 100) if price > 0 else 0
-                                st.metric("📉 Conservative", 
+                                conservative_pe = (targets["conservative"] / eps) if eps and eps > 0 else 0
+                                st.metric("📉 Conservative Target", 
                                          f"${fmt(targets['conservative'], 2)}", 
                                          delta=f"{fmt(conservative_change, 1)}%",
-                                         delta_color="off")
+                                         delta_color="off",
+                                         help=f"P/E: {fmt(conservative_pe, 1)}× | Assumes {fmt((pe*0.75 - pe)/pe*100, 0)}% P/E compression. Most bearish case.")
+                            
                             with col_t2:
                                 base_change = ((targets["base"] - price) / price * 100) if price > 0 else 0
-                                st.metric("📊 Base Case", 
+                                base_pe = (targets["base"] / eps) if eps and eps > 0 else 0
+                                st.metric("📊 Base Case Target", 
                                          f"${fmt(targets['base'], 2)}", 
                                          delta=f"{fmt(base_change, 1)}%",
-                                         delta_color="normal" if base_change > 0 else "inverse")
+                                         delta_color="normal" if base_change > 0 else "inverse",
+                                         help=f"P/E: {fmt(base_pe, 1)}× | Most probable scenario. Fair value estimate.")
+                            
                             with col_t3:
                                 aggressive_change = ((targets["aggressive"] - price) / price * 100) if price > 0 else 0
-                                st.metric("🚀 Aggressive", 
+                                aggressive_pe = (targets["aggressive"] / eps) if eps and eps > 0 else 0
+                                st.metric("🚀 Aggressive Target", 
                                          f"${fmt(targets['aggressive'], 2)}", 
                                          delta=f"{fmt(aggressive_change, 1)}%",
-                                         delta_color="normal")
+                                         delta_color="normal",
+                                         help=f"P/E: {fmt(aggressive_pe, 1)}× | Bull case. Most optimistic scenario.")
                             
-                            # Rationale box
-                            st.info(f"💡 **Reasoning:** {targets['rationale']} | **EPS:** ${fmt(eps, 2) if eps else 'N/A'} | **Shares in Circulation:** ~{fmt(market_cap/price if price > 0 else 0, 0)}M")
+                            st.markdown("---")
+                            
+                            # Detailed rationale box with input metrics
+                            rationale_html = f"""
+                            <div style="background-color: #0F172A; border: 2px solid #3B82F6; border-radius: 8px; padding: 15px; margin: 10px 0;">
+                                <b style="color: #60A5FA;">💡 Calculation Basis:</b><br>
+                                <span style="color: #E0E7FF; font-size: 13px;">
+                                    • <b>Valuation Regime:</b> {regime} (Z-Score: {fmt(z_score, 2)})<br>
+                                    • <b>Rationale:</b> {targets['rationale']}<br>
+                                    • <b>Key Inputs:</b> P/E Ratio ({fmt(pe, 1)} current) | EPS (${fmt(eps, 2)}) | Beta ({fmt(beta, 2)}) | Volatility ({fmt(vol, 1)}%)<br>
+                                    • <b>Market Cap:</b> ${fmt(market_cap/1e9, 1)}B | <b>Shares:</b> ~{fmt(market_cap/price if price > 0 else 0, 0)}M | <b>Avg Vol:</b> {fmt(avg_volume/1e6, 1)}M shares/day
+                                </span>
+                            </div>
+                            """
+                            st.markdown(rationale_html, unsafe_allow_html=True)
                         
                         st.divider()
                         
