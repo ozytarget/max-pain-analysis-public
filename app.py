@@ -7213,7 +7213,6 @@ def main():
         
         # FMP API Client Classes
         from dataclasses import dataclass
-        from typing import Optional, List
         
         @dataclass
         class FMPConfig:
