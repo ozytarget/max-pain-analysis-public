@@ -3873,12 +3873,10 @@ def main():
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",
         "| MM Market Analysis |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
-        "| Target Generator |", "| US Equity Metrics Z-Score |"
+        "| Target Generator |", "|  Metrics  |"
     ])
 
-    # Tab 1: Gummy Data Bubbles®
-    # Tab 1: Gummy Data Bubbles®
-    # Tab 1: Gummy Data Bubbles®
+
     # Tab 1: Gummy Data Bubbles®
     with tab1:
         ticker = st.text_input("Ticker", value="SPY", key="ticker_input").upper()
@@ -7596,7 +7594,7 @@ def main():
                                      help="Earnings Per Share. Company net income / shares outstanding. Growing EPS = bullish.")
                         
                         # Tabs for detailed info
-                        tab_metrics, tab_export, tab_help = st.tabs(["📊 Metrics", "📥 Export", "📚 About Targets"])
+                        tab_metrics, tab_export, tab_help = st.tabs(["📊 Metrics", "📥 Export", "📚 About Metrics"])
                         
                         with tab_metrics:
                             st.markdown("#### 📋 Complete Metrics Dashboard")
