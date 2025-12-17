@@ -7257,11 +7257,11 @@ def main():
                 metrics["pb_ratio"] = float(info.get("priceToBook", 0)) if info.get("priceToBook") else None
                 metrics["ps_ratio"] = float(info.get("priceToSalesTrailing12Months", 0)) if info.get("priceToSalesTrailing12Months") else None
                 
-                # Dividend yield - yfinance returns as decimal (0.0038 = 0.38%), not percentage
+                # Dividend yield - yfinance returns as decimal (0.0038 = 0.38%)
+                # Store as decimal, will be converted to % in display
                 div_yield_raw = info.get("dividendYield")
-                if div_yield_raw and isinstance(div_yield_raw, (int, float)):
-                    # If < 1, assume it's in decimal format (0.0038), if > 1, it might already be percentage
-                    metrics["dividend_yield"] = float(div_yield_raw) if div_yield_raw < 1 else float(div_yield_raw) / 100
+                if div_yield_raw and isinstance(div_yield_raw, (int, float)) and 0 <= div_yield_raw < 1:
+                    metrics["dividend_yield"] = float(div_yield_raw)  # Keep as decimal (0.004, not 0.4%)
                 else:
                     metrics["dividend_yield"] = None
                 
@@ -7269,23 +7269,29 @@ def main():
                 metrics["market_cap"] = float(info.get("marketCap", 0)) if info.get("marketCap") else None
                 metrics["company_name"] = info.get("longName", ticker)
                 metrics["beta"] = float(info.get("beta", 1.0)) if info.get("beta") else None
-                metrics["revenue"] = float(info.get("totalRevenue", 0)) if info.get("totalRevenue") else None
                 
-                # Profit margin - yfinance returns as decimal (0.269 = 26.9%), not percentage
-                profit_margin_raw = info.get("profitMargins")
-                if profit_margin_raw and isinstance(profit_margin_raw, (int, float)):
-                    metrics["profit_margin"] = float(profit_margin_raw) if profit_margin_raw < 1 else float(profit_margin_raw) / 100
-                else:
-                    metrics["profit_margin"] = None
-                
-                # ROE - yfinance returns as decimal (1.714 = 171.4%), not percentage
+                # ROE - yfinance returns as decimal (1.714 = 171.4%)
+                # Only accept if between 0 and 10 (reasonable ROE range in decimal format)
                 roe_raw = info.get("returnOnEquity")
-                if roe_raw and isinstance(roe_raw, (int, float)):
-                    metrics["roe"] = float(roe_raw) if roe_raw < 1 else float(roe_raw) / 100
+                if roe_raw and isinstance(roe_raw, (int, float)) and 0 <= roe_raw <= 10:
+                    metrics["roe"] = float(roe_raw)  # Keep as decimal (1.714 not 171.4)
                 else:
                     metrics["roe"] = None
                 
-                metrics["debt_to_equity"] = float(info.get("debtToEquity", 0)) if info.get("debtToEquity") else None
+                # Profit margin - yfinance returns as decimal (0.269 = 26.9%)
+                profit_margin_raw = info.get("profitMargins")
+                if profit_margin_raw and isinstance(profit_margin_raw, (int, float)) and 0 <= profit_margin_raw <= 1:
+                    metrics["profit_margin"] = float(profit_margin_raw)  # Keep as decimal
+                else:
+                    metrics["profit_margin"] = None
+                
+                # Debt to Equity - should be reasonable positive number
+                debt_equity_raw = info.get("debtToEquity")
+                if debt_equity_raw and isinstance(debt_equity_raw, (int, float)) and 0 <= debt_equity_raw <= 100:
+                    metrics["debt_to_equity"] = float(debt_equity_raw)
+                else:
+                    metrics["debt_to_equity"] = None
+                
                 metrics["current_ratio"] = float(info.get("currentRatio", 0)) if info.get("currentRatio") else None
                 metrics["52w_change"] = float(info.get("52WeekChange", 0)) if info.get("52WeekChange") else None
             
