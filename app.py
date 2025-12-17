@@ -7219,23 +7219,31 @@ def main():
             if data is None or data.empty:
                 return {}
             
+            current_price = float(data["Close"].iloc[-1])
+            price_52w_high = float(data["Close"].max())
+            price_52w_low = float(data["Close"].min())
+            price_1y_ago = float(data["Close"].iloc[0]) if len(data) > 1 else current_price
+            
             metrics = {
                 "ticker": ticker,
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "price": float(data["Close"].iloc[-1]),
-                "price_52w_high": float(data["Close"].max()),
-                "price_52w_low": float(data["Close"].min()),
+                "price": current_price,
+                "price_52w_high": price_52w_high,
+                "price_52w_low": price_52w_low,
+                "price_1y_change_pct": ((current_price - price_1y_ago) / price_1y_ago * 100) if price_1y_ago > 0 else 0,
             }
             
             # Historical volatility (annualized)
             returns = data["Close"].pct_change().dropna()
             metrics["volatility_historical"] = float(returns.std() * np.sqrt(252) * 100)
             
+            # Average volume
+            metrics["avg_volume"] = float(data["Volume"].tail(20).mean())
+            
             # Z-score of price (using 200-day moving average)
             if len(data) >= 200:
                 ma200 = float(data["Close"].rolling(window=200).mean().iloc[-1])
                 std200 = float(data["Close"].rolling(window=200).std().iloc[-1])
-                current_price = float(data["Close"].iloc[-1])
                 if not pd.isna(std200) and std200 > 0:
                     metrics["z_score_price"] = float((current_price - ma200) / std200)
                     metrics["valuation_regime"] = regime_from_z(metrics["z_score_price"])
@@ -7250,6 +7258,14 @@ def main():
                 metrics["eps"] = info.get("trailingEps")
                 metrics["market_cap"] = info.get("marketCap")
                 metrics["company_name"] = info.get("longName", ticker)
+                metrics["beta"] = info.get("beta")
+                metrics["revenue"] = info.get("totalRevenue")
+                metrics["profit_margin"] = info.get("profitMargins")
+                metrics["roe"] = info.get("returnOnEquity")
+                metrics["debt_to_equity"] = info.get("debtToEquity")
+                metrics["current_ratio"] = info.get("currentRatio")
+                metrics["52w_change"] = info.get("52WeekChange")
+                metrics["forward_pe"] = info.get("forwardPE")
             
             return metrics
         
@@ -7284,10 +7300,20 @@ def main():
                         regime = metrics.get("valuation_regime", "Unknown")
                         market_cap = metrics.get("market_cap", 0)
                         pe_pct = ((price - metrics.get('price_52w_low', 0)) / (metrics.get('price_52w_high', 0) - metrics.get('price_52w_low', 0)) * 100) if metrics.get('price_52w_high', 0) > metrics.get('price_52w_low', 0) else 0
+                        beta = metrics.get("beta", 0)
+                        revenue = metrics.get("revenue", 0)
+                        profit_margin = metrics.get("profit_margin", 0)
+                        roe = metrics.get("roe", 0)
+                        debt_equity = metrics.get("debt_to_equity", 0)
+                        current_ratio = metrics.get("current_ratio", 0)
+                        price_1y_change = metrics.get("price_1y_change_pct", 0)
+                        avg_volume = metrics.get("avg_volume", 0)
+                        forward_pe = metrics.get("forward_pe", 0)
                         
-                        # Rich Company Card
+                        # Rich Company Card - ENHANCED
                         st.markdown(f"""
                         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%); border: 3px solid #3B82F6; border-radius: 16px; padding: 30px; margin: 20px 0;">
+                            <!-- HEADER CON NOMBRE Y PRECIO -->
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
                                 <div>
                                     <h2 style="color: #60A5FA; margin: 0; font-size: 32px;">{ticker}</h2>
@@ -7295,60 +7321,119 @@ def main():
                                 </div>
                                 <div style="text-align: right;">
                                     <p style="color: #4ADE80; font-size: 28px; font-weight: bold; margin: 0;">${fmt(price, 2)}</p>
-                                    <p style="color: #FBBF24; margin-top: 5px; font-size: 14px;">Updated: {metrics.get('date')}</p>
+                                    <p style="color: #FBBF24; margin-top: 5px; font-size: 12px;">{fmt(price_1y_change, 1)}% (1Y)</p>
+                                    <p style="color: #94A3B8; margin-top: 2px; font-size: 11px;">Updated: {metrics.get('date')}</p>
                                 </div>
                             </div>
                             
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                                <div style="background: rgba(74, 222, 128, 0.1); border-left: 4px solid #4ADE80; padding: 15px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📊 P/E Ratio</small>
-                                    <p style="color: #4ADE80; font-size: 20px; font-weight: bold; margin: 0;">{fmt(pe, 1)}</p>
+                            <!-- ROW 1: VALUATION RATIOS -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                                <div style="background: rgba(74, 222, 128, 0.1); border-left: 4px solid #4ADE80; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/E Ratio</small>
+                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pe, 1)}</p>
+                                    <small style="color: #64748B; font-size: 10px;">FWD: {fmt(forward_pe, 1)}</small>
                                 </div>
-                                <div style="background: rgba(96, 165, 250, 0.1); border-left: 4px solid #60A5FA; padding: 15px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📈 P/B Ratio</small>
-                                    <p style="color: #60A5FA; font-size: 20px; font-weight: bold; margin: 0;">{fmt(pb, 1)}</p>
+                                <div style="background: rgba(96, 165, 250, 0.1); border-left: 4px solid #60A5FA; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/B Ratio</small>
+                                    <p style="color: #60A5FA; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pb, 1)}</p>
+                                    <small style="color: #64748B; font-size: 10px;">Price to Book</small>
                                 </div>
-                                <div style="background: rgba(251, 191, 36, 0.1); border-left: 4px solid #FBBF24; padding: 15px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📉 P/S Ratio</small>
-                                    <p style="color: #FBBF24; font-size: 20px; font-weight: bold; margin: 0;">{fmt(ps, 1)}</p>
+                                <div style="background: rgba(251, 191, 36, 0.1); border-left: 4px solid #FBBF24; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/S Ratio</small>
+                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold; margin: 0;">{fmt(ps, 1)}</p>
+                                    <small style="color: #64748B; font-size: 10px;">Price to Sales</small>
                                 </div>
-                                <div style="background: rgba(139, 92, 246, 0.1); border-left: 4px solid #8B5CF6; padding: 15px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">💰 Div Yield</small>
-                                    <p style="color: #8B5CF6; font-size: 20px; font-weight: bold; margin: 0;">{fmt(div_yield * 100 if div_yield else 0, 2)}%</p>
-                                </div>
-                            </div>
-                            
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📊 Volatility (Annual)</small>
-                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold; margin: 0;">{fmt(vol, 1)}%</p>
-                                </div>
-                                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">🎯 Z-Score (200D)</small>
-                                    <p style="color: #60A5FA; font-size: 18px; font-weight: bold; margin: 0;">{fmt(z_score, 2)}</p>
-                                </div>
-                                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">💎 Valuation</small>
-                                    <p style="font-size: 16px; font-weight: bold; margin: 0;">{regime}</p>
-                                </div>
-                                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📍 52W Range %</small>
-                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pe_pct, 1)}%</p>
+                                <div style="background: rgba(139, 92, 246, 0.1); border-left: 4px solid #8B5CF6; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Div Yield</small>
+                                    <p style="color: #8B5CF6; font-size: 18px; font-weight: bold; margin: 0;">{fmt(div_yield * 100 if div_yield else 0, 2)}%</p>
+                                    <small style="color: #64748B; font-size: 10px;">Dividend</small>
                                 </div>
                             </div>
                             
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
-                                <div style="background: rgba(74, 222, 128, 0.15); padding: 15px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8;">📈 52W High</small>
-                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold;">${fmt(metrics.get('price_52w_high', 0), 2)}</p>
+                            <!-- ROW 2: RISK & MOMENTUM METRICS -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                                <div style="background: rgba(255, 107, 107, 0.1); border-left: 4px solid #FF6B6B; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Beta</small>
+                                    <p style="color: #FF6B6B; font-size: 18px; font-weight: bold; margin: 0;">{fmt(beta, 2)}</p>
+                                    <small style="color: #64748B; font-size: 10px;">Market Volatility</small>
                                 </div>
-                                <div style="background: rgba(251, 191, 36, 0.15); padding: 15px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8;">💰 Current</small>
-                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold;">${fmt(price, 2)}</p>
+                                <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #F59E0B; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Volatility (Annual)</small>
+                                    <p style="color: #F59E0B; font-size: 18px; font-weight: bold; margin: 0;">{fmt(vol, 1)}%</p>
+                                    <small style="color: #64748B; font-size: 10px;">Historical Vol</small>
                                 </div>
-                                <div style="background: rgba(248, 113, 113, 0.15); padding: 15px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8;">📉 52W Low</small>
-                                    <p style="color: #F87171; font-size: 18px; font-weight: bold;">${fmt(metrics.get('price_52w_low', 0), 2)}</p>
+                                <div style="background: rgba(168, 85, 247, 0.1); border-left: 4px solid #A855F7; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Z-Score (200D)</small>
+                                    <p style="color: #A855F7; font-size: 18px; font-weight: bold; margin: 0;">{fmt(z_score, 2)}</p>
+                                    <small style="color: #64748B; font-size: 10px;">Std Deviations</small>
+                                </div>
+                                <div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid #22C55E; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Valuation</small>
+                                    <p style="font-size: 14px; font-weight: bold; margin: 0;">{regime}</p>
+                                    <small style="color: #64748B; font-size: 10px;">Z-Score regime</small>
+                                </div>
+                            </div>
+                            
+                            <!-- ROW 3: PROFITABILITY & BALANCE SHEET -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                                <div style="background: rgba(29, 185, 84, 0.1); border-left: 4px solid #1DB954; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">ROE</small>
+                                    <p style="color: #1DB954; font-size: 18px; font-weight: bold; margin: 0;">{fmt(roe * 100 if roe else 0, 1)}%</p>
+                                    <small style="color: #64748B; font-size: 10px;">Return on Equity</small>
+                                </div>
+                                <div style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3B82F6; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Profit Margin</small>
+                                    <p style="color: #3B82F6; font-size: 18px; font-weight: bold; margin: 0;">{fmt(profit_margin * 100 if profit_margin else 0, 1)}%</p>
+                                    <small style="color: #64748B; font-size: 10px;">Net Profit Margin</small>
+                                </div>
+                                <div style="background: rgba(107, 114, 128, 0.1); border-left: 4px solid #6B7280; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Debt/Equity</small>
+                                    <p style="color: #6B7280; font-size: 18px; font-weight: bold; margin: 0;">{fmt(debt_equity, 2)}</p>
+                                    <small style="color: #64748B; font-size: 10px;">Leverage Ratio</small>
+                                </div>
+                                <div style="background: rgba(34, 211, 238, 0.1); border-left: 4px solid #22D3EE; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Current Ratio</small>
+                                    <p style="color: #22D3EE; font-size: 18px; font-weight: bold; margin: 0;">{fmt(current_ratio, 2)}</p>
+                                    <small style="color: #64748B; font-size: 10px;">Liquidity</small>
+                                </div>
+                            </div>
+                            
+                            <!-- ROW 4: PRICE & VOLUME METRICS -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                                <div style="background: rgba(34, 197, 94, 0.15); padding: 12px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">52W High</small>
+                                    <p style="color: #4ADE80; font-size: 16px; font-weight: bold; margin: 0;">${fmt(metrics.get('price_52w_high', 0), 2)}</p>
+                                </div>
+                                <div style="background: rgba(251, 191, 36, 0.15); padding: 12px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Current Price</small>
+                                    <p style="color: #FBBF24; font-size: 16px; font-weight: bold; margin: 0;">${fmt(price, 2)}</p>
+                                </div>
+                                <div style="background: rgba(248, 113, 113, 0.15); padding: 12px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">52W Low</small>
+                                    <p style="color: #F87171; font-size: 16px; font-weight: bold; margin: 0;">${fmt(metrics.get('price_52w_low', 0), 2)}</p>
+                                </div>
+                                <div style="background: rgba(168, 85, 247, 0.15); padding: 12px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">52W Position %</small>
+                                    <p style="color: #D8B4FE; font-size: 16px; font-weight: bold; margin: 0;">{fmt(pe_pct, 1)}%</p>
+                                </div>
+                            </div>
+                            
+                            <!-- ROW 5: MARKET CAP & VOLUME -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                                <div style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3B82F6; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Market Cap</small>
+                                    <p style="color: #3B82F6; font-size: 16px; font-weight: bold; margin: 0;">${fmt(market_cap/1e9, 1)}B</p>
+                                    <small style="color: #64748B; font-size: 10px;">Billion USD</small>
+                                </div>
+                                <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #F59E0B; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Avg Volume (20D)</small>
+                                    <p style="color: #F59E0B; font-size: 16px; font-weight: bold; margin: 0;">{fmt(avg_volume/1e6, 1)}M</p>
+                                    <small style="color: #64748B; font-size: 10px;">Million shares</small>
+                                </div>
+                                <div style="background: rgba(236, 72, 153, 0.1); border-left: 4px solid #EC4899; padding: 12px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">EPS</small>
+                                    <p style="color: #EC4899; font-size: 16px; font-weight: bold; margin: 0;">${fmt(metrics.get('eps', 0), 2)}</p>
+                                    <small style="color: #64748B; font-size: 10px;">Earnings Per Share</small>
                                 </div>
                             </div>
                         </div>
@@ -7389,38 +7474,62 @@ def main():
                             st.plotly_chart(fig, use_container_width=True)
                         
                         with tab_metrics:
-                            st.markdown("#### 📋 Complete Metrics")
+                            st.markdown("#### 📋 Complete Metrics Dashboard")
                             summary_data = {
                                 "Metric": [
                                     "Current Price",
+                                    "1Y Change %",
                                     "52W High",
                                     "52W Low",
-                                    "52W Range %",
-                                    "P/E Ratio",
+                                    "52W Position %",
+                                    "---",
+                                    "P/E Ratio (Trailing)",
+                                    "P/E Ratio (Forward)",
                                     "P/B Ratio",
                                     "P/S Ratio",
+                                    "---",
                                     "Dividend Yield",
-                                    "Historical Volatility",
+                                    "EPS",
+                                    "ROE",
+                                    "Profit Margin",
+                                    "---",
+                                    "Beta",
+                                    "Volatility (Annual)",
                                     "Z-Score (200D)",
                                     "Valuation Regime",
+                                    "---",
+                                    "Debt/Equity",
+                                    "Current Ratio",
                                     "Market Cap",
-                                    "EPS",
+                                    "Avg Volume (20D)",
                                     "Last Updated"
                                 ],
                                 "Value": [
                                     f"${fmt(price, 2)}",
+                                    f"{fmt(price_1y_change, 1)}%",
                                     f"${fmt(metrics.get('price_52w_high', 0), 2)}",
                                     f"${fmt(metrics.get('price_52w_low', 0), 2)}",
                                     f"{fmt(pe_pct, 1)}%",
+                                    "─────────────────",
                                     fmt(pe, 2),
+                                    fmt(forward_pe, 2),
                                     fmt(pb, 2),
                                     fmt(ps, 2),
+                                    "─────────────────",
                                     f"{fmt(div_yield * 100 if div_yield else 0, 2)}%",
+                                    f"${fmt(metrics.get('eps', 0), 2)}",
+                                    f"{fmt(roe * 100 if roe else 0, 1)}%",
+                                    f"{fmt(profit_margin * 100 if profit_margin else 0, 1)}%",
+                                    "─────────────────",
+                                    fmt(beta, 2),
                                     f"{fmt(vol, 1)}%",
                                     fmt(z_score, 2),
                                     regime,
-                                    f"${market_cap/1e9:.2f}B" if market_cap else "N/A",
-                                    f"${fmt(metrics.get('eps', 0), 2)}",
+                                    "─────────────────",
+                                    fmt(debt_equity, 2),
+                                    fmt(current_ratio, 2),
+                                    f"${fmt(market_cap/1e9, 1)}B",
+                                    f"{fmt(avg_volume/1e6, 1)}M",
                                     metrics.get('date')
                                 ]
                             }
