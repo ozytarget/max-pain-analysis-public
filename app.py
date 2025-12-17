@@ -7257,11 +7257,11 @@ def main():
                 metrics["pb_ratio"] = float(info.get("priceToBook", 0)) if info.get("priceToBook") else None
                 metrics["ps_ratio"] = float(info.get("priceToSalesTrailing12Months", 0)) if info.get("priceToSalesTrailing12Months") else None
                 
-                # Dividend yield - yfinance returns as decimal (0.0038 = 0.38%)
-                # Store as decimal, will be converted to % in display
+                # Dividend yield - yfinance returns as PERCENTAGE (0.38 = 38%, NOT 0.0038)
+                # Divide by 100 to normalize to decimal for display logic
                 div_yield_raw = info.get("dividendYield")
-                if div_yield_raw and isinstance(div_yield_raw, (int, float)) and 0 <= div_yield_raw < 1:
-                    metrics["dividend_yield"] = float(div_yield_raw)  # Keep as decimal (0.004, not 0.4%)
+                if div_yield_raw and isinstance(div_yield_raw, (int, float)) and div_yield_raw > 0:
+                    metrics["dividend_yield"] = float(div_yield_raw) / 100  # Convert 0.38 → 0.0038 for consistent display
                 else:
                     metrics["dividend_yield"] = None
                 
@@ -7270,25 +7270,27 @@ def main():
                 metrics["company_name"] = info.get("longName", ticker)
                 metrics["beta"] = float(info.get("beta", 1.0)) if info.get("beta") else None
                 
-                # ROE - yfinance returns as decimal (1.714 = 171.4%)
-                # Only accept if between 0 and 10 (reasonable ROE range in decimal format)
+                # ROE - yfinance returns as PERCENTAGE (1.714 = 171.4%, NOT as decimal 0.0171)
+                # Divide by 100 to normalize to decimal for consistent display
                 roe_raw = info.get("returnOnEquity")
-                if roe_raw and isinstance(roe_raw, (int, float)) and 0 <= roe_raw <= 10:
-                    metrics["roe"] = float(roe_raw)  # Keep as decimal (1.714 not 171.4)
+                if roe_raw and isinstance(roe_raw, (int, float)) and roe_raw > 0:
+                    metrics["roe"] = float(roe_raw) / 100  # Convert 1.714 → 0.01714 for consistent display
                 else:
                     metrics["roe"] = None
                 
-                # Profit margin - yfinance returns as decimal (0.269 = 26.9%)
+                # Profit margin - yfinance returns as DECIMAL (0.269 = 26.9%)
+                # Keep as-is, already in correct format
                 profit_margin_raw = info.get("profitMargins")
-                if profit_margin_raw and isinstance(profit_margin_raw, (int, float)) and 0 <= profit_margin_raw <= 1:
-                    metrics["profit_margin"] = float(profit_margin_raw)  # Keep as decimal
+                if profit_margin_raw and isinstance(profit_margin_raw, (int, float)) and profit_margin_raw > 0:
+                    metrics["profit_margin"] = float(profit_margin_raw)  # Already decimal, keep as-is
                 else:
                     metrics["profit_margin"] = None
                 
-                # Debt to Equity - should be reasonable positive number
+                # Debt to Equity - raw number (152.411)
+                # Keep as-is, display directly
                 debt_equity_raw = info.get("debtToEquity")
-                if debt_equity_raw and isinstance(debt_equity_raw, (int, float)) and 0 <= debt_equity_raw <= 100:
-                    metrics["debt_to_equity"] = float(debt_equity_raw)
+                if debt_equity_raw and isinstance(debt_equity_raw, (int, float)) and debt_equity_raw > 0:
+                    metrics["debt_to_equity"] = float(debt_equity_raw)  # Keep raw number
                 else:
                     metrics["debt_to_equity"] = None
                 
