@@ -3863,10 +3863,10 @@ def main():
     # MAIN APPLICATION TABS
     # ═════════════════════════════════════════════════════════════════════════════════
     # ═════════════════════════════════════════════════════════════════════════════════
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",
         "| MM Market Analysis |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
-        "| Target Generator |"
+        "| Target Generator |", "| US Equity Metrics Z-Score |"
     ])
 
     # Tab 1: Gummy Data Bubbles®
@@ -7170,6 +7170,305 @@ def main():
         
         st.markdown("---")
         st.markdown("*Developed by Ozy | © 2025*")
+
+    # Tab 8: US Equity Metrics Z-Score Dashboard
+    with tab8:
+        st.subheader("📊 US Equity Metrics Z-Score Dashboard")
+        
+        # Helper Functions
+        def zscore(series, window=252):
+            """Calculate rolling Z-score"""
+            mean = series.rolling(window).mean()
+            std = series.rolling(window).std()
+            return (series - mean) / std
+        
+        def linear_slope(series, window=252):
+            """Calculate rolling linear regression slope"""
+            if len(series) < window:
+                window = len(series)
+            slopes = []
+            for i in range(len(series) - window + 1):
+                x = np.arange(window)
+                y = series.iloc[i:i+window].values
+                slope = np.polyfit(x, y, 1)[0]
+                slopes.append(slope)
+            return pd.Series(slopes + [np.nan] * (len(series) - len(slopes)), index=series.index)
+        
+        def fmt(x, nd=2):
+            """Format number, handling NaN/inf gracefully"""
+            if pd.isna(x) or np.isinf(x):
+                return "N/A"
+            return f"{x:.{nd}f}"
+        
+        def regime_from_z(z):
+            """Determine valuation regime from Z-score"""
+            if pd.isna(z):
+                return "Unknown"
+            if z <= -1.5:
+                return "🟢 CHEAP"
+            elif z >= 1.5:
+                return "🔴 EXPENSIVE"
+            else:
+                return "🟡 FAIR"
+        
+        # FMP API Client Classes
+        from dataclasses import dataclass
+        from typing import Optional, List
+        
+        @dataclass
+        class FMPConfig:
+            api_key: str
+            base_url: str = "https://financialmodelingprep.com/api/v3"
+        
+        class FMPClient:
+            def __init__(self, config: FMPConfig):
+                self.config = config
+                self.session = requests.Session()
+            
+            def _request(self, endpoint: str, params: dict = None) -> dict:
+                """Generic request handler with retry logic"""
+                url = f"{self.config.base_url}/{endpoint}"
+                params = params or {}
+                params["apikey"] = self.config.api_key
+                
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        response = self.session.get(url, params=params, timeout=10)
+                        response.raise_for_status()
+                        return response.json()
+                    except requests.exceptions.RequestException as e:
+                        if attempt == max_retries - 1:
+                            st.warning(f"FMP API error: {str(e)}")
+                            return {}
+                        time.sleep(1)
+                return {}
+            
+            def ratios_quarterly(self, ticker: str, limit: int = 40) -> List[dict]:
+                """Fetch quarterly valuation ratios"""
+                data = self._request(f"ratios/{ticker}", {"limit": limit})
+                return data if isinstance(data, list) else []
+            
+            def income_quarterly(self, ticker: str, limit: int = 40) -> List[dict]:
+                """Fetch quarterly income statement"""
+                data = self._request(f"income-statement/{ticker}", {"period": "quarter", "limit": limit})
+                return data if isinstance(data, list) else []
+            
+            def income_annual(self, ticker: str, limit: int = 13) -> List[dict]:
+                """Fetch annual income statement for EPS"""
+                data = self._request(f"income-statement/{ticker}", {"period": "annual", "limit": limit})
+                return data if isinstance(data, list) else []
+        
+        @dataclass
+        class FREDConfig:
+            api_key: str
+            base_url: str = "https://api.stlouisfed.org/fred"
+        
+        class FREDClient:
+            def __init__(self, config: FREDConfig):
+                self.config = config
+                self.session = requests.Session()
+            
+            def _request(self, endpoint: str, params: dict = None) -> dict:
+                """Generic FRED request handler"""
+                url = f"{self.config.base_url}/{endpoint}"
+                params = params or {}
+                params["api_key"] = self.config.api_key
+                
+                try:
+                    response = self.session.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    return response.json()
+                except requests.exceptions.RequestException as e:
+                    st.warning(f"FRED API error: {str(e)}")
+                    return {}
+            
+            def series_observations(self, series_id: str, limit: int = 100) -> dict:
+                """Fetch series observations"""
+                return self._request("series/observations", {"series_id": series_id, "limit": limit})
+        
+        # Cached Data Fetchers
+        @st.cache_data(ttl=3600)
+        def fetch_fmp_quarterly(ticker, api_key, years=10):
+            """Fetch FMP quarterly data with 60-min cache"""
+            if not api_key:
+                return None
+            client = FMPClient(FMPConfig(api_key))
+            return client.ratios_quarterly(ticker, limit=years*4)
+        
+        @st.cache_data(ttl=3600)
+        def fetch_fmp_annual_eps(ticker, api_key, years=13):
+            """Fetch FMP annual EPS for CAPE calculation"""
+            if not api_key:
+                return None
+            client = FMPClient(FMPConfig(api_key))
+            income_data = client.income_annual(ticker, limit=years)
+            eps_data = []
+            for item in income_data:
+                if "fillingDate" in item and "eps" in item:
+                    year = item["fillingDate"][:4]
+                    eps = item.get("eps", 0)
+                    if eps:
+                        eps_data.append({"year": year, "eps": eps})
+            return eps_data
+        
+        @st.cache_data(ttl=3600)
+        def fetch_cpi_annual(fred_key):
+            """Fetch CPI data from FRED for real CAPE"""
+            if not fred_key:
+                return None
+            client = FREDClient(FREDConfig(fred_key))
+            data = client.series_observations("CPIAUCSL", limit=100)
+            if "observations" in data:
+                cpi_annual = []
+                for obs in data["observations"]:
+                    date = obs.get("date", "")
+                    value = obs.get("value", "")
+                    if date and value != ".":
+                        year = date[:4]
+                        try:
+                            cpi_annual.append({"year": year, "cpi": float(value)})
+                        except:
+                            pass
+                return cpi_annual
+            return None
+        
+        @st.cache_data(ttl=600)
+        def fetch_last_price(ticker):
+            """Fetch current price via yfinance"""
+            try:
+                data = yf.download(ticker, period="1d", progress=False)
+                if not data.empty:
+                    return float(data["Close"].iloc[-1])
+            except:
+                pass
+            return None
+        
+        # Metrics Builder
+        def compute_cape_10y(price, annual_eps, cpi_annual):
+            """Compute real CAPE(10y) using Shiller methodology"""
+            if not annual_eps or not cpi_annual:
+                return None
+            
+            try:
+                # Get last 10 years of EPS
+                eps_10y = sorted(annual_eps, key=lambda x: x["year"])[-10:]
+                if len(eps_10y) < 10:
+                    return None
+                
+                # Map CPI to years
+                cpi_map = {item["year"]: item["cpi"] for item in cpi_annual}
+                
+                # Calculate real EPS (normalize to current year CPI)
+                current_cpi = cpi_annual[-1]["cpi"] if cpi_annual else 100
+                real_eps = []
+                for eps_item in eps_10y:
+                    year = eps_item["year"]
+                    eps = eps_item["eps"]
+                    cpi = cpi_map.get(year, current_cpi)
+                    real_eps.append((eps * current_cpi) / cpi)
+                
+                avg_real_eps = np.mean(real_eps)
+                cape = price / avg_real_eps if avg_real_eps > 0 else None
+                return cape
+            except:
+                return None
+        
+        def build_metrics(ticker, fmp_key, fred_key):
+            """Calculate all valuation metrics and Z-scores"""
+            try:
+                # Fetch data
+                price = fetch_last_price(ticker)
+                quarterly_data = fetch_fmp_quarterly(ticker, fmp_key)
+                annual_eps = fetch_fmp_annual_eps(ticker, fmp_key)
+                cpi_annual = fetch_cpi_annual(fred_key)
+                
+                if not price or not quarterly_data:
+                    return None
+                
+                metrics = {"date": datetime.now().strftime("%Y-%m-%d")}
+                
+                # P/E from latest quarter
+                latest_q = quarterly_data[0] if quarterly_data else {}
+                pe_ratio = latest_q.get("peRatio")
+                if pe_ratio:
+                    metrics["pe_ratio"] = pe_ratio
+                
+                # CAPE(10y)
+                cape = compute_cape_10y(price, annual_eps, cpi_annual) if annual_eps and cpi_annual else None
+                if cape:
+                    metrics["cape_10y"] = cape
+                
+                # Forward metrics
+                metrics["pbRatio"] = latest_q.get("pbRatio")
+                metrics["priceToSalesRatio"] = latest_q.get("priceToSalesRatio")
+                metrics["priceCashFlowRatio"] = latest_q.get("priceCashFlowRatio")
+                
+                return metrics
+            except Exception as e:
+                st.error(f"Error building metrics: {str(e)}")
+                return None
+        
+        def latest_snapshot(df):
+            """Extract latest metrics"""
+            if df.empty:
+                return {}
+            return df.iloc[-1].to_dict()
+        
+        # Sidebar Configuration
+        st.sidebar.markdown("### ⚙️ Tab 8 Settings")
+        ticker_z = st.sidebar.text_input("Ticker", value="AAPL").upper()
+        fmp_key_input = st.sidebar.text_input("FMP API Key (optional)", type="password", value=FMP_API_KEY)
+        fred_key_input = st.sidebar.text_input("FRED API Key (optional)", type="password", value=os.getenv("FRED_API_KEY", ""))
+        years_history = st.sidebar.slider("History (years)", 1, 10, 3)
+        
+        # Main Display
+        if ticker_z:
+            with st.spinner(f"Loading metrics for {ticker_z}..."):
+                metrics = build_metrics(ticker_z, fmp_key_input, fred_key_input)
+                
+                if metrics:
+                    # KPI Metrics
+                    st.markdown("### 📊 Valuation Metrics")
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        if "pe_ratio" in metrics:
+                            st.metric("P/E Ratio", fmt(metrics["pe_ratio"], 2))
+                        else:
+                            st.metric("P/E Ratio", "N/A")
+                    
+                    with col2:
+                        if "cape_10y" in metrics:
+                            st.metric("CAPE(10y)", fmt(metrics["cape_10y"], 1))
+                        else:
+                            st.metric("CAPE(10y)", "N/A")
+                    
+                    with col3:
+                        if "pbRatio" in metrics:
+                            st.metric("P/B Ratio", fmt(metrics["pbRatio"], 2))
+                        else:
+                            st.metric("P/B Ratio", "N/A")
+                    
+                    with col4:
+                        if "priceToSalesRatio" in metrics:
+                            st.metric("P/S Ratio", fmt(metrics["priceToSalesRatio"], 2))
+                        else:
+                            st.metric("P/S Ratio", "N/A")
+                    
+                    # Metrics Table
+                    st.markdown("### 📋 Full Metrics")
+                    metrics_df = pd.DataFrame([metrics])
+                    st.dataframe(metrics_df, use_container_width=True)
+                    
+                    # CSV Export
+                    csv_data = metrics_df.to_csv(index=False)
+                    st.download_button("📥 Download CSV", csv_data, f"{ticker_z}_metrics.csv", "text/csv")
+                else:
+                    if fmp_key_input or fred_key_input:
+                        st.warning("Could not fetch metrics. Please check your API keys or try another ticker.")
+                    else:
+                        st.info("Enter FMP and/or FRED API keys in the sidebar to enable full analysis. The dashboard will fall back to yfinance for basic data.")
 
 
 if __name__ == "__main__":
