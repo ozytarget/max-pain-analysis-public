@@ -1,0 +1,7 @@
+{
+    "chat.checkpoints.showFileChanges": true,
+    "chat.edits2.enabled": false,
+    "chat.todoListTool.writeOnly": true,
+    "chat.tools.terminal.autoReplyToPrompts": true,
+    "chat.customAgentInSubagent.enabled": true
+}
