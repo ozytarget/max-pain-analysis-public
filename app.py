@@ -7429,38 +7429,7 @@ def main():
                             st.metric("EPS", f"${fmt(eps, 2)}" if eps else "N/A")
                         
                         # Tabs for detailed info
-                        tab_charts, tab_metrics, tab_export = st.tabs(["📉 Charts", "📊 Metrics", "📥 Export"])
-                        
-                        with tab_charts:
-                            st.markdown("#### Price Chart with 200-Day MA")
-                            fig = go.Figure()
-                            fig.add_trace(go.Scatter(
-                                x=data.index,
-                                y=data["Close"],
-                                mode="lines",
-                                name="Close Price",
-                                line=dict(color="#4ADE80", width=2)
-                            ))
-                            
-                            if len(data) >= 200:
-                                ma200 = data["Close"].rolling(window=200).mean()
-                                fig.add_trace(go.Scatter(
-                                    x=data.index,
-                                    y=ma200,
-                                    mode="lines",
-                                    name="200-Day MA",
-                                    line=dict(color="#FBBF24", width=1, dash="dash")
-                                ))
-                            
-                            fig.update_layout(
-                                title=f"{ticker} Price History ({period})",
-                                xaxis_title="Date",
-                                yaxis_title="Price ($)",
-                                template="plotly_dark",
-                                height=450,
-                                hovermode="x unified"
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
+                        tab_metrics, tab_export = st.tabs(["📊 Metrics", "📥 Export"])
                         
                         with tab_metrics:
                             st.markdown("#### 📋 Complete Metrics Dashboard")
