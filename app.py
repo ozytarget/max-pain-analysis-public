@@ -7243,7 +7243,7 @@ def main():
                 ma200 = data["Close"].rolling(window=200).mean().iloc[-1]
                 std200 = data["Close"].rolling(window=200).std().iloc[-1]
                 current_price = data["Close"].iloc[-1]
-                if std200 > 0:
+                if not pd.isna(std200) and std200 > 0:
                     metrics["z_score_price"] = float((current_price - ma200) / std200)
                     metrics["valuation_regime"] = regime_from_z(metrics["z_score_price"])
             
