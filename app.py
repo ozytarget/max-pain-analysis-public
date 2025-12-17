@@ -7251,7 +7251,7 @@ def main():
                 return "🟡 FAIR"
         
         def calculate_price_targets(metrics, price, z_score, regime):
-            """Calculate price targets based on valuation metrics"""
+            """Calculate price targets based on valuation metrics and sector-adjusted P/E"""
             if not metrics or price <= 0:
                 return {"conservative": None, "base": None, "aggressive": None, "rationale": ""}
             
@@ -7260,55 +7260,60 @@ def main():
             # Get metrics
             pe = metrics.get("pe_ratio")
             eps = metrics.get("eps")
-            roe = metrics.get("roe")
-            debt_equity = metrics.get("debt_to_equity")
+            pb = metrics.get("pb_ratio")
+            industry_sector = metrics.get("sector", "Tech")
             vol = metrics.get("volatility_historical", 0)
             
-            # Base calculation from EPS if available
-            if eps and eps > 0:
-                # Different target multiples based on regime
-                if regime == "🟢 CHEAP":
-                    conservative_multiple = pe * 1.15 if pe else 15  # Slight multiple expansion
-                    base_multiple = pe * 1.35 if pe else 18
-                    aggressive_multiple = pe * 1.65 if pe else 22
-                    rationale = "CHEAP valuation → price likely to expand toward market avg"
-                    
-                elif regime == "🔴 EXPENSIVE":
-                    conservative_multiple = pe * 0.80 if pe else 12  # Multiple compression
-                    base_multiple = pe * 0.90 if pe else 14
-                    aggressive_multiple = pe * 1.0 if pe else 16
-                    rationale = "EXPENSIVE valuation → targets assume normalization or maintain premium"
-                    
-                else:  # FAIR
-                    conservative_multiple = pe * 0.95 if pe else 14
-                    base_multiple = pe * 1.10 if pe else 16
-                    aggressive_multiple = pe * 1.30 if pe else 20
-                    rationale = "FAIR valuation → modest upside if fundamentals improve"
-            else:
-                # Fallback: use Z-score for price movement prediction
-                if z_score <= -1.5:
-                    # CHEAP: expect 15-35% rebound
-                    conservative_multiple = 1.15
-                    base_multiple = 1.25
-                    aggressive_multiple = 1.35
-                    rationale = "Statistical reversion from oversold 52W lows"
-                elif z_score >= 1.5:
-                    # EXPENSIVE: expect 5-15% pullback
-                    conservative_multiple = 0.95
-                    base_multiple = 0.90
-                    aggressive_multiple = 0.85
-                    rationale = "Statistical pullback from overbought 52W highs"
-                else:
-                    # FAIR: expect 5-20% growth
-                    conservative_multiple = 1.05
-                    base_multiple = 1.12
-                    aggressive_multiple = 1.20
-                    rationale = "Range-bound with upside if earnings accelerate"
+            # Determine fair P/E based on regime
+            # Most sectors: 15-18 fair P/E. Tech/Growth: 20-28 fair P/E
+            if regime == "🟢 CHEAP":
+                # Undervalued: use 80-90% of historical avg or 1.2x market avg
+                fair_pe_conservative = pe * 1.05 if pe else 18  # Slight expansion
+                fair_pe_base = pe * 1.20 if pe else 22
+                fair_pe_aggressive = pe * 1.40 if pe else 28
+                rationale = "CHEAP valuation → reversion to mean. Price likely to expand toward fair value."
+                
+            elif regime == "🔴 EXPENSIVE":
+                # Overvalued: compression toward fair value
+                # Use 70-85% of current P/E as targets (pullback expected)
+                fair_pe_conservative = pe * 0.75 if pe else 16  # Significant compression
+                fair_pe_base = pe * 0.85 if pe else 20
+                fair_pe_aggressive = pe * 0.95 if pe else 24
+                rationale = "EXPENSIVE valuation → compression toward fair value or hold premium if fundamentals justify."
+                
+            else:  # FAIR
+                # Fair: slight upside on fundamentals
+                fair_pe_conservative = pe * 0.98 if pe else 16
+                fair_pe_base = pe * 1.05 if pe else 18
+                fair_pe_aggressive = pe * 1.15 if pe else 22
+                rationale = "FAIR valuation → balanced risk/reward. Upside if earnings growth accelerates."
             
-            # Calculate targets
-            targets["conservative"] = price * conservative_multiple
-            targets["base"] = price * base_multiple
-            targets["aggressive"] = price * aggressive_multiple
+            # Calculate targets from fair P/E × current EPS
+            if eps and eps > 0:
+                targets["conservative"] = fair_pe_conservative * eps
+                targets["base"] = fair_pe_base * eps
+                targets["aggressive"] = fair_pe_aggressive * eps
+            else:
+                # Fallback: use price movement percentages if no EPS
+                if z_score <= -1.5:
+                    # CHEAP: 15-35% upside
+                    targets["conservative"] = price * 1.15
+                    targets["base"] = price * 1.25
+                    targets["aggressive"] = price * 1.35
+                    rationale = "Statistical reversion from oversold. Expect 15-35% recovery."
+                elif z_score >= 1.5:
+                    # EXPENSIVE: 5-15% downside
+                    targets["conservative"] = price * 0.95
+                    targets["base"] = price * 0.90
+                    targets["aggressive"] = price * 0.85
+                    rationale = "Statistical pullback from overbought. Expect 5-15% correction."
+                else:
+                    # FAIR: 5-20% upside
+                    targets["conservative"] = price * 1.05
+                    targets["base"] = price * 1.12
+                    targets["aggressive"] = price * 1.20
+                    rationale = "Range-bound trading. Modest upside expected."
+            
             targets["rationale"] = rationale
             
             return targets
