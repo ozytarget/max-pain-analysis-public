@@ -7228,6 +7228,59 @@ def main():
         .metric-tooltip:hover .tooltip-text {
             visibility: visible;
         }
+        
+        .metric-container {
+            position: relative;
+            padding-top: 10px;
+        }
+        
+        .metric-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            position: relative;
+            width: fit-content;
+        }
+        
+        .tooltip-hover {
+            position: relative;
+            cursor: help;
+            color: #60A5FA;
+            font-weight: bold;
+            display: inline-block;
+        }
+        
+        .tooltip-hover:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: -120px;
+            width: 250px;
+            background-color: #1E3A8A;
+            color: #E0E7FF;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 2px solid #3B82F6;
+            font-size: 12px;
+            font-weight: normal;
+            white-space: normal;
+            line-height: 1.4;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        
+        .tooltip-hover:hover::before {
+            content: "";
+            position: absolute;
+            bottom: 120%;
+            left: calc(-120px + 125px);
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #3B82F6;
+            z-index: 1001;
+        }
         </style>
         """, unsafe_allow_html=True)
 
@@ -7331,6 +7384,16 @@ def main():
             """
             st.html(html) if hasattr(st, 'html') else st.markdown(html, unsafe_allow_html=True)
             st.metric(label, value, delta=delta)
+        
+        def metric_label_with_tooltip(label, tooltip_text):
+            """Create a metric label with tooltip that actually shows on hover"""
+            html = f"""
+            <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 5px;">
+                <span style="font-weight: bold; color: #94A3B8;">{label}</span>
+                <span class="tooltip-hover" data-tooltip="{tooltip_text}" title="{tooltip_text}">ℹ️</span>
+            </div>
+            """
+            return html
         
         @st.cache_data(ttl=600)
         def fetch_stock_data(ticker, period="1y"):
@@ -7506,53 +7569,58 @@ def main():
                             st.markdown("### 🎯 Price Targets")
                             st.caption("Calculated using: **Formula = Fair P/E × Current EPS** | Adjusted for valuation regime")
                             
-                            # Show calculation basis
+                            # Show calculation basis with tooltips
+                            st.markdown("""
+                            <div style="background-color: rgba(59, 130, 246, 0.1); border-left: 4px solid #3B82F6; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px;">
+                                <span style="color: #60A5FA; font-weight: bold;">📊 Calculation Inputs:</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
                             col_calc1, col_calc2, col_calc3, col_calc4 = st.columns(4)
                             with col_calc1:
-                                st.metric("Current P/E", fmt(pe, 1) if pe else "N/A",
-                                         help="Current market P/E ratio. Used as baseline for fair value estimation.")
+                                st.markdown(metric_label_with_tooltip("Current P/E", "Current market P/E ratio. Used as baseline for fair value estimation."), unsafe_allow_html=True)
+                                st.metric("", fmt(pe, 1) if pe else "N/A")
                             with col_calc2:
+                                st.markdown(metric_label_with_tooltip("Current EPS", "Earnings Per Share (last 12 months). Multiplied by target P/E to get price target."), unsafe_allow_html=True)
                                 eps_val = eps if eps else 0
-                                st.metric("Current EPS", f"${fmt(eps_val, 2)}",
-                                         help="Earnings Per Share (last 12 months). Multiplied by target P/E to get price target.")
+                                st.metric("", f"${fmt(eps_val, 2)}")
                             with col_calc3:
-                                st.metric("Volatility", f"{fmt(vol, 1)}%",
-                                         help="Historical volatility. Higher vol = wider target range for conservative/aggressive.")
+                                st.markdown(metric_label_with_tooltip("Volatility", "Historical volatility. Higher vol = wider target range for conservative/aggressive."), unsafe_allow_html=True)
+                                st.metric("", f"{fmt(vol, 1)}%")
                             with col_calc4:
-                                st.metric("Regime", regime,
-                                         help="Valuation regime determines P/E compression/expansion factors.")
+                                st.markdown(metric_label_with_tooltip("Regime", "Valuation regime determines P/E compression/expansion factors."), unsafe_allow_html=True)
+                                st.metric("", regime)
                             
                             st.markdown("---")
                             
                             # Price targets with detailed breakdown
+                            st.markdown("""
+                            <div style="background-color: rgba(34, 197, 94, 0.1); border-left: 4px solid #22C55E; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px;">
+                                <span style="color: #86EFAC; font-weight: bold;">🎯 Price Targets:</span>
+                            </div>
+                            """, unsafe_allow_html=True)
                             col_t1, col_t2, col_t3 = st.columns(3)
                             
                             with col_t1:
                                 conservative_change = ((targets["conservative"] - price) / price * 100) if price > 0 else 0
                                 conservative_pe = (targets["conservative"] / eps) if eps and eps > 0 else 0
-                                st.metric("📉 Conservative Target", 
-                                         f"${fmt(targets['conservative'], 2)}", 
-                                         delta=f"{fmt(conservative_change, 1)}%",
-                                         delta_color="off",
-                                         help=f"P/E: {fmt(conservative_pe, 1)}× | Assumes {fmt((pe*0.75 - pe)/pe*100, 0)}% P/E compression. Most bearish case.")
+                                conservative_tooltip = f"P/E: {fmt(conservative_pe, 1)}× | Assumes {fmt((pe*0.75 - pe)/pe*100, 0)}% P/E compression. Most bearish case."
+                                st.markdown(metric_label_with_tooltip("📉 Conservative Target", conservative_tooltip), unsafe_allow_html=True)
+                                st.metric("", f"${fmt(targets['conservative'], 2)}", delta=f"{fmt(conservative_change, 1)}%")
                             
                             with col_t2:
                                 base_change = ((targets["base"] - price) / price * 100) if price > 0 else 0
                                 base_pe = (targets["base"] / eps) if eps and eps > 0 else 0
-                                st.metric("📊 Base Case Target", 
-                                         f"${fmt(targets['base'], 2)}", 
-                                         delta=f"{fmt(base_change, 1)}%",
-                                         delta_color="normal" if base_change > 0 else "inverse",
-                                         help=f"P/E: {fmt(base_pe, 1)}× | Most probable scenario. Fair value estimate.")
+                                base_tooltip = f"P/E: {fmt(base_pe, 1)}× | Most probable scenario. Fair value estimate."
+                                st.markdown(metric_label_with_tooltip("📊 Base Case Target", base_tooltip), unsafe_allow_html=True)
+                                st.metric("", f"${fmt(targets['base'], 2)}", delta=f"{fmt(base_change, 1)}%")
                             
                             with col_t3:
                                 aggressive_change = ((targets["aggressive"] - price) / price * 100) if price > 0 else 0
                                 aggressive_pe = (targets["aggressive"] / eps) if eps and eps > 0 else 0
-                                st.metric("🚀 Aggressive Target", 
-                                         f"${fmt(targets['aggressive'], 2)}", 
-                                         delta=f"{fmt(aggressive_change, 1)}%",
-                                         delta_color="normal",
-                                         help=f"P/E: {fmt(aggressive_pe, 1)}× | Bull case. Most optimistic scenario.")
+                                aggressive_tooltip = f"P/E: {fmt(aggressive_pe, 1)}× | Bull case. Most optimistic scenario."
+                                st.markdown(metric_label_with_tooltip("🚀 Aggressive Target", aggressive_tooltip), unsafe_allow_html=True)
+                                st.metric("", f"${fmt(targets['aggressive'], 2)}", delta=f"{fmt(aggressive_change, 1)}%")
                             
                             st.markdown("---")
                             
