@@ -7178,7 +7178,7 @@ def main():
 
     # Tab 8: US Equity Metrics Z-Score Dashboard
     with tab8:
-        st.subheader("📊 US Equity Metrics Z-Score Dashboard")
+        st.subheader("📊 US Equity Metrics Dashboard")
         
 
         # Helper Functions
