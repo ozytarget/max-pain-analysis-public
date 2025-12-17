@@ -236,7 +236,14 @@ if not st.session_state["authenticated"]:
     st.session_state["current_user"] = "ozytarget"
     token = "auto_session"
     st.session_state["session_token"] = token
-    st.query_params["session_token"] = token
+    # Try to set query params if available (Streamlit 1.18+)
+    try:
+        if hasattr(st, 'query_params'):
+            st.query_params["session_token"] = token
+        elif hasattr(st, 'experimental_set_query_params'):
+            st.experimental_set_query_params(session_token=token)
+    except:
+        pass  # Query params not available or failed
 
 # Optimized introductory animation (same format, faster duration)
 if not st.session_state["intro_shown"]:
