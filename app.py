@@ -7182,6 +7182,56 @@ def main():
     with tab8:
         st.subheader("📊 US Equity Metrics Z-Score Dashboard")
         
+        # Tooltip Styles
+        st.markdown("""
+        <style>
+        .metric-tooltip {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            cursor: help;
+        }
+        .tooltip-icon {
+            margin-left: 5px;
+            color: #60A5FA;
+            font-size: 12px;
+        }
+        .tooltip-text {
+            visibility: hidden;
+            width: 250px;
+            background-color: #1E3A8A;
+            color: #E0E7FF;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px 10px;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 0;
+            margin-left: -120px;
+            font-size: 12px;
+            border: 2px solid #3B82F6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            white-space: normal;
+            line-height: 1.4;
+        }
+        .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #3B82F6 transparent transparent transparent;
+        }
+        .metric-tooltip:hover .tooltip-text {
+            visibility: visible;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        
         # Helper Functions
         def fmt(x, nd=2):
             """Format number, handling NaN/inf gracefully"""
@@ -7199,6 +7249,83 @@ def main():
                 return "🔴 EXPENSIVE"
             else:
                 return "🟡 FAIR"
+        
+        def calculate_price_targets(metrics, price, z_score, regime):
+            """Calculate price targets based on valuation metrics"""
+            if not metrics or price <= 0:
+                return {"conservative": None, "base": None, "aggressive": None, "rationale": ""}
+            
+            targets = {}
+            
+            # Get metrics
+            pe = metrics.get("pe_ratio")
+            eps = metrics.get("eps")
+            roe = metrics.get("roe")
+            debt_equity = metrics.get("debt_to_equity")
+            vol = metrics.get("volatility_historical", 0)
+            
+            # Base calculation from EPS if available
+            if eps and eps > 0:
+                # Different target multiples based on regime
+                if regime == "🟢 CHEAP":
+                    conservative_multiple = pe * 1.15 if pe else 15  # Slight multiple expansion
+                    base_multiple = pe * 1.35 if pe else 18
+                    aggressive_multiple = pe * 1.65 if pe else 22
+                    rationale = "CHEAP valuation → price likely to expand toward market avg"
+                    
+                elif regime == "🔴 EXPENSIVE":
+                    conservative_multiple = pe * 0.80 if pe else 12  # Multiple compression
+                    base_multiple = pe * 0.90 if pe else 14
+                    aggressive_multiple = pe * 1.0 if pe else 16
+                    rationale = "EXPENSIVE valuation → targets assume normalization or maintain premium"
+                    
+                else:  # FAIR
+                    conservative_multiple = pe * 0.95 if pe else 14
+                    base_multiple = pe * 1.10 if pe else 16
+                    aggressive_multiple = pe * 1.30 if pe else 20
+                    rationale = "FAIR valuation → modest upside if fundamentals improve"
+            else:
+                # Fallback: use Z-score for price movement prediction
+                if z_score <= -1.5:
+                    # CHEAP: expect 15-35% rebound
+                    conservative_multiple = 1.15
+                    base_multiple = 1.25
+                    aggressive_multiple = 1.35
+                    rationale = "Statistical reversion from oversold 52W lows"
+                elif z_score >= 1.5:
+                    # EXPENSIVE: expect 5-15% pullback
+                    conservative_multiple = 0.95
+                    base_multiple = 0.90
+                    aggressive_multiple = 0.85
+                    rationale = "Statistical pullback from overbought 52W highs"
+                else:
+                    # FAIR: expect 5-20% growth
+                    conservative_multiple = 1.05
+                    base_multiple = 1.12
+                    aggressive_multiple = 1.20
+                    rationale = "Range-bound with upside if earnings accelerate"
+            
+            # Calculate targets
+            targets["conservative"] = price * conservative_multiple
+            targets["base"] = price * base_multiple
+            targets["aggressive"] = price * aggressive_multiple
+            targets["rationale"] = rationale
+            
+            return targets
+        
+        def metric_with_tooltip(label, value, tooltip_text, delta=None):
+            """Render metric with HTML tooltip on hover"""
+            html = f"""
+            <div style="position: relative; display: inline-block; width: 100%;">
+                <div class="metric-tooltip">
+                    {label}
+                    <span class="tooltip-icon">ℹ️</span>
+                    <div class="tooltip-text">{tooltip_text}</div>
+                </div>
+            </div>
+            """
+            st.html(html) if hasattr(st, 'html') else st.markdown(html, unsafe_allow_html=True)
+            st.metric(label, value, delta=delta)
         
         @st.cache_data(ttl=600)
         def fetch_stock_data(ticker, period="1y"):
@@ -7348,6 +7475,9 @@ def main():
                         avg_volume = metrics.get("avg_volume", 0)
                         eps = metrics.get("eps")
                         
+                        # Calculate price targets
+                        targets = calculate_price_targets(metrics, price, z_score, regime)
+                        
                         # Rich Company Card - NATIVE STREAMLIT VERSION
                         st.markdown(f"""
                         <div style="background: linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%); 
@@ -7366,67 +7496,115 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
                         
+                        # PRICE TARGETS SECTION
+                        if targets["conservative"] is not None:
+                            st.markdown("### 🎯 Price Targets")
+                            
+                            col_t1, col_t2, col_t3 = st.columns(3)
+                            with col_t1:
+                                conservative_change = ((targets["conservative"] - price) / price * 100) if price > 0 else 0
+                                st.metric("📉 Conservative", 
+                                         f"${fmt(targets['conservative'], 2)}", 
+                                         delta=f"{fmt(conservative_change, 1)}%",
+                                         delta_color="off")
+                            with col_t2:
+                                base_change = ((targets["base"] - price) / price * 100) if price > 0 else 0
+                                st.metric("📊 Base Case", 
+                                         f"${fmt(targets['base'], 2)}", 
+                                         delta=f"{fmt(base_change, 1)}%",
+                                         delta_color="normal" if base_change > 0 else "inverse")
+                            with col_t3:
+                                aggressive_change = ((targets["aggressive"] - price) / price * 100) if price > 0 else 0
+                                st.metric("🚀 Aggressive", 
+                                         f"${fmt(targets['aggressive'], 2)}", 
+                                         delta=f"{fmt(aggressive_change, 1)}%",
+                                         delta_color="normal")
+                            
+                            # Rationale box
+                            st.info(f"💡 **Reasoning:** {targets['rationale']} | **EPS:** ${fmt(eps, 2) if eps else 'N/A'} | **Shares in Circulation:** ~{fmt(market_cap/price if price > 0 else 0, 0)}M")
+                        
+                        st.divider()
+                        
                         # ROW 1: VALUATION RATIOS
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
                             st.metric("P/E Ratio", fmt(pe, 1) if pe else "N/A", 
-                                     delta=f"FWD: {fmt(forward_pe, 1)}" if forward_pe else None)
+                                     delta=f"FWD: {fmt(forward_pe, 1)}" if forward_pe else None,
+                                     help="Price-to-Earnings: Trailing P/E is current price / last 12 months EPS. Lower = potentially undervalued.")
                         with col2:
-                            st.metric("P/B Ratio", fmt(pb, 1) if pb else "N/A")
+                            st.metric("P/B Ratio", fmt(pb, 1) if pb else "N/A",
+                                     help="Price-to-Book: Stock price vs book value per share. Lower = better value.")
                         with col3:
-                            st.metric("P/S Ratio", fmt(ps, 1) if ps else "N/A")
+                            st.metric("P/S Ratio", fmt(ps, 1) if ps else "N/A",
+                                     help="Price-to-Sales: Market cap vs total revenue. Harder to manipulate than P/E.")
                         with col4:
-                            st.metric("Div Yield", f"{fmt(div_yield * 100 if div_yield else 0, 2)}%")
+                            st.metric("Div Yield", f"{fmt(div_yield * 100 if div_yield else 0, 2)}%",
+                                     help="Annual dividend as % of stock price. Higher = more income, but check payout ratio.")
                         
                         st.divider()
                         
                         # ROW 2: RISK & MOMENTUM
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
-                            st.metric("Beta", fmt(beta, 2) if beta else "N/A")
+                            st.metric("Beta", fmt(beta, 2) if beta else "N/A",
+                                     help="Beta > 1 = more volatile than market. Beta < 1 = less volatile.")
                         with col2:
-                            st.metric("Volatility", f"{fmt(vol, 1)}%")
+                            st.metric("Volatility", f"{fmt(vol, 1)}%",
+                                     help="Annualized historical volatility. Higher = more price swings = higher risk/reward.")
                         with col3:
-                            st.metric("Z-Score (200D)", fmt(z_score, 2))
+                            st.metric("Z-Score (200D)", fmt(z_score, 2),
+                                     help="Z-Score from 200-day moving average. ±2 = 95% of price action occurs here.")
                         with col4:
-                            st.metric("Valuation", regime)
+                            st.metric("Valuation", regime,
+                                     help="CHEAP: Z<-1.5 | FAIR: -1.5<Z<1.5 | EXPENSIVE: Z>1.5")
                         
                         st.divider()
                         
                         # ROW 3: PROFITABILITY
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
-                            st.metric("ROE", f"{fmt(roe * 100 if roe else 0, 1)}%")
+                            st.metric("ROE", f"{fmt(roe * 100 if roe else 0, 1)}%",
+                                     help="Return on Equity: Net income / shareholders equity. Higher = management uses capital efficiently.")
                         with col2:
-                            st.metric("Profit Margin", f"{fmt(profit_margin * 100 if profit_margin else 0, 1)}%")
+                            st.metric("Profit Margin", f"{fmt(profit_margin * 100 if profit_margin else 0, 1)}%",
+                                     help="Net income / revenue. % of each sales dollar that becomes profit. Higher = better.")
                         with col3:
-                            st.metric("Debt/Equity", fmt(debt_equity, 2) if debt_equity else "N/A")
+                            st.metric("Debt/Equity", fmt(debt_equity, 2) if debt_equity else "N/A",
+                                     help="Total debt / shareholders equity. Lower = less financial risk. >2 = highly leveraged.")
                         with col4:
-                            st.metric("Current Ratio", fmt(current_ratio, 2) if current_ratio else "N/A")
+                            st.metric("Current Ratio", fmt(current_ratio, 2) if current_ratio else "N/A",
+                                     help="Current assets / current liabilities. >1.5 = good liquidity. <1 = potential solvency risk.")
                         
                         st.divider()
                         
                         # ROW 4: PRICE METRICS
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
-                            st.metric("52W High", f"${fmt(metrics.get('price_52w_high', 0), 2)}")
+                            st.metric("52W High", f"${fmt(metrics.get('price_52w_high', 0), 2)}",
+                                     help="Highest price in last 52 weeks. Price near high = potential resistance.")
                         with col2:
-                            st.metric("Current Price", f"${fmt(price, 2)}")
+                            st.metric("Current Price", f"${fmt(price, 2)}",
+                                     help="Last trading price. Real-time updates may be delayed.")
                         with col3:
-                            st.metric("52W Low", f"${fmt(metrics.get('price_52w_low', 0), 2)}")
+                            st.metric("52W Low", f"${fmt(metrics.get('price_52w_low', 0), 2)}",
+                                     help="Lowest price in last 52 weeks. Support level. Price near low = potential bargain.")
                         with col4:
-                            st.metric("52W Position", f"{fmt(pe_pct, 1)}%")
+                            st.metric("52W Position", f"{fmt(pe_pct, 1)}%",
+                                     help="% distance from 52W low to high. 0% = at low, 100% = at high.")
                         
                         st.divider()
                         
                         # ROW 5: MARKET DATA
                         col1, col2, col3 = st.columns(3)
                         with col1:
-                            st.metric("Market Cap", f"${fmt(market_cap/1e9, 1)}B")
+                            st.metric("Market Cap", f"${fmt(market_cap/1e9, 1)}B",
+                                     help="Stock price × shares outstanding. Mega cap >200B | Large >10B | Mid 2-10B | Small <2B")
                         with col2:
-                            st.metric("Avg Volume (20D)", f"{fmt(avg_volume/1e6, 1)}M")
+                            st.metric("Avg Volume (20D)", f"{fmt(avg_volume/1e6, 1)}M",
+                                     help="Average daily trading volume. Higher = more liquid = easier to trade.")
                         with col3:
-                            st.metric("EPS", f"${fmt(eps, 2)}" if eps else "N/A")
+                            st.metric("EPS", f"${fmt(eps, 2)}" if eps else "N/A",
+                                     help="Earnings Per Share. Company net income / shares outstanding. Growing EPS = bullish.")
                         
                         # Tabs for detailed info
                         tab_metrics, tab_export = st.tabs(["📊 Metrics", "📥 Export"])
