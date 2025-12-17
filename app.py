@@ -7251,21 +7251,43 @@ def main():
             # Get additional info from yfinance
             info = get_stock_info(ticker)
             if info:
-                metrics["pe_ratio"] = info.get("trailingPE")
-                metrics["pb_ratio"] = info.get("priceToBook")
-                metrics["ps_ratio"] = info.get("priceToSalesTrailing12Months")
-                metrics["dividend_yield"] = info.get("dividendYield")
-                metrics["eps"] = info.get("trailingEps")
-                metrics["market_cap"] = info.get("marketCap")
+                # Safely extract and validate metrics
+                metrics["pe_ratio"] = float(info.get("trailingPE", 0)) if info.get("trailingPE") else None
+                metrics["forward_pe"] = float(info.get("forwardPE", 0)) if info.get("forwardPE") else None
+                metrics["pb_ratio"] = float(info.get("priceToBook", 0)) if info.get("priceToBook") else None
+                metrics["ps_ratio"] = float(info.get("priceToSalesTrailing12Months", 0)) if info.get("priceToSalesTrailing12Months") else None
+                
+                # Dividend yield - yfinance returns as decimal (0.0038 = 0.38%), not percentage
+                div_yield_raw = info.get("dividendYield")
+                if div_yield_raw and isinstance(div_yield_raw, (int, float)):
+                    # If < 1, assume it's in decimal format (0.0038), if > 1, it might already be percentage
+                    metrics["dividend_yield"] = float(div_yield_raw) if div_yield_raw < 1 else float(div_yield_raw) / 100
+                else:
+                    metrics["dividend_yield"] = None
+                
+                metrics["eps"] = float(info.get("trailingEps", 0)) if info.get("trailingEps") else None
+                metrics["market_cap"] = float(info.get("marketCap", 0)) if info.get("marketCap") else None
                 metrics["company_name"] = info.get("longName", ticker)
-                metrics["beta"] = info.get("beta")
-                metrics["revenue"] = info.get("totalRevenue")
-                metrics["profit_margin"] = info.get("profitMargins")
-                metrics["roe"] = info.get("returnOnEquity")
-                metrics["debt_to_equity"] = info.get("debtToEquity")
-                metrics["current_ratio"] = info.get("currentRatio")
-                metrics["52w_change"] = info.get("52WeekChange")
-                metrics["forward_pe"] = info.get("forwardPE")
+                metrics["beta"] = float(info.get("beta", 1.0)) if info.get("beta") else None
+                metrics["revenue"] = float(info.get("totalRevenue", 0)) if info.get("totalRevenue") else None
+                
+                # Profit margin - yfinance returns as decimal (0.269 = 26.9%), not percentage
+                profit_margin_raw = info.get("profitMargins")
+                if profit_margin_raw and isinstance(profit_margin_raw, (int, float)):
+                    metrics["profit_margin"] = float(profit_margin_raw) if profit_margin_raw < 1 else float(profit_margin_raw) / 100
+                else:
+                    metrics["profit_margin"] = None
+                
+                # ROE - yfinance returns as decimal (1.714 = 171.4%), not percentage
+                roe_raw = info.get("returnOnEquity")
+                if roe_raw and isinstance(roe_raw, (int, float)):
+                    metrics["roe"] = float(roe_raw) if roe_raw < 1 else float(roe_raw) / 100
+                else:
+                    metrics["roe"] = None
+                
+                metrics["debt_to_equity"] = float(info.get("debtToEquity", 0)) if info.get("debtToEquity") else None
+                metrics["current_ratio"] = float(info.get("currentRatio", 0)) if info.get("currentRatio") else None
+                metrics["52w_change"] = float(info.get("52WeekChange", 0)) if info.get("52WeekChange") else None
             
             return metrics
         
@@ -7291,24 +7313,25 @@ def main():
                     if metrics:
                         ticker = metrics.get("ticker", "N/A")
                         price = metrics.get("price", 0)
-                        pe = metrics.get("pe_ratio", 0)
-                        pb = metrics.get("pb_ratio", 0)
-                        ps = metrics.get("ps_ratio", 0)
-                        div_yield = metrics.get("dividend_yield", 0)
+                        pe = metrics.get("pe_ratio")
+                        forward_pe = metrics.get("forward_pe")
+                        pb = metrics.get("pb_ratio")
+                        ps = metrics.get("ps_ratio")
+                        div_yield = metrics.get("dividend_yield")
                         vol = metrics.get("volatility_historical", 0)
                         z_score = metrics.get("z_score_price", 0)
                         regime = metrics.get("valuation_regime", "Unknown")
                         market_cap = metrics.get("market_cap", 0)
                         pe_pct = ((price - metrics.get('price_52w_low', 0)) / (metrics.get('price_52w_high', 0) - metrics.get('price_52w_low', 0)) * 100) if metrics.get('price_52w_high', 0) > metrics.get('price_52w_low', 0) else 0
-                        beta = metrics.get("beta", 0)
+                        beta = metrics.get("beta")
                         revenue = metrics.get("revenue", 0)
-                        profit_margin = metrics.get("profit_margin", 0)
-                        roe = metrics.get("roe", 0)
-                        debt_equity = metrics.get("debt_to_equity", 0)
-                        current_ratio = metrics.get("current_ratio", 0)
+                        profit_margin = metrics.get("profit_margin")
+                        roe = metrics.get("roe")
+                        debt_equity = metrics.get("debt_to_equity")
+                        current_ratio = metrics.get("current_ratio")
                         price_1y_change = metrics.get("price_1y_change_pct", 0)
                         avg_volume = metrics.get("avg_volume", 0)
-                        forward_pe = metrics.get("forward_pe", 0)
+                        eps = metrics.get("eps")
                         
                         # Rich Company Card - ENHANCED
                         st.markdown(f"""
@@ -7330,17 +7353,17 @@ def main():
                             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
                                 <div style="background: rgba(74, 222, 128, 0.1); border-left: 4px solid #4ADE80; padding: 12px; border-radius: 8px;">
                                     <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/E Ratio</small>
-                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pe, 1)}</p>
-                                    <small style="color: #64748B; font-size: 10px;">FWD: {fmt(forward_pe, 1)}</small>
+                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pe, 1) if pe else "N/A"}</p>
+                                    <small style="color: #64748B; font-size: 10px;">FWD: {fmt(forward_pe, 1) if forward_pe else "N/A"}</small>
                                 </div>
                                 <div style="background: rgba(96, 165, 250, 0.1); border-left: 4px solid #60A5FA; padding: 12px; border-radius: 8px;">
                                     <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/B Ratio</small>
-                                    <p style="color: #60A5FA; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pb, 1)}</p>
+                                    <p style="color: #60A5FA; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pb, 1) if pb else "N/A"}</p>
                                     <small style="color: #64748B; font-size: 10px;">Price to Book</small>
                                 </div>
                                 <div style="background: rgba(251, 191, 36, 0.1); border-left: 4px solid #FBBF24; padding: 12px; border-radius: 8px;">
                                     <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/S Ratio</small>
-                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold; margin: 0;">{fmt(ps, 1)}</p>
+                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold; margin: 0;">{fmt(ps, 1) if ps else "N/A"}</p>
                                     <small style="color: #64748B; font-size: 10px;">Price to Sales</small>
                                 </div>
                                 <div style="background: rgba(139, 92, 246, 0.1); border-left: 4px solid #8B5CF6; padding: 12px; border-radius: 8px;">
@@ -7354,7 +7377,7 @@ def main():
                             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
                                 <div style="background: rgba(255, 107, 107, 0.1); border-left: 4px solid #FF6B6B; padding: 12px; border-radius: 8px;">
                                     <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Beta</small>
-                                    <p style="color: #FF6B6B; font-size: 18px; font-weight: bold; margin: 0;">{fmt(beta, 2)}</p>
+                                    <p style="color: #FF6B6B; font-size: 18px; font-weight: bold; margin: 0;">{fmt(beta, 2) if beta else "N/A"}</p>
                                     <small style="color: #64748B; font-size: 10px;">Market Volatility</small>
                                 </div>
                                 <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #F59E0B; padding: 12px; border-radius: 8px;">
@@ -7388,12 +7411,12 @@ def main():
                                 </div>
                                 <div style="background: rgba(107, 114, 128, 0.1); border-left: 4px solid #6B7280; padding: 12px; border-radius: 8px;">
                                     <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Debt/Equity</small>
-                                    <p style="color: #6B7280; font-size: 18px; font-weight: bold; margin: 0;">{fmt(debt_equity, 2)}</p>
+                                    <p style="color: #6B7280; font-size: 18px; font-weight: bold; margin: 0;">{fmt(debt_equity, 2) if debt_equity else "N/A"}</p>
                                     <small style="color: #64748B; font-size: 10px;">Leverage Ratio</small>
                                 </div>
                                 <div style="background: rgba(34, 211, 238, 0.1); border-left: 4px solid #22D3EE; padding: 12px; border-radius: 8px;">
                                     <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Current Ratio</small>
-                                    <p style="color: #22D3EE; font-size: 18px; font-weight: bold; margin: 0;">{fmt(current_ratio, 2)}</p>
+                                    <p style="color: #22D3EE; font-size: 18px; font-weight: bold; margin: 0;">{fmt(current_ratio, 2) if current_ratio else "N/A"}</p>
                                     <small style="color: #64748B; font-size: 10px;">Liquidity</small>
                                 </div>
                             </div>
@@ -7432,7 +7455,7 @@ def main():
                                 </div>
                                 <div style="background: rgba(236, 72, 153, 0.1); border-left: 4px solid #EC4899; padding: 12px; border-radius: 8px;">
                                     <small style="color: #94A3B8; display: block; margin-bottom: 5px;">EPS</small>
-                                    <p style="color: #EC4899; font-size: 16px; font-weight: bold; margin: 0;">${fmt(metrics.get('eps', 0), 2)}</p>
+                                    <p style="color: #EC4899; font-size: 16px; font-weight: bold; margin: 0;">${fmt(eps, 2) if eps else "N/A"}</p>
                                     <small style="color: #64748B; font-size: 10px;">Earnings Per Share</small>
                                 </div>
                             </div>
