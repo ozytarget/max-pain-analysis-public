@@ -7341,10 +7341,10 @@ def main():
                         avg_volume = metrics.get("avg_volume", 0)
                         eps = metrics.get("eps")
                         
-                        # Rich Company Card - ENHANCED
+                        # Rich Company Card - NATIVE STREAMLIT VERSION
                         st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%); border: 3px solid #3B82F6; border-radius: 16px; padding: 30px; margin: 20px 0;">
-                            <!-- HEADER CON NOMBRE Y PRECIO -->
+                        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%); 
+                                    border: 3px solid #3B82F6; border-radius: 16px; padding: 30px; margin: 20px 0;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
                                 <div>
                                     <h2 style="color: #60A5FA; margin: 0; font-size: 32px;">{ticker}</h2>
@@ -7356,119 +7356,70 @@ def main():
                                     <p style="color: #94A3B8; margin-top: 2px; font-size: 11px;">Updated: {metrics.get('date')}</p>
                                 </div>
                             </div>
-                            
-                            <!-- ROW 1: VALUATION RATIOS -->
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
-                                <div style="background: rgba(74, 222, 128, 0.1); border-left: 4px solid #4ADE80; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/E Ratio</small>
-                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pe, 1) if pe else "N/A"}</p>
-                                    <small style="color: #64748B; font-size: 10px;">FWD: {fmt(forward_pe, 1) if forward_pe else "N/A"}</small>
-                                </div>
-                                <div style="background: rgba(96, 165, 250, 0.1); border-left: 4px solid #60A5FA; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/B Ratio</small>
-                                    <p style="color: #60A5FA; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pb, 1) if pb else "N/A"}</p>
-                                    <small style="color: #64748B; font-size: 10px;">Price to Book</small>
-                                </div>
-                                <div style="background: rgba(251, 191, 36, 0.1); border-left: 4px solid #FBBF24; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">P/S Ratio</small>
-                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold; margin: 0;">{fmt(ps, 1) if ps else "N/A"}</p>
-                                    <small style="color: #64748B; font-size: 10px;">Price to Sales</small>
-                                </div>
-                                <div style="background: rgba(139, 92, 246, 0.1); border-left: 4px solid #8B5CF6; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Div Yield</small>
-                                    <p style="color: #8B5CF6; font-size: 18px; font-weight: bold; margin: 0;">{fmt(div_yield * 100 if div_yield else 0, 2)}%</p>
-                                    <small style="color: #64748B; font-size: 10px;">Dividend</small>
-                                </div>
-                            </div>
-                            
-                            <!-- ROW 2: RISK & MOMENTUM METRICS -->
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
-                                <div style="background: rgba(255, 107, 107, 0.1); border-left: 4px solid #FF6B6B; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Beta</small>
-                                    <p style="color: #FF6B6B; font-size: 18px; font-weight: bold; margin: 0;">{fmt(beta, 2) if beta else "N/A"}</p>
-                                    <small style="color: #64748B; font-size: 10px;">Market Volatility</small>
-                                </div>
-                                <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #F59E0B; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Volatility (Annual)</small>
-                                    <p style="color: #F59E0B; font-size: 18px; font-weight: bold; margin: 0;">{fmt(vol, 1)}%</p>
-                                    <small style="color: #64748B; font-size: 10px;">Historical Vol</small>
-                                </div>
-                                <div style="background: rgba(168, 85, 247, 0.1); border-left: 4px solid #A855F7; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Z-Score (200D)</small>
-                                    <p style="color: #A855F7; font-size: 18px; font-weight: bold; margin: 0;">{fmt(z_score, 2)}</p>
-                                    <small style="color: #64748B; font-size: 10px;">Std Deviations</small>
-                                </div>
-                                <div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid #22C55E; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Valuation</small>
-                                    <p style="font-size: 14px; font-weight: bold; margin: 0;">{regime}</p>
-                                    <small style="color: #64748B; font-size: 10px;">Z-Score regime</small>
-                                </div>
-                            </div>
-                            
-                            <!-- ROW 3: PROFITABILITY & BALANCE SHEET -->
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
-                                <div style="background: rgba(29, 185, 84, 0.1); border-left: 4px solid #1DB954; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">ROE</small>
-                                    <p style="color: #1DB954; font-size: 18px; font-weight: bold; margin: 0;">{fmt(roe * 100 if roe else 0, 1)}%</p>
-                                    <small style="color: #64748B; font-size: 10px;">Return on Equity</small>
-                                </div>
-                                <div style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3B82F6; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Profit Margin</small>
-                                    <p style="color: #3B82F6; font-size: 18px; font-weight: bold; margin: 0;">{fmt(profit_margin * 100 if profit_margin else 0, 1)}%</p>
-                                    <small style="color: #64748B; font-size: 10px;">Net Profit Margin</small>
-                                </div>
-                                <div style="background: rgba(107, 114, 128, 0.1); border-left: 4px solid #6B7280; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Debt/Equity</small>
-                                    <p style="color: #6B7280; font-size: 18px; font-weight: bold; margin: 0;">{fmt(debt_equity, 2) if debt_equity else "N/A"}</p>
-                                    <small style="color: #64748B; font-size: 10px;">Leverage Ratio</small>
-                                </div>
-                                <div style="background: rgba(34, 211, 238, 0.1); border-left: 4px solid #22D3EE; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Current Ratio</small>
-                                    <p style="color: #22D3EE; font-size: 18px; font-weight: bold; margin: 0;">{fmt(current_ratio, 2) if current_ratio else "N/A"}</p>
-                                    <small style="color: #64748B; font-size: 10px;">Liquidity</small>
-                                </div>
-                            </div>
-                            
-                            <!-- ROW 4: PRICE & VOLUME METRICS -->
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 15px;">
-                                <div style="background: rgba(34, 197, 94, 0.15); padding: 12px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">52W High</small>
-                                    <p style="color: #4ADE80; font-size: 16px; font-weight: bold; margin: 0;">${fmt(metrics.get('price_52w_high', 0), 2)}</p>
-                                </div>
-                                <div style="background: rgba(251, 191, 36, 0.15); padding: 12px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Current Price</small>
-                                    <p style="color: #FBBF24; font-size: 16px; font-weight: bold; margin: 0;">${fmt(price, 2)}</p>
-                                </div>
-                                <div style="background: rgba(248, 113, 113, 0.15); padding: 12px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">52W Low</small>
-                                    <p style="color: #F87171; font-size: 16px; font-weight: bold; margin: 0;">${fmt(metrics.get('price_52w_low', 0), 2)}</p>
-                                </div>
-                                <div style="background: rgba(168, 85, 247, 0.15); padding: 12px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">52W Position %</small>
-                                    <p style="color: #D8B4FE; font-size: 16px; font-weight: bold; margin: 0;">{fmt(pe_pct, 1)}%</p>
-                                </div>
-                            </div>
-                            
-                            <!-- ROW 5: MARKET CAP & VOLUME -->
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
-                                <div style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3B82F6; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Market Cap</small>
-                                    <p style="color: #3B82F6; font-size: 16px; font-weight: bold; margin: 0;">${fmt(market_cap/1e9, 1)}B</p>
-                                    <small style="color: #64748B; font-size: 10px;">Billion USD</small>
-                                </div>
-                                <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #F59E0B; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">Avg Volume (20D)</small>
-                                    <p style="color: #F59E0B; font-size: 16px; font-weight: bold; margin: 0;">{fmt(avg_volume/1e6, 1)}M</p>
-                                    <small style="color: #64748B; font-size: 10px;">Million shares</small>
-                                </div>
-                                <div style="background: rgba(236, 72, 153, 0.1); border-left: 4px solid #EC4899; padding: 12px; border-radius: 8px;">
-                                    <small style="color: #94A3B8; display: block; margin-bottom: 5px;">EPS</small>
-                                    <p style="color: #EC4899; font-size: 16px; font-weight: bold; margin: 0;">${fmt(eps, 2) if eps else "N/A"}</p>
-                                    <small style="color: #64748B; font-size: 10px;">Earnings Per Share</small>
-                                </div>
-                            </div>
                         </div>
                         """, unsafe_allow_html=True)
+                        
+                        # ROW 1: VALUATION RATIOS
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("P/E Ratio", fmt(pe, 1) if pe else "N/A", 
+                                     delta=f"FWD: {fmt(forward_pe, 1)}" if forward_pe else None)
+                        with col2:
+                            st.metric("P/B Ratio", fmt(pb, 1) if pb else "N/A")
+                        with col3:
+                            st.metric("P/S Ratio", fmt(ps, 1) if ps else "N/A")
+                        with col4:
+                            st.metric("Div Yield", f"{fmt(div_yield * 100 if div_yield else 0, 2)}%")
+                        
+                        st.divider()
+                        
+                        # ROW 2: RISK & MOMENTUM
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Beta", fmt(beta, 2) if beta else "N/A")
+                        with col2:
+                            st.metric("Volatility", f"{fmt(vol, 1)}%")
+                        with col3:
+                            st.metric("Z-Score (200D)", fmt(z_score, 2))
+                        with col4:
+                            st.metric("Valuation", regime)
+                        
+                        st.divider()
+                        
+                        # ROW 3: PROFITABILITY
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("ROE", f"{fmt(roe * 100 if roe else 0, 1)}%")
+                        with col2:
+                            st.metric("Profit Margin", f"{fmt(profit_margin * 100 if profit_margin else 0, 1)}%")
+                        with col3:
+                            st.metric("Debt/Equity", fmt(debt_equity, 2) if debt_equity else "N/A")
+                        with col4:
+                            st.metric("Current Ratio", fmt(current_ratio, 2) if current_ratio else "N/A")
+                        
+                        st.divider()
+                        
+                        # ROW 4: PRICE METRICS
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("52W High", f"${fmt(metrics.get('price_52w_high', 0), 2)}")
+                        with col2:
+                            st.metric("Current Price", f"${fmt(price, 2)}")
+                        with col3:
+                            st.metric("52W Low", f"${fmt(metrics.get('price_52w_low', 0), 2)}")
+                        with col4:
+                            st.metric("52W Position", f"{fmt(pe_pct, 1)}%")
+                        
+                        st.divider()
+                        
+                        # ROW 5: MARKET DATA
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Market Cap", f"${fmt(market_cap/1e9, 1)}B")
+                        with col2:
+                            st.metric("Avg Volume (20D)", f"{fmt(avg_volume/1e6, 1)}M")
+                        with col3:
+                            st.metric("EPS", f"${fmt(eps, 2)}" if eps else "N/A")
                         
                         # Tabs for detailed info
                         tab_charts, tab_metrics, tab_export = st.tabs(["📉 Charts", "📊 Metrics", "📥 Export"])
