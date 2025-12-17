@@ -7249,6 +7249,7 @@ def main():
                 metrics["dividend_yield"] = info.get("dividendYield")
                 metrics["eps"] = info.get("trailingEps")
                 metrics["market_cap"] = info.get("marketCap")
+                metrics["company_name"] = info.get("longName", ticker)
             
             return metrics
         
@@ -7256,123 +7257,108 @@ def main():
         st.sidebar.markdown("### ⚙️ Tab 8 Settings")
         period = st.sidebar.selectbox("Historical Period", ["3mo", "6mo", "1y", "2y", "5y"], index=2)
         
-        # Search box for multiple companies
-        st.markdown("### 🔍 Search Companies")
+        # Single ticker search
+        st.markdown("### 🔍 Company Search")
         col1, col2 = st.columns([3, 1])
         with col1:
-            ticker_input = st.text_input("Enter ticker symbols (comma-separated)", value="AAPL,MSFT,GOOGL", placeholder="AAPL,MSFT,NVDA")
+            ticker_input = st.text_input("Enter ticker symbol", value="AAPL", placeholder="GOOGL, MSFT, NVDA...").upper()
         with col2:
             search_button = st.button("Search", key="search_btn", use_container_width=True)
         
-        # Parse tickers
         if ticker_input:
-            tickers_list = [t.strip().upper() for t in ticker_input.split(",") if t.strip()]
-        else:
-            tickers_list = ["AAPL"]
-        
-        # Display results
-        if tickers_list:
-            results = []
-            for ticker in tickers_list:
-                data = fetch_stock_data(ticker, period=period)
-                if data is not None:
-                    metrics = calculate_valuation_metrics(ticker, data)
-                    if metrics:
-                        results.append(metrics)
-            
-            if results:
-                # Visual Cards Layout
-                st.markdown("### 📊 Company Cards")
-                cols = st.columns(min(3, len(results)))
+            with st.spinner(f"Loading {ticker_input}..."):
+                data = fetch_stock_data(ticker_input, period=period)
                 
-                for idx, metrics in enumerate(results):
-                    with cols[idx % len(cols)]:
-                        # Card Container
+                if data is not None:
+                    metrics = calculate_valuation_metrics(ticker_input, data)
+                    
+                    if metrics:
                         ticker = metrics.get("ticker", "N/A")
                         price = metrics.get("price", 0)
                         pe = metrics.get("pe_ratio", 0)
-                        regime = metrics.get("valuation_regime", "Unknown")
+                        pb = metrics.get("pb_ratio", 0)
+                        ps = metrics.get("ps_ratio", 0)
+                        div_yield = metrics.get("dividend_yield", 0)
                         vol = metrics.get("volatility_historical", 0)
+                        z_score = metrics.get("z_score_price", 0)
+                        regime = metrics.get("valuation_regime", "Unknown")
+                        market_cap = metrics.get("market_cap", 0)
+                        pe_pct = ((price - metrics.get('price_52w_low', 0)) / (metrics.get('price_52w_high', 0) - metrics.get('price_52w_low', 0)) * 100) if metrics.get('price_52w_high', 0) > metrics.get('price_52w_low', 0) else 0
                         
+                        # Rich Company Card
                         st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%); border: 2px solid #3B82F6; border-radius: 12px; padding: 20px; margin: 10px 0;">
-                            <h3 style="color: #60A5FA; margin-bottom: 15px; text-align: center;">{ticker}</h3>
-                            
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                                <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                    <small style="color: #94A3B8;">Price</small>
-                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold;">${fmt(price, 2)}</p>
+                        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%); border: 3px solid #3B82F6; border-radius: 16px; padding: 30px; margin: 20px 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                                <div>
+                                    <h2 style="color: #60A5FA; margin: 0; font-size: 32px;">{ticker}</h2>
+                                    <p style="color: #94A3B8; margin: 5px 0; font-size: 14px;">{metrics.get('company_name', '')}</p>
                                 </div>
-                                <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                    <small style="color: #94A3B8;">P/E Ratio</small>
-                                    <p style="color: #60A5FA; font-size: 18px; font-weight: bold;">{fmt(pe, 1)}</p>
-                                </div>
-                                <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                    <small style="color: #94A3B8;">Volatility</small>
-                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold;">{fmt(vol, 1)}%</p>
-                                </div>
-                                <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                    <small style="color: #94A3B8;">Valuation</small>
-                                    <p style="font-size: 16px; font-weight: bold;">{regime}</p>
+                                <div style="text-align: right;">
+                                    <p style="color: #4ADE80; font-size: 28px; font-weight: bold; margin: 0;">${fmt(price, 2)}</p>
+                                    <p style="color: #FBBF24; margin-top: 5px; font-size: 14px;">Updated: {metrics.get('date')}</p>
                                 </div>
                             </div>
                             
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8;">52W High</small>
-                                    <p style="color: #4ADE80; font-size: 14px;">${fmt(metrics.get('price_52w_high', 0), 2)}</p>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                                <div style="background: rgba(74, 222, 128, 0.1); border-left: 4px solid #4ADE80; padding: 15px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📊 P/E Ratio</small>
+                                    <p style="color: #4ADE80; font-size: 20px; font-weight: bold; margin: 0;">{fmt(pe, 1)}</p>
                                 </div>
-                                <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; text-align: center;">
-                                    <small style="color: #94A3B8;">52W Low</small>
-                                    <p style="color: #F87171; font-size: 14px;">${fmt(metrics.get('price_52w_low', 0), 2)}</p>
+                                <div style="background: rgba(96, 165, 250, 0.1); border-left: 4px solid #60A5FA; padding: 15px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📈 P/B Ratio</small>
+                                    <p style="color: #60A5FA; font-size: 20px; font-weight: bold; margin: 0;">{fmt(pb, 1)}</p>
+                                </div>
+                                <div style="background: rgba(251, 191, 36, 0.1); border-left: 4px solid #FBBF24; padding: 15px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📉 P/S Ratio</small>
+                                    <p style="color: #FBBF24; font-size: 20px; font-weight: bold; margin: 0;">{fmt(ps, 1)}</p>
+                                </div>
+                                <div style="background: rgba(139, 92, 246, 0.1); border-left: 4px solid #8B5CF6; padding: 15px; border-radius: 8px;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">💰 Div Yield</small>
+                                    <p style="color: #8B5CF6; font-size: 20px; font-weight: bold; margin: 0;">{fmt(div_yield * 100 if div_yield else 0, 2)}%</p>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📊 Volatility (Annual)</small>
+                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold; margin: 0;">{fmt(vol, 1)}%</p>
+                                </div>
+                                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">🎯 Z-Score (200D)</small>
+                                    <p style="color: #60A5FA; font-size: 18px; font-weight: bold; margin: 0;">{fmt(z_score, 2)}</p>
+                                </div>
+                                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">💎 Valuation</small>
+                                    <p style="font-size: 16px; font-weight: bold; margin: 0;">{regime}</p>
+                                </div>
+                                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8; display: block; margin-bottom: 8px;">📍 52W Range %</small>
+                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold; margin: 0;">{fmt(pe_pct, 1)}%</p>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                                <div style="background: rgba(74, 222, 128, 0.15); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8;">📈 52W High</small>
+                                    <p style="color: #4ADE80; font-size: 18px; font-weight: bold;">${fmt(metrics.get('price_52w_high', 0), 2)}</p>
+                                </div>
+                                <div style="background: rgba(251, 191, 36, 0.15); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8;">💰 Current</small>
+                                    <p style="color: #FBBF24; font-size: 18px; font-weight: bold;">${fmt(price, 2)}</p>
+                                </div>
+                                <div style="background: rgba(248, 113, 113, 0.15); padding: 15px; border-radius: 8px; text-align: center;">
+                                    <small style="color: #94A3B8;">📉 52W Low</small>
+                                    <p style="color: #F87171; font-size: 18px; font-weight: bold;">${fmt(metrics.get('price_52w_low', 0), 2)}</p>
                                 </div>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
-                
-                # Detailed view selector
-                st.markdown("### 📈 Detailed Analysis")
-                selected_ticker = st.selectbox("Select company for detailed view", [m.get("ticker") for m in results])
-                
-                if selected_ticker:
-                    selected_metrics = next((m for m in results if m.get("ticker") == selected_ticker), None)
-                    
-                    if selected_metrics:
-                        # Detailed metrics table
-                        detail_cols = st.columns(3)
                         
-                        with detail_cols[0]:
-                            st.markdown("##### 💰 Valuation")
-                            st.markdown(f"""
-                            - **P/E Ratio:** {fmt(selected_metrics.get('pe_ratio'), 2)}
-                            - **P/B Ratio:** {fmt(selected_metrics.get('pb_ratio'), 2)}
-                            - **P/S Ratio:** {fmt(selected_metrics.get('ps_ratio'), 2)}
-                            - **Div Yield:** {fmt(selected_metrics.get('dividend_yield', 0) * 100 if selected_metrics.get('dividend_yield') else 0, 2)}%
-                            """)
+                        # Tabs for detailed info
+                        tab_charts, tab_metrics, tab_export = st.tabs(["📉 Charts", "📊 Metrics", "📥 Export"])
                         
-                        with detail_cols[1]:
-                            st.markdown("##### 📊 Statistics")
-                            st.markdown(f"""
-                            - **Current Price:** ${fmt(selected_metrics.get('price'), 2)}
-                            - **52W High:** ${fmt(selected_metrics.get('price_52w_high'), 2)}
-                            - **52W Low:** ${fmt(selected_metrics.get('price_52w_low'), 2)}
-                            - **Volatility:** {fmt(selected_metrics.get('volatility_historical'), 1)}%
-                            """)
-                        
-                        with detail_cols[2]:
-                            st.markdown("##### 🎯 Z-Score Analysis")
-                            z_score = selected_metrics.get('z_score_price', 'N/A')
-                            regime = selected_metrics.get('valuation_regime', 'Unknown')
-                            st.markdown(f"""
-                            - **Z-Score:** {fmt(z_score, 2) if z_score != 'N/A' else 'N/A'}
-                            - **Regime:** {regime}
-                            - **Updated:** {selected_metrics.get('date')}
-                            """)
-                        
-                        # Price Chart
-                        st.markdown("#### 📉 Price Chart with 200-Day MA")
-                        data = fetch_stock_data(selected_ticker, period=period)
-                        if data is not None:
+                        with tab_charts:
+                            st.markdown("#### Price Chart with 200-Day MA")
                             fig = go.Figure()
                             fig.add_trace(go.Scatter(
                                 x=data.index,
@@ -7393,57 +7379,76 @@ def main():
                                 ))
                             
                             fig.update_layout(
-                                title=f"{selected_ticker} Price History ({period})",
+                                title=f"{ticker} Price History ({period})",
                                 xaxis_title="Date",
                                 yaxis_title="Price ($)",
                                 template="plotly_dark",
-                                height=400,
+                                height=450,
                                 hovermode="x unified"
                             )
                             st.plotly_chart(fig, use_container_width=True)
                         
-                        # Summary Table
-                        st.markdown("#### 📋 Summary Table")
-                        summary_data = {
-                            "Metric": [
-                                "Price",
-                                "P/E Ratio",
-                                "P/B Ratio",
-                                "P/S Ratio",
-                                "52W High",
-                                "52W Low",
-                                "Volatility",
-                                "Dividend Yield",
-                                "Z-Score",
-                                "Valuation Regime"
-                            ],
-                            "Value": [
-                                f"${fmt(selected_metrics.get('price'), 2)}",
-                                fmt(selected_metrics.get('pe_ratio'), 2),
-                                fmt(selected_metrics.get('pb_ratio'), 2),
-                                fmt(selected_metrics.get('ps_ratio'), 2),
-                                f"${fmt(selected_metrics.get('price_52w_high'), 2)}",
-                                f"${fmt(selected_metrics.get('price_52w_low'), 2)}",
-                                f"{fmt(selected_metrics.get('volatility_historical'), 1)}%",
-                                f"{fmt(selected_metrics.get('dividend_yield', 0) * 100 if selected_metrics.get('dividend_yield') else 0, 2)}%",
-                                fmt(selected_metrics.get('z_score_price', 'N/A'), 2),
-                                selected_metrics.get('valuation_regime', 'Unknown')
-                            ]
-                        }
-                        df_summary = pd.DataFrame(summary_data)
-                        st.dataframe(df_summary, use_container_width=True)
+                        with tab_metrics:
+                            st.markdown("#### 📋 Complete Metrics")
+                            summary_data = {
+                                "Metric": [
+                                    "Current Price",
+                                    "52W High",
+                                    "52W Low",
+                                    "52W Range %",
+                                    "P/E Ratio",
+                                    "P/B Ratio",
+                                    "P/S Ratio",
+                                    "Dividend Yield",
+                                    "Historical Volatility",
+                                    "Z-Score (200D)",
+                                    "Valuation Regime",
+                                    "Market Cap",
+                                    "EPS",
+                                    "Last Updated"
+                                ],
+                                "Value": [
+                                    f"${fmt(price, 2)}",
+                                    f"${fmt(metrics.get('price_52w_high', 0), 2)}",
+                                    f"${fmt(metrics.get('price_52w_low', 0), 2)}",
+                                    f"{fmt(pe_pct, 1)}%",
+                                    fmt(pe, 2),
+                                    fmt(pb, 2),
+                                    fmt(ps, 2),
+                                    f"{fmt(div_yield * 100 if div_yield else 0, 2)}%",
+                                    f"{fmt(vol, 1)}%",
+                                    fmt(z_score, 2),
+                                    regime,
+                                    f"${market_cap/1e9:.2f}B" if market_cap else "N/A",
+                                    f"${fmt(metrics.get('eps', 0), 2)}",
+                                    metrics.get('date')
+                                ]
+                            }
+                            df_summary = pd.DataFrame(summary_data)
+                            st.dataframe(df_summary, use_container_width=True, hide_index=True)
                         
-                        # CSV Export
-                        csv_data = pd.DataFrame([selected_metrics])
-                        csv_str = csv_data.to_csv(index=False)
-                        st.download_button(
-                            label="📥 Download as CSV",
-                            data=csv_str,
-                            file_name=f"{selected_ticker}_metrics.csv",
-                            mime="text/csv"
-                        )
-            else:
-                st.warning("No valid tickers entered. Please try again.")
+                        with tab_export:
+                            st.markdown("#### 📥 Download Data")
+                            csv_data = pd.DataFrame([metrics]).to_csv(index=False)
+                            st.download_button(
+                                label="Download Metrics CSV",
+                                data=csv_data,
+                                file_name=f"{ticker}_metrics.csv",
+                                mime="text/csv"
+                            )
+                            
+                            # Download price history
+                            price_history = data[["Close", "Volume"]].reset_index()
+                            price_history.columns = ["Date", "Close", "Volume"]
+                            csv_history = price_history.to_csv(index=False)
+                            st.download_button(
+                                label="Download Price History CSV",
+                                data=csv_history,
+                                file_name=f"{ticker}_price_history.csv",
+                                mime="text/csv"
+                            )
+                else:
+                    st.error(f"Could not fetch data for {ticker_input}. Please check the ticker symbol.")
 
 
 if __name__ == "__main__":
