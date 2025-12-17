@@ -7240,9 +7240,9 @@ def main():
             
             # Z-score of price (using 200-day moving average)
             if len(data) >= 200:
-                ma200 = data["Close"].rolling(window=200).mean().iloc[-1]
-                std200 = data["Close"].rolling(window=200).std().iloc[-1]
-                current_price = data["Close"].iloc[-1]
+                ma200 = float(data["Close"].rolling(window=200).mean().iloc[-1])
+                std200 = float(data["Close"].rolling(window=200).std().iloc[-1])
+                current_price = float(data["Close"].iloc[-1])
                 if not pd.isna(std200) and std200 > 0:
                     metrics["z_score_price"] = float((current_price - ma200) / std200)
                     metrics["valuation_regime"] = regime_from_z(metrics["z_score_price"])
