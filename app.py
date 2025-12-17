@@ -7182,18 +7182,6 @@ def main():
             std = series.rolling(window).std()
             return (series - mean) / std
         
-        def linear_slope(series, window=252):
-            """Calculate rolling linear regression slope"""
-            if len(series) < window:
-                window = len(series)
-            slopes = []
-            for i in range(len(series) - window + 1):
-                x = np.arange(window)
-                y = series.iloc[i:i+window].values
-                slope = np.polyfit(x, y, 1)[0]
-                slopes.append(slope)
-            return pd.Series(slopes + [np.nan] * (len(series) - len(slopes)), index=series.index)
-        
         def fmt(x, nd=2):
             """Format number, handling NaN/inf gracefully"""
             if pd.isna(x) or np.isinf(x):
@@ -7211,263 +7199,184 @@ def main():
             else:
                 return "🟡 FAIR"
         
-        # FMP API Client Classes
-        from dataclasses import dataclass
-        
-        @dataclass
-        class FMPConfig:
-            api_key: str
-            base_url: str = "https://financialmodelingprep.com/api/v3"
-        
-        class FMPClient:
-            def __init__(self, config: FMPConfig):
-                self.config = config
-                self.session = requests.Session()
-            
-            def _request(self, endpoint: str, params: dict = None) -> dict:
-                """Generic request handler with retry logic"""
-                url = f"{self.config.base_url}/{endpoint}"
-                params = params or {}
-                params["apikey"] = self.config.api_key
-                
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        response = self.session.get(url, params=params, timeout=10)
-                        response.raise_for_status()
-                        return response.json()
-                    except requests.exceptions.RequestException as e:
-                        if attempt == max_retries - 1:
-                            st.warning(f"FMP API error: {str(e)}")
-                            return {}
-                        time.sleep(1)
-                return {}
-            
-            def ratios_quarterly(self, ticker: str, limit: int = 40) -> List[dict]:
-                """Fetch quarterly valuation ratios"""
-                data = self._request(f"ratios/{ticker}", {"limit": limit})
-                return data if isinstance(data, list) else []
-            
-            def income_quarterly(self, ticker: str, limit: int = 40) -> List[dict]:
-                """Fetch quarterly income statement"""
-                data = self._request(f"income-statement/{ticker}", {"period": "quarter", "limit": limit})
-                return data if isinstance(data, list) else []
-            
-            def income_annual(self, ticker: str, limit: int = 13) -> List[dict]:
-                """Fetch annual income statement for EPS"""
-                data = self._request(f"income-statement/{ticker}", {"period": "annual", "limit": limit})
-                return data if isinstance(data, list) else []
-        
-        @dataclass
-        class FREDConfig:
-            api_key: str
-            base_url: str = "https://api.stlouisfed.org/fred"
-        
-        class FREDClient:
-            def __init__(self, config: FREDConfig):
-                self.config = config
-                self.session = requests.Session()
-            
-            def _request(self, endpoint: str, params: dict = None) -> dict:
-                """Generic FRED request handler"""
-                url = f"{self.config.base_url}/{endpoint}"
-                params = params or {}
-                params["api_key"] = self.config.api_key
-                
-                try:
-                    response = self.session.get(url, params=params, timeout=10)
-                    response.raise_for_status()
-                    return response.json()
-                except requests.exceptions.RequestException as e:
-                    st.warning(f"FRED API error: {str(e)}")
-                    return {}
-            
-            def series_observations(self, series_id: str, limit: int = 100) -> dict:
-                """Fetch series observations"""
-                return self._request("series/observations", {"series_id": series_id, "limit": limit})
-        
-        # Cached Data Fetchers
-        @st.cache_data(ttl=3600)
-        def fetch_fmp_quarterly(ticker, api_key, years=10):
-            """Fetch FMP quarterly data with 60-min cache"""
-            if not api_key:
+        @st.cache_data(ttl=600)
+        def fetch_stock_data(ticker, period="1y"):
+            """Fetch stock data using yfinance (free, no API required)"""
+            try:
+                data = yf.download(ticker, period=period, progress=False, interval="1d")
+                if data.empty:
+                    return None
+                return data
+            except Exception as e:
+                st.error(f"Error fetching {ticker}: {str(e)}")
                 return None
-            client = FMPClient(FMPConfig(api_key))
-            return client.ratios_quarterly(ticker, limit=years*4)
-        
-        @st.cache_data(ttl=3600)
-        def fetch_fmp_annual_eps(ticker, api_key, years=13):
-            """Fetch FMP annual EPS for CAPE calculation"""
-            if not api_key:
-                return None
-            client = FMPClient(FMPConfig(api_key))
-            income_data = client.income_annual(ticker, limit=years)
-            eps_data = []
-            for item in income_data:
-                if "fillingDate" in item and "eps" in item:
-                    year = item["fillingDate"][:4]
-                    eps = item.get("eps", 0)
-                    if eps:
-                        eps_data.append({"year": year, "eps": eps})
-            return eps_data
-        
-        @st.cache_data(ttl=3600)
-        def fetch_cpi_annual(fred_key):
-            """Fetch CPI data from FRED for real CAPE"""
-            if not fred_key:
-                return None
-            client = FREDClient(FREDConfig(fred_key))
-            data = client.series_observations("CPIAUCSL", limit=100)
-            if "observations" in data:
-                cpi_annual = []
-                for obs in data["observations"]:
-                    date = obs.get("date", "")
-                    value = obs.get("value", "")
-                    if date and value != ".":
-                        year = date[:4]
-                        try:
-                            cpi_annual.append({"year": year, "cpi": float(value)})
-                        except:
-                            pass
-                return cpi_annual
-            return None
         
         @st.cache_data(ttl=600)
-        def fetch_last_price(ticker):
-            """Fetch current price via yfinance"""
+        def get_stock_info(ticker):
+            """Get stock info using yfinance"""
             try:
-                data = yf.download(ticker, period="1d", progress=False)
-                if not data.empty:
-                    return float(data["Close"].iloc[-1])
+                ticker_obj = yf.Ticker(ticker)
+                info = ticker_obj.info
+                return info
             except:
-                pass
-            return None
-        
-        # Metrics Builder
-        def compute_cape_10y(price, annual_eps, cpi_annual):
-            """Compute real CAPE(10y) using Shiller methodology"""
-            if not annual_eps or not cpi_annual:
-                return None
-            
-            try:
-                # Get last 10 years of EPS
-                eps_10y = sorted(annual_eps, key=lambda x: x["year"])[-10:]
-                if len(eps_10y) < 10:
-                    return None
-                
-                # Map CPI to years
-                cpi_map = {item["year"]: item["cpi"] for item in cpi_annual}
-                
-                # Calculate real EPS (normalize to current year CPI)
-                current_cpi = cpi_annual[-1]["cpi"] if cpi_annual else 100
-                real_eps = []
-                for eps_item in eps_10y:
-                    year = eps_item["year"]
-                    eps = eps_item["eps"]
-                    cpi = cpi_map.get(year, current_cpi)
-                    real_eps.append((eps * current_cpi) / cpi)
-                
-                avg_real_eps = np.mean(real_eps)
-                cape = price / avg_real_eps if avg_real_eps > 0 else None
-                return cape
-            except:
-                return None
-        
-        def build_metrics(ticker, fmp_key, fred_key):
-            """Calculate all valuation metrics and Z-scores"""
-            try:
-                # Fetch data
-                price = fetch_last_price(ticker)
-                quarterly_data = fetch_fmp_quarterly(ticker, fmp_key)
-                annual_eps = fetch_fmp_annual_eps(ticker, fmp_key)
-                cpi_annual = fetch_cpi_annual(fred_key)
-                
-                if not price or not quarterly_data:
-                    return None
-                
-                metrics = {"date": datetime.now().strftime("%Y-%m-%d")}
-                
-                # P/E from latest quarter
-                latest_q = quarterly_data[0] if quarterly_data else {}
-                pe_ratio = latest_q.get("peRatio")
-                if pe_ratio:
-                    metrics["pe_ratio"] = pe_ratio
-                
-                # CAPE(10y)
-                cape = compute_cape_10y(price, annual_eps, cpi_annual) if annual_eps and cpi_annual else None
-                if cape:
-                    metrics["cape_10y"] = cape
-                
-                # Forward metrics
-                metrics["pbRatio"] = latest_q.get("pbRatio")
-                metrics["priceToSalesRatio"] = latest_q.get("priceToSalesRatio")
-                metrics["priceCashFlowRatio"] = latest_q.get("priceCashFlowRatio")
-                
-                return metrics
-            except Exception as e:
-                st.error(f"Error building metrics: {str(e)}")
-                return None
-        
-        def latest_snapshot(df):
-            """Extract latest metrics"""
-            if df.empty:
                 return {}
-            return df.iloc[-1].to_dict()
+        
+        def calculate_valuation_metrics(ticker, data):
+            """Calculate valuation metrics from price data"""
+            if data is None or data.empty:
+                return {}
+            
+            metrics = {
+                "ticker": ticker,
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "price": float(data["Close"].iloc[-1]),
+                "price_52w_high": float(data["Close"].max()),
+                "price_52w_low": float(data["Close"].min()),
+            }
+            
+            # Historical volatility (annualized)
+            returns = data["Close"].pct_change().dropna()
+            metrics["volatility_historical"] = float(returns.std() * np.sqrt(252) * 100)
+            
+            # Z-score of price (using 200-day moving average)
+            if len(data) >= 200:
+                ma200 = data["Close"].rolling(window=200).mean().iloc[-1]
+                std200 = data["Close"].rolling(window=200).std().iloc[-1]
+                current_price = data["Close"].iloc[-1]
+                if std200 > 0:
+                    metrics["z_score_price"] = float((current_price - ma200) / std200)
+                    metrics["valuation_regime"] = regime_from_z(metrics["z_score_price"])
+            
+            # Get additional info from yfinance
+            info = get_stock_info(ticker)
+            if info:
+                metrics["pe_ratio"] = info.get("trailingPE")
+                metrics["pb_ratio"] = info.get("priceToBook")
+                metrics["ps_ratio"] = info.get("priceToSalesTrailing12Months")
+                metrics["dividend_yield"] = info.get("dividendYield")
+                metrics["eps"] = info.get("trailingEps")
+                metrics["market_cap"] = info.get("marketCap")
+            
+            return metrics
         
         # Sidebar Configuration
         st.sidebar.markdown("### ⚙️ Tab 8 Settings")
-        ticker_z = st.sidebar.text_input("Ticker", value="AAPL").upper()
-        fmp_key_input = st.sidebar.text_input("FMP API Key (optional)", type="password", value=FMP_API_KEY)
-        fred_key_input = st.sidebar.text_input("FRED API Key (optional)", type="password", value=os.getenv("FRED_API_KEY", ""))
-        years_history = st.sidebar.slider("History (years)", 1, 10, 3)
+        ticker_z = st.sidebar.text_input("Ticker Symbol", value="AAPL").upper()
+        period = st.sidebar.selectbox("Historical Period", ["3mo", "6mo", "1y", "2y", "5y"], index=2)
         
         # Main Display
         if ticker_z:
             with st.spinner(f"Loading metrics for {ticker_z}..."):
-                metrics = build_metrics(ticker_z, fmp_key_input, fred_key_input)
+                data = fetch_stock_data(ticker_z, period=period)
                 
-                if metrics:
-                    # KPI Metrics
-                    st.markdown("### 📊 Valuation Metrics")
-                    col1, col2, col3, col4 = st.columns(4)
+                if data is not None:
+                    metrics = calculate_valuation_metrics(ticker_z, data)
                     
-                    with col1:
-                        if "pe_ratio" in metrics:
-                            st.metric("P/E Ratio", fmt(metrics["pe_ratio"], 2))
-                        else:
-                            st.metric("P/E Ratio", "N/A")
-                    
-                    with col2:
-                        if "cape_10y" in metrics:
-                            st.metric("CAPE(10y)", fmt(metrics["cape_10y"], 1))
-                        else:
-                            st.metric("CAPE(10y)", "N/A")
-                    
-                    with col3:
-                        if "pbRatio" in metrics:
-                            st.metric("P/B Ratio", fmt(metrics["pbRatio"], 2))
-                        else:
-                            st.metric("P/B Ratio", "N/A")
-                    
-                    with col4:
-                        if "priceToSalesRatio" in metrics:
-                            st.metric("P/S Ratio", fmt(metrics["priceToSalesRatio"], 2))
-                        else:
-                            st.metric("P/S Ratio", "N/A")
-                    
-                    # Metrics Table
-                    st.markdown("### 📋 Full Metrics")
-                    metrics_df = pd.DataFrame([metrics])
-                    st.dataframe(metrics_df, use_container_width=True)
-                    
-                    # CSV Export
-                    csv_data = metrics_df.to_csv(index=False)
-                    st.download_button("📥 Download CSV", csv_data, f"{ticker_z}_metrics.csv", "text/csv")
+                    if metrics:
+                        # KPI Metrics
+                        st.markdown("### 📊 Valuation Metrics")
+                        col1, col2, col3, col4 = st.columns(4)
+                        
+                        with col1:
+                            st.metric("Current Price", f"${fmt(metrics.get('price'), 2)}")
+                        
+                        with col2:
+                            st.metric("P/E Ratio", fmt(metrics.get("pe_ratio"), 2))
+                        
+                        with col3:
+                            st.metric("Volatility (Annual)", f"{fmt(metrics.get('volatility_historical'), 1)}%")
+                        
+                        with col4:
+                            z_score = metrics.get("z_score_price")
+                            regime = metrics.get("valuation_regime", "Unknown")
+                            st.metric("Valuation", regime if regime != "Unknown" else "N/A")
+                        
+                        # Price Statistics
+                        st.markdown("### 📈 Price Statistics")
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.metric("52W High", f"${fmt(metrics.get('price_52w_high'), 2)}")
+                        
+                        with col2:
+                            st.metric("52W Low", f"${fmt(metrics.get('price_52w_low'), 2)}")
+                        
+                        with col3:
+                            if metrics.get('price') and metrics.get('price_52w_low'):
+                                range_pct = ((metrics['price'] - metrics['price_52w_low']) / metrics['price_52w_low']) * 100
+                                st.metric("52W Range %", f"{fmt(range_pct, 1)}%")
+                        
+                        # Additional Metrics
+                        st.markdown("### 📊 Additional Ratios")
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.metric("P/B Ratio", fmt(metrics.get("pb_ratio"), 2))
+                        
+                        with col2:
+                            st.metric("P/S Ratio", fmt(metrics.get("ps_ratio"), 2))
+                        
+                        with col3:
+                            if metrics.get("dividend_yield"):
+                                st.metric("Div Yield", f"{fmt(metrics['dividend_yield'] * 100, 2)}%")
+                        
+                        # Price Chart
+                        st.markdown("### 📉 Price Chart")
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=data.index,
+                            y=data["Close"],
+                            mode="lines",
+                            name="Close Price",
+                            line=dict(color="#00FF00", width=2)
+                        ))
+                        
+                        # Add 200-day moving average
+                        if len(data) >= 200:
+                            ma200 = data["Close"].rolling(window=200).mean()
+                            fig.add_trace(go.Scatter(
+                                x=data.index,
+                                y=ma200,
+                                mode="lines",
+                                name="200-Day MA",
+                                line=dict(color="#FFD700", width=1, dash="dash")
+                            ))
+                        
+                        fig.update_layout(
+                            title=f"{ticker_z} Price History",
+                            xaxis_title="Date",
+                            yaxis_title="Price ($)",
+                            template="plotly_dark",
+                            height=400,
+                            hovermode="x unified"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Metrics Table
+                        st.markdown("### 📋 Summary")
+                        summary_df = pd.DataFrame([{
+                            "Metric": "Current Price",
+                            "Value": f"${fmt(metrics.get('price'), 2)}"
+                        }, {
+                            "Metric": "P/E Ratio",
+                            "Value": fmt(metrics.get("pe_ratio"), 2)
+                        }, {
+                            "Metric": "Volatility",
+                            "Value": f"{fmt(metrics.get('volatility_historical'), 1)}%"
+                        }, {
+                            "Metric": "Z-Score",
+                            "Value": fmt(metrics.get('z_score_price'), 2)
+                        }, {
+                            "Metric": "Regime",
+                            "Value": metrics.get("valuation_regime", "N/A")
+                        }])
+                        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+                        
+                        # CSV Export
+                        csv_data = summary_df.to_csv(index=False)
+                        st.download_button("📥 Download Summary", csv_data, f"{ticker_z}_metrics.csv", "text/csv")
                 else:
-                    if fmp_key_input or fred_key_input:
-                        st.warning("Could not fetch metrics. Please check your API keys or try another ticker.")
-                    else:
-                        st.info("Enter FMP and/or FRED API keys in the sidebar to enable full analysis. The dashboard will fall back to yfinance for basic data.")
+                    st.error(f"Could not fetch data for {ticker_z}. Please check the ticker symbol.")
 
 
 if __name__ == "__main__":
