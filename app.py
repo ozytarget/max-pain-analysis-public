@@ -7182,109 +7182,7 @@ def main():
     with tab8:
         st.subheader("📊 US Equity Metrics Z-Score Dashboard")
         
-        # Tooltip Styles
-        st.markdown("""
-        <style>
-        .metric-tooltip {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-            cursor: help;
-        }
-        .tooltip-icon {
-            margin-left: 5px;
-            color: #60A5FA;
-            font-size: 12px;
-        }
-        .tooltip-text {
-            visibility: hidden;
-            width: 250px;
-            background-color: #1E3A8A;
-            color: #E0E7FF;
-            text-align: left;
-            border-radius: 6px;
-            padding: 8px 10px;
-            position: absolute;
-            z-index: 1000;
-            bottom: 125%;
-            left: 0;
-            margin-left: -120px;
-            font-size: 12px;
-            border: 2px solid #3B82F6;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-            white-space: normal;
-            line-height: 1.4;
-        }
-        .tooltip-text::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #3B82F6 transparent transparent transparent;
-        }
-        .metric-tooltip:hover .tooltip-text {
-            visibility: visible;
-        }
-        
-        .metric-container {
-            position: relative;
-            padding-top: 10px;
-        }
-        
-        .metric-label {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            position: relative;
-            width: fit-content;
-        }
-        
-        .tooltip-hover {
-            position: relative;
-            cursor: help;
-            color: #60A5FA;
-            font-weight: bold;
-            display: inline-block;
-        }
-        
-        .tooltip-hover:hover::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: 125%;
-            left: -120px;
-            width: 250px;
-            background-color: #1E3A8A;
-            color: #E0E7FF;
-            padding: 8px 10px;
-            border-radius: 6px;
-            border: 2px solid #3B82F6;
-            font-size: 12px;
-            font-weight: normal;
-            white-space: normal;
-            line-height: 1.4;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-        }
-        
-        .tooltip-hover:hover::before {
-            content: "";
-            position: absolute;
-            bottom: 120%;
-            left: calc(-120px + 125px);
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 5px solid #3B82F6;
-            z-index: 1001;
-        }
-        </style>
-        """, unsafe_allow_html=True)
 
-        
         # Helper Functions
         def fmt(x, nd=2):
             """Format number, handling NaN/inf gracefully"""
@@ -7385,16 +7283,7 @@ def main():
             st.html(html) if hasattr(st, 'html') else st.markdown(html, unsafe_allow_html=True)
             st.metric(label, value, delta=delta)
         
-        def metric_label_with_tooltip(label, tooltip_text):
-            """Create a metric label with tooltip that actually shows on hover"""
-            html = f"""
-            <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 5px;">
-                <span style="font-weight: bold; color: #94A3B8;">{label}</span>
-                <span class="tooltip-hover" data-tooltip="{tooltip_text}" title="{tooltip_text}">ℹ️</span>
-            </div>
-            """
-            return html
-        
+
         @st.cache_data(ttl=600)
         def fetch_stock_data(ticker, period="1y"):
             """Fetch stock data using yfinance (free, no API required)"""
@@ -7569,58 +7458,43 @@ def main():
                             st.markdown("### 🎯 Price Targets")
                             st.caption("Calculated using: **Formula = Fair P/E × Current EPS** | Adjusted for valuation regime")
                             
-                            # Show calculation basis with tooltips
-                            st.markdown("""
-                            <div style="background-color: rgba(59, 130, 246, 0.1); border-left: 4px solid #3B82F6; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px;">
-                                <span style="color: #60A5FA; font-weight: bold;">📊 Calculation Inputs:</span>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
+                            st.markdown("📊 **Calculation Inputs:**")
                             col_calc1, col_calc2, col_calc3, col_calc4 = st.columns(4)
                             with col_calc1:
-                                st.markdown(metric_label_with_tooltip("Current P/E", "Current market P/E ratio. Used as baseline for fair value estimation."), unsafe_allow_html=True)
-                                st.metric("", fmt(pe, 1) if pe else "N/A")
+                                st.metric("Current P/E", fmt(pe, 1) if pe else "N/A",
+                                         help="Current market P/E ratio. Baseline for fair value estimation.")
                             with col_calc2:
-                                st.markdown(metric_label_with_tooltip("Current EPS", "Earnings Per Share (last 12 months). Multiplied by target P/E to get price target."), unsafe_allow_html=True)
-                                eps_val = eps if eps else 0
-                                st.metric("", f"${fmt(eps_val, 2)}")
+                                st.metric("Current EPS", f"${fmt(eps if eps else 0, 2)}",
+                                         help="Earnings Per Share (last 12 months). Multiplied by target P/E to get price target.")
                             with col_calc3:
-                                st.markdown(metric_label_with_tooltip("Volatility", "Historical volatility. Higher vol = wider target range for conservative/aggressive."), unsafe_allow_html=True)
-                                st.metric("", f"{fmt(vol, 1)}%")
+                                st.metric("Volatility", f"{fmt(vol, 1)}%",
+                                         help="Historical volatility. Higher = wider target range.")
                             with col_calc4:
-                                st.markdown(metric_label_with_tooltip("Regime", "Valuation regime determines P/E compression/expansion factors."), unsafe_allow_html=True)
-                                st.metric("", regime)
+                                st.metric("Regime", regime,
+                                         help="CHEAP/FAIR/EXPENSIVE. Determines P/E compression/expansion factors.")
                             
                             st.markdown("---")
                             
-                            # Price targets with detailed breakdown
-                            st.markdown("""
-                            <div style="background-color: rgba(34, 197, 94, 0.1); border-left: 4px solid #22C55E; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px;">
-                                <span style="color: #86EFAC; font-weight: bold;">🎯 Price Targets:</span>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown("🎯 **Price Targets:**")
                             col_t1, col_t2, col_t3 = st.columns(3)
                             
                             with col_t1:
                                 conservative_change = ((targets["conservative"] - price) / price * 100) if price > 0 else 0
-                                conservative_pe = (targets["conservative"] / eps) if eps and eps > 0 else 0
-                                conservative_tooltip = f"P/E: {fmt(conservative_pe, 1)}× | Assumes {fmt((pe*0.75 - pe)/pe*100, 0)}% P/E compression. Most bearish case."
-                                st.markdown(metric_label_with_tooltip("📉 Conservative Target", conservative_tooltip), unsafe_allow_html=True)
-                                st.metric("", f"${fmt(targets['conservative'], 2)}", delta=f"{fmt(conservative_change, 1)}%")
+                                st.metric("📉 Conservative", f"${fmt(targets['conservative'], 2)}", 
+                                         delta=f"{fmt(conservative_change, 1)}%",
+                                         help="Most bearish case. Assumes significant P/E compression.")
                             
                             with col_t2:
                                 base_change = ((targets["base"] - price) / price * 100) if price > 0 else 0
-                                base_pe = (targets["base"] / eps) if eps and eps > 0 else 0
-                                base_tooltip = f"P/E: {fmt(base_pe, 1)}× | Most probable scenario. Fair value estimate."
-                                st.markdown(metric_label_with_tooltip("📊 Base Case Target", base_tooltip), unsafe_allow_html=True)
-                                st.metric("", f"${fmt(targets['base'], 2)}", delta=f"{fmt(base_change, 1)}%")
+                                st.metric("📊 Base Case", f"${fmt(targets['base'], 2)}", 
+                                         delta=f"{fmt(base_change, 1)}%",
+                                         help="Most probable scenario. Fair value estimate.")
                             
                             with col_t3:
                                 aggressive_change = ((targets["aggressive"] - price) / price * 100) if price > 0 else 0
-                                aggressive_pe = (targets["aggressive"] / eps) if eps and eps > 0 else 0
-                                aggressive_tooltip = f"P/E: {fmt(aggressive_pe, 1)}× | Bull case. Most optimistic scenario."
-                                st.markdown(metric_label_with_tooltip("🚀 Aggressive Target", aggressive_tooltip), unsafe_allow_html=True)
-                                st.metric("", f"${fmt(targets['aggressive'], 2)}", delta=f"{fmt(aggressive_change, 1)}%")
+                                st.metric("🚀 Aggressive", f"${fmt(targets['aggressive'], 2)}", 
+                                         delta=f"{fmt(aggressive_change, 1)}%",
+                                         help="Bull case. Most optimistic scenario. Assumes P/E expansion.")
                             
                             st.markdown("---")
                             
@@ -7722,7 +7596,7 @@ def main():
                                      help="Earnings Per Share. Company net income / shares outstanding. Growing EPS = bullish.")
                         
                         # Tabs for detailed info
-                        tab_metrics, tab_export = st.tabs(["📊 Metrics", "📥 Export"])
+                        tab_metrics, tab_export, tab_help = st.tabs(["📊 Metrics", "📥 Export", "📚 About Targets"])
                         
                         with tab_metrics:
                             st.markdown("#### 📋 Complete Metrics Dashboard")
@@ -7807,6 +7681,116 @@ def main():
                                 file_name=f"{ticker}_price_history.csv",
                                 mime="text/csv"
                             )
+                        
+                        with tab_help:
+                            st.markdown("#### 📚 Understanding Price Targets")
+                            
+                            st.markdown("### 🎯 What Are Price Targets?")
+                            st.write("Price targets are potential future price levels calculated based on the company's **current valuation regime** and **earnings outlook**. They represent different scenarios: bearish, realistic, and bullish.")
+                            
+                            st.divider()
+                            
+                            st.markdown("### 📊 Calculation Inputs")
+                            
+                            col_explain1, col_explain2 = st.columns(2)
+                            with col_explain1:
+                                st.markdown("**Current P/E Ratio**")
+                                st.write(f"• Current value: **{fmt(pe, 1)}×** (for {ticker})")
+                                st.write("• Meaning: The market's willingness to pay for $1 of earnings")
+                                st.write("• High P/E: Market expects strong growth or is overvalued")
+                                st.write("• Low P/E: Market is pessimistic or value is undervalued")
+                            
+                            with col_explain2:
+                                st.markdown("**Current EPS**")
+                                st.write(f"• Current value: **${fmt(eps if eps else 0, 2)}** (for {ticker})")
+                                st.write("• Meaning: Earnings per share (last 12 months)")
+                                st.write("• Growing EPS: Company becoming more profitable")
+                                st.write("• Declining EPS: Company profits shrinking")
+                            
+                            st.markdown("---")
+                            
+                            col_explain3, col_explain4 = st.columns(2)
+                            with col_explain3:
+                                st.markdown("**Volatility**")
+                                st.write(f"• Current value: **{fmt(vol, 1)}%** (for {ticker})")
+                                st.write("• Meaning: How much stock price swings (annualized)")
+                                st.write("• High volatility (>30%): Risky, unpredictable")
+                                st.write("• Low volatility (<20%): Stable, less risky")
+                            
+                            with col_explain4:
+                                st.markdown("**Valuation Regime**")
+                                st.write(f"• Current regime: **{regime}** (Z-Score: {fmt(z_score, 2)})")
+                                st.write("• 🟢 CHEAP: Z-Score ≤ -1.5 (potential for strong recovery)")
+                                st.write("• 🟡 FAIR: -1.5 < Z-Score < 1.5 (balanced value)")
+                                st.write("• 🔴 EXPENSIVE: Z-Score ≥ 1.5 (potential pullback risk)")
+                            
+                            st.divider()
+                            
+                            st.markdown("### 🎯 Three Price Target Scenarios")
+                            
+                            st.markdown("#### 📉 Conservative Target")
+                            conservative_change = ((targets["conservative"] - price) / price * 100) if price > 0 else 0
+                            st.write(f"**Price: ${fmt(targets['conservative'], 2)}** ({fmt(conservative_change, 1)}% from current)")
+                            st.write("""
+• **When to use**: Risk-averse investors, worst-case scenario
+• **Assumption**: Stock experiences P/E compression (market pays less for each $1 of earnings)
+• **Scenario**: If valuation normalizes downward or earnings disappoint
+• **Regime-based multipliers**:
+  - CHEAP: 1.05× current P/E (slight expansion)
+  - FAIR: 0.98× current P/E (slight compression)
+  - EXPENSIVE: 0.75× current P/E (significant compression)
+                            """)
+                            
+                            st.markdown("#### 📊 Base Case Target")
+                            base_change = ((targets["base"] - price) / price * 100) if price > 0 else 0
+                            st.write(f"**Price: ${fmt(targets['base'], 2)}** ({fmt(base_change, 1)}% from current)")
+                            st.write("""
+• **When to use**: Most likely scenario for fundamental investors
+• **Assumption**: Stock moves toward fair value based on earnings
+• **Scenario**: Normal market conditions, no major surprises
+• **Regime-based multipliers**:
+  - CHEAP: 1.20× current P/E (earnings-driven appreciation)
+  - FAIR: 1.05× current P/E (balanced expansion)
+  - EXPENSIVE: 0.85× current P/E (moderate compression)
+                            """)
+                            
+                            st.markdown("#### 🚀 Aggressive Target")
+                            aggressive_change = ((targets["aggressive"] - price) / price * 100) if price > 0 else 0
+                            st.write(f"**Price: ${fmt(targets['aggressive'], 2)}** ({fmt(aggressive_change, 1)}% from current)")
+                            st.write("""
+• **When to use**: Growth-oriented investors, best-case scenario
+• **Assumption**: Stock experiences P/E expansion + strong earnings growth
+• **Scenario**: Earnings beat expectations, market enthusiasm increases
+• **Regime-based multipliers**:
+  - CHEAP: 1.40× current P/E (mean reversion + growth)
+  - FAIR: 1.15× current P/E (above-average P/E expansion)
+  - EXPENSIVE: 0.95× current P/E (modest compression only)
+                            """)
+                            
+                            st.divider()
+                            
+                            st.markdown("### 💡 How Targets Are Calculated")
+                            st.markdown(f"""
+**Formula: Price Target = Target P/E Ratio × Current EPS**
+
+Example for {ticker}:
+- Current P/E: {fmt(pe, 1)}×
+- Current EPS: ${fmt(eps if eps else 0, 2)}
+- Base Case P/E multiplier: 1.05× (FAIR regime)
+- Target P/E: {fmt(pe, 1)} × 1.05 = {fmt(pe * 1.05 if pe else 0, 1)}×
+- Base Case Target: {fmt(pe * 1.05 if pe else 0, 1)} × ${fmt(eps if eps else 0, 2)} = **${fmt(targets['base'], 2)}**
+                            """)
+                            
+                            st.divider()
+                            
+                            st.markdown("### ⚠️ Important Notes")
+                            st.write("""
+✓ **Targets are not predictions** - they're mathematical exercises based on current data
+✓ **Market surprises happen** - earnings can exceed/miss expectations
+✓ **Use alongside other analysis** - combine with fundamental & technical analysis
+✓ **Review quarterly** - update targets when earnings or macro conditions change
+✓ **Risk management** - set stop losses below conservative target
+                            """)
                 else:
                     st.error(f"Could not fetch data for {ticker_input}. Please check the ticker symbol.")
 
