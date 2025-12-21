@@ -7820,34 +7820,66 @@ def main():
                                 if all_strikes:
                                     all_strikes = sorted(set(all_strikes))
                                     
-                                    # Suggest targets based on options market
-                                    puts_below = [s for s in all_strikes if s < mm_current_price]
-                                    calls_above = [s for s in all_strikes if s > mm_current_price]
-                                    
-                                    # Calculate max pain or key levels
-                                    support_level = puts_below[-1] if puts_below else mm_current_price * 0.95
-                                    resistance_level = calls_above[0] if calls_above else mm_current_price * 1.05
-                                    
-                                    # Market sentiment analysis - see where volume/OI clusters
+                                    # Calculate OI concentration by strike (PROFESSIONAL METHOD)
                                     oi_by_strike = {}
+                                    put_oi_by_strike = {}
+                                    call_oi_by_strike = {}
+                                    
                                     for chain in mm_chains.values():
                                         for opt in chain:
                                             try:
                                                 strike = float(opt.get('strike', 0))
                                                 oi = int(opt.get('open_interest', 0))
+                                                opt_type = opt.get('type', '').lower()
+                                                
                                                 oi_by_strike[strike] = oi_by_strike.get(strike, 0) + oi
+                                                
+                                                if opt_type == 'put':
+                                                    put_oi_by_strike[strike] = put_oi_by_strike.get(strike, 0) + oi
+                                                else:
+                                                    call_oi_by_strike[strike] = call_oi_by_strike.get(strike, 0) + oi
                                             except:
                                                 pass
                                     
-                                    # Find the strike with highest OI (market maker target)
-                                    if oi_by_strike:
-                                        max_oi_strike = max(oi_by_strike, key=oi_by_strike.get)
-                                    else:
-                                        max_oi_strike = mm_current_price
+                                    # Find PUT concentration (support level = where puts pile up)
+                                    # Support is donde los traders esperan que suba el precio PARA VENDER
+                                    support_level = mm_current_price * 0.95
+                                    if put_oi_by_strike:
+                                        # Find cluster of PUT OI below current price
+                                        puts_below = [(s, put_oi_by_strike.get(s, 0)) for s in all_strikes if s < mm_current_price]
+                                        if puts_below:
+                                            # Find the strike with HIGHEST PUT OI that's below current price
+                                            max_put_oi_strike, max_put_oi = max(puts_below, key=lambda x: x[1])
+                                            # But if it's too close (within 2%), look further
+                                            distance_pct = (mm_current_price - max_put_oi_strike) / mm_current_price
+                                            if distance_pct < 0.02:  # Too close, ATM
+                                                # Find next level down
+                                                deeper_puts = [(s, put_oi_by_strike.get(s, 0)) for s in all_strikes if s < (max_put_oi_strike * 0.98)]
+                                                if deeper_puts:
+                                                    max_put_oi_strike, _ = max(deeper_puts, key=lambda x: x[1])
+                                            support_level = max_put_oi_strike
+                                    
+                                    # Find CALL concentration (resistance level = where calls pile up)
+                                    # Resistance is donde los traders esperan que baje el precio PARA COMPRAR
+                                    resistance_level = mm_current_price * 1.05
+                                    if call_oi_by_strike:
+                                        # Find cluster of CALL OI above current price
+                                        calls_above = [(s, call_oi_by_strike.get(s, 0)) for s in all_strikes if s > mm_current_price]
+                                        if calls_above:
+                                            # Find the strike with HIGHEST CALL OI that's above current price
+                                            max_call_oi_strike, max_call_oi = max(calls_above, key=lambda x: x[1])
+                                            # But if it's too close (within 2%), look further
+                                            distance_pct = (max_call_oi_strike - mm_current_price) / mm_current_price
+                                            if distance_pct < 0.02:  # Too close, ATM
+                                                # Find next level up
+                                                higher_calls = [(s, call_oi_by_strike.get(s, 0)) for s in all_strikes if s > (max_call_oi_strike * 1.02)]
+                                                if higher_calls:
+                                                    max_call_oi_strike, _ = max(higher_calls, key=lambda x: x[1])
+                                            resistance_level = max_call_oi_strike
                                     
                                     # Determine market bias by comparing put vs call volume
-                                    total_put_oi = sum(int(opt.get('open_interest', 0)) for chain in mm_chains.values() for opt in chain if opt.get('type', '').lower() == 'put')
-                                    total_call_oi = sum(int(opt.get('open_interest', 0)) for chain in mm_chains.values() for opt in chain if opt.get('type', '').lower() == 'call')
+                                    total_put_oi = sum(put_oi_by_strike.values())
+                                    total_call_oi = sum(call_oi_by_strike.values())
                                     
                                     # Display auto-detected targets
                                     st.markdown("### 🎯 Auto-Detected Market Targets")
