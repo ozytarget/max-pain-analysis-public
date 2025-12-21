@@ -7898,103 +7898,136 @@ def main():
                                     
                                     st.divider()
                                     
-                                    # Let user choose which target to analyze
-                                    st.markdown("### 📍 Select Analysis Target")
-                                    col_t1, col_t2, col_t3 = st.columns(3)
+                                    # Step 1: Select expiration type (Weekly or Monthly)
+                                    st.markdown("### ⏰ Select Expiration Type")
+                                    col_exp1, col_exp2 = st.columns(2)
                                     
-                                    analyze_support = col_t1.button(f"📉 Support ${support_level:.2f}", use_container_width=True, key="btn_support")
-                                    analyze_resistance = col_t2.button(f"📈 Resistance ${resistance_level:.2f}", use_container_width=True, key="btn_resistance")
-                                    analyze_custom = col_t3.button("⚙️ Custom Target", use_container_width=True, key="btn_custom")
+                                    exp_type_weekly = col_exp1.button("📅 WEEKLY (0-7 DTE)", use_container_width=True, key="btn_exp_weekly")
+                                    exp_type_monthly = col_exp2.button("📆 MONTHLY (8-60+ DTE)", use_container_width=True, key="btn_exp_monthly")
                                     
-                                    mm_target_price = None
+                                    selected_exp_type = None
+                                    if exp_type_weekly:
+                                        selected_exp_type = "weekly"
+                                    elif exp_type_monthly:
+                                        selected_exp_type = "monthly"
                                     
-                                    if analyze_support:
-                                        mm_target_price = support_level
-                                    elif analyze_resistance:
-                                        mm_target_price = resistance_level
-                                    elif analyze_custom:
-                                        mm_target_price = st.number_input(
-                                            "Enter custom target price",
-                                            value=mm_current_price,
-                                            step=0.50,
-                                            key="custom_target"
-                                        )
-                                    
-                                    # Run scanner for selected target
-                                    if mm_target_price is not None:
-                                        st.info(f"🎯 Scanning for optimal contracts targeting ${mm_target_price:.2f}...")
+                                    if selected_exp_type:
+                                        st.success(f"✅ Analyzing **{selected_exp_type.upper()}** options")
+                                        st.divider()
                                         
-                                        # Run MM Scanner
-                                        df_mm_results = mm_contract_scanner(
-                                            ticker=mm_ticker,
-                                            current_price=mm_current_price,
-                                            target_price=mm_target_price,
-                                            expiration_dates_dict=mm_exp_dict,
-                                            option_chains_dict=mm_chains,
-                                            risk_free_rate=0.045
+                                        # Step 2: Select target price
+                                        st.markdown("### 📍 Select Price Target")
+                                        col_t1, col_t2, col_t3 = st.columns(3)
+                                        
+                                        target_support_key = f"btn_support_{selected_exp_type}"
+                                        target_resistance_key = f"btn_resistance_{selected_exp_type}"
+                                        target_custom_key = f"btn_custom_{selected_exp_type}"
+                                        
+                                        analyze_support = col_t1.button(
+                                            f"📉 Support\n${support_level:.2f}\n({selected_exp_type.upper()})",
+                                            use_container_width=True,
+                                            key=target_support_key
+                                        )
+                                        analyze_resistance = col_t2.button(
+                                            f"📈 Resistance\n${resistance_level:.2f}\n({selected_exp_type.upper()})",
+                                            use_container_width=True,
+                                            key=target_resistance_key
+                                        )
+                                        analyze_custom = col_t3.button(
+                                            f"⚙️ Custom Target\n({selected_exp_type.upper()})",
+                                            use_container_width=True,
+                                            key=target_custom_key
                                         )
                                         
-                                        if not df_mm_results.empty:
-                                            # Display winners
-                                            display_mm_contract_winner(
-                                                df_mm_results,
-                                                mm_ticker,
-                                                mm_current_price,
-                                                mm_target_price
+                                        mm_target_price = None
+                                        
+                                        if analyze_support:
+                                            mm_target_price = support_level
+                                        elif analyze_resistance:
+                                            mm_target_price = resistance_level
+                                        elif analyze_custom:
+                                            mm_target_price = st.number_input(
+                                                f"Enter custom target price for {selected_exp_type.upper()} options",
+                                                value=mm_current_price,
+                                                step=0.50,
+                                                key=f"custom_target_{selected_exp_type}"
+                                            )
+                                        
+                                        # Run scanner for selected target
+                                        if mm_target_price is not None:
+                                            st.info(f"🎯 Scanning for optimal {selected_exp_type.upper()} contracts targeting ${mm_target_price:.2f}...")
+                                            
+                                            # Run MM Scanner
+                                            df_mm_results = mm_contract_scanner(
+                                                ticker=mm_ticker,
+                                                current_price=mm_current_price,
+                                                target_price=mm_target_price,
+                                                expiration_dates_dict=mm_exp_dict,
+                                                option_chains_dict=mm_chains,
+                                                risk_free_rate=0.045
                                             )
                                             
-                                            st.divider()
-                                            
-                                            # Display detailed results table
-                                            st.subheader("📋 All Contracts Ranked by MM Score")
-                                            
-                                            # Filter options
-                                            col_filter1, col_filter2, col_filter3 = st.columns(3)
-                                            with col_filter1:
-                                                filter_exp_type = st.multiselect(
-                                                    "Expiration Type",
-                                                    df_mm_results['exp_type'].unique(),
-                                                    default=df_mm_results['exp_type'].unique(),
-                                                    key="mm_exp_type_filter"
+                                            if not df_mm_results.empty:
+                                                # Display winners
+                                                display_mm_contract_winner(
+                                                    df_mm_results,
+                                                    mm_ticker,
+                                                    mm_current_price,
+                                                    mm_target_price
                                                 )
-                                            with col_filter2:
-                                                filter_option_type = st.multiselect(
-                                                    "Option Type",
-                                                    df_mm_results['option_type'].unique(),
-                                                    default=df_mm_results['option_type'].unique(),
-                                                    key="mm_option_type_filter"
-                                                )
-                                            with col_filter3:
-                                                min_score = st.slider(
-                                                    "Minimum MM Score",
-                                                    min_value=float(df_mm_results['mm_score'].min()),
-                                                    max_value=float(df_mm_results['mm_score'].max()),
-                                                    value=float(df_mm_results['mm_score'].quantile(0.25)),
-                                                    key="mm_score_slider"
-                                                )
-                                            
-                                            # Apply filters
-                                            df_filtered = df_mm_results[
-                                                (df_mm_results['exp_type'].isin(filter_exp_type)) &
-                                                (df_mm_results['option_type'].isin(filter_option_type)) &
-                                                (df_mm_results['mm_score'] >= min_score)
-                                            ]
-                                            
-                                            if not df_filtered.empty:
-                                                # Format display columns
-                                                df_display = df_filtered[[
-                                                    'exp_type', 'strike', 'option_type', 'dte', 'bid', 'ask',
-                                                    'delta', 'gamma', 'theta', 'vega',
-                                                    'iv', 'prob_itm', 'prob_profit', 'volume', 'oi', 'mm_score'
-                                                ]].copy()
                                                 
-                                                df_display.columns = [
-                                                    'Exp Type', 'Strike', 'Type', 'DTE', 'Bid', 'Ask',
-                                                    'Δ', 'Γ', 'Θ', 'ν',
-                                                    'IV', 'P(ITM)', 'P(Profit)', 'Vol', 'OI', 'MM Score'
+                                                st.divider()
+                                                
+                                                # Display detailed results table
+                                                st.subheader("📋 All Contracts Ranked by MM Score")
+                                                
+                                                # Filter options
+                                                col_filter1, col_filter2, col_filter3 = st.columns(3)
+                                                with col_filter1:
+                                                    filter_exp_type = st.multiselect(
+                                                        "Expiration Type",
+                                                        df_mm_results['exp_type'].unique(),
+                                                        default=df_mm_results['exp_type'].unique(),
+                                                        key="mm_exp_type_filter"
+                                                    )
+                                                with col_filter2:
+                                                    filter_option_type = st.multiselect(
+                                                        "Option Type",
+                                                        df_mm_results['option_type'].unique(),
+                                                        default=df_mm_results['option_type'].unique(),
+                                                        key="mm_option_type_filter"
+                                                    )
+                                                with col_filter3:
+                                                    min_score = st.slider(
+                                                        "Minimum MM Score",
+                                                        min_value=float(df_mm_results['mm_score'].min()),
+                                                        max_value=float(df_mm_results['mm_score'].max()),
+                                                        value=float(df_mm_results['mm_score'].quantile(0.25)),
+                                                        key="mm_score_slider"
+                                                    )
+                                                
+                                                # Apply filters
+                                                df_filtered = df_mm_results[
+                                                    (df_mm_results['exp_type'].isin(filter_exp_type)) &
+                                                    (df_mm_results['option_type'].isin(filter_option_type)) &
+                                                    (df_mm_results['mm_score'] >= min_score)
                                                 ]
                                                 
-                                                # Format numbers
+                                                if not df_filtered.empty:
+                                                    # Format display columns
+                                                    df_display = df_filtered[[
+                                                        'exp_type', 'strike', 'option_type', 'dte', 'bid', 'ask',
+                                                        'delta', 'gamma', 'theta', 'vega',
+                                                        'iv', 'prob_itm', 'prob_profit', 'volume', 'oi', 'mm_score'
+                                                    ]].copy()
+                                                    
+                                                    df_display.columns = [
+                                                        'Exp Type', 'Strike', 'Type', 'DTE', 'Bid', 'Ask',
+                                                        'Δ', 'Γ', 'Θ', 'ν',
+                                                        'IV', 'P(ITM)', 'P(Profit)', 'Vol', 'OI', 'MM Score'
+                                                    ]
+                                                    
+                                                    # Format numbers
                                                 for col in ['Bid', 'Ask']:
                                                     df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
                                                 for col in ['Strike']:
