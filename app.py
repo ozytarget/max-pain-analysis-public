@@ -3470,6 +3470,593 @@ def fetch_fmp_sec_filings_by_symbol(symbol: str, from_date: str, to_date: str) -
 
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# MM CONTRACT SCANNER - ADVANCED BLACK-SCHOLES & MARKET MAKER OPTIMIZATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def calculate_black_scholes_greeks(S, K, T, r, sigma, option_type='call'):
+    """
+    Calculate Black-Scholes Greeks with extreme precision for MM analysis.
+    
+    Args:
+        S: Current stock price
+        K: Strike price
+        T: Time to expiration (years)
+        r: Risk-free rate
+        sigma: Volatility (annualized)
+        option_type: 'call' or 'put'
+    
+    Returns:
+        Dictionary with Delta, Gamma, Theta, Vega, Rho, Vanna, Volga, Charm
+    """
+    from scipy.stats import norm
+    
+    if T <= 0 or S <= 0 or K <= 0 or sigma <= 0:
+        return {
+            'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0, 'rho': 0,
+            'vanna': 0, 'volga': 0, 'charm': 0
+        }
+    
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    
+    # Standard normal PDF and CDF
+    pdf_d1 = norm.pdf(d1)
+    cdf_d1 = norm.cdf(d1)
+    cdf_d2 = norm.cdf(d2)
+    
+    sqrt_T = np.sqrt(T)
+    exp_rT = np.exp(-r * T)
+    
+    # FIRST-ORDER GREEKS
+    if option_type.lower() == 'call':
+        delta = cdf_d1
+        theta = (-S * pdf_d1 * sigma / (2 * sqrt_T) - r * K * exp_rT * cdf_d2) / 365
+        rho = K * T * exp_rT * cdf_d2 / 100
+        charm = (r * delta - pdf_d1 * (2 * r * T - d2 * sqrt_T) / (2 * T * sigma * sqrt_T)) / 365
+    else:  # put
+        delta = cdf_d1 - 1
+        theta = (-S * pdf_d1 * sigma / (2 * sqrt_T) + r * K * exp_rT * norm.cdf(-d2)) / 365
+        rho = -K * T * exp_rT * norm.cdf(-d2) / 100
+        charm = (-r * (1 - delta) + pdf_d1 * (2 * r * T - d2 * sqrt_T) / (2 * T * sigma * sqrt_T)) / 365
+    
+    # Gamma es igual para calls y puts
+    gamma = pdf_d1 / (S * sigma * sqrt_T)
+    
+    # Vega es igual para calls y puts (por 1% de cambio en IV)
+    vega = S * pdf_d1 * sqrt_T / 100
+    
+    # SECOND-ORDER GREEKS (Para MM sofisticado)
+    # Vanna: Sensitivity of Delta to IV changes
+    vanna = -pdf_d1 * d2 / sigma / 100
+    
+    # Volga: Sensitivity of Vega to IV changes  
+    volga = S * pdf_d1 * sqrt_T * (d1 * d2 - 1) / (sigma ** 2) / 10000
+    
+    return {
+        'delta': delta,
+        'gamma': gamma,
+        'theta': theta,
+        'vega': vega,
+        'rho': rho,
+        'vanna': vanna,
+        'volga': volga,
+        'charm': charm
+    }
+
+
+def calculate_prob_itm(S, K, T, r, sigma, option_type='call'):
+    """
+    Calculate probability of finishing In-The-Money using Black-Scholes.
+    
+    Args:
+        S: Current stock price
+        K: Strike price
+        T: Time to expiration (years)
+        r: Risk-free rate
+        sigma: Volatility (annualized)
+        option_type: 'call' or 'put'
+    
+    Returns:
+        Probability (0-1)
+    """
+    from scipy.stats import norm
+    
+    d2 = (np.log(S / K) + (r - 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    
+    if option_type.lower() == 'call':
+        prob_itm = norm.cdf(d2)
+    else:  # put
+        prob_itm = norm.cdf(-d2)
+    
+    return prob_itm
+
+
+def mm_contract_scanner(ticker, current_price, target_price, expiration_dates_dict, option_chains_dict, risk_free_rate=0.045):
+    """
+    ADVANCED Market Maker Contract Scanner - Professional Grade Greeks Analysis.
+    Uses sophisticated MM risk models and scoring algorithms.
+    
+    Args:
+        ticker: Stock ticker
+        current_price: Current stock price
+        target_price: Target price (establishes directional bias)
+        expiration_dates_dict: Dict of expiration dates
+        option_chains_dict: Dict of option chain data
+        risk_free_rate: Risk-free rate for Black-Scholes
+    
+    Returns:
+        DataFrame with ranked contracts using professional MM scoring
+    """
+    results = []
+    
+    # Determine direction and move magnitude
+    direction = 'BEARISH' if target_price < current_price else 'BULLISH'
+    price_move = abs((target_price - current_price) / current_price)
+    distance_to_target = abs(target_price - current_price)
+    
+    try:
+        for exp_date, chain_data in option_chains_dict.items():
+            if not chain_data:
+                continue
+            
+            try:
+                exp_dt = datetime.strptime(exp_date, '%Y-%m-%d')
+                current_dt = datetime.now(MARKET_TIMEZONE)
+                dte = (exp_dt.date() - current_dt.date()).days
+                
+                if dte <= 0:
+                    continue
+                
+                T = dte / 365.0
+                
+                # Expiration classification
+                if dte <= 7:
+                    exp_type = '⚡ WEEKLY'
+                    exp_weight = 1.2  # Weekly preferred for gamma scalping
+                elif dte <= 30:
+                    exp_type = '📅 MONTHLY'
+                    exp_weight = 1.0  # Standard
+                elif dte <= 60:
+                    exp_type = '📊 60-DTE'
+                    exp_weight = 0.8
+                else:
+                    exp_type = '📈 LONG-DATED'
+                    exp_weight = 0.6
+                    
+            except:
+                continue
+            
+            # Process each option contract
+            for opt in chain_data:
+                try:
+                    strike = float(opt.get('strike', 0))
+                    option_type = opt.get('type', 'call').lower()
+                    bid = float(opt.get('bid', 0))
+                    ask = float(opt.get('ask', 0))
+                    iv = float(opt.get('implied_volatility', 0.20))
+                    volume = int(opt.get('volume', 0))
+                    oi = int(opt.get('open_interest', 0))
+                    
+                    if bid <= 0 or ask <= 0:
+                        continue
+                    
+                    mid_price = (bid + ask) / 2
+                    
+                    # Calculate advanced Greeks including second-order
+                    greeks = calculate_black_scholes_greeks(
+                        S=current_price,
+                        K=strike,
+                        T=T,
+                        r=risk_free_rate,
+                        sigma=iv,
+                        option_type=option_type
+                    )
+                    
+                    # Probability of ITM
+                    prob_itm = calculate_prob_itm(
+                        S=current_price,
+                        K=strike,
+                        T=T,
+                        r=risk_free_rate,
+                        sigma=iv,
+                        option_type=option_type
+                    )
+                    
+                    # Metrics
+                    distance_pct = abs((strike - current_price) / current_price * 100)
+                    distance_from_target = abs(strike - target_price)
+                    moneyness = strike / current_price
+                    
+                    # ════════════════════════════════════════════════════════════════
+                    # MM SCORING ALGORITHM - PROFESSIONAL GRADE
+                    # ════════════════════════════════════════════════════════════════
+                    
+                    # 1. DIRECTIONAL ALIGNMENT SCORE
+                    if direction == 'BEARISH':
+                        is_put = 1 if option_type == 'put' else 0
+                        directional_delta = abs(greeks['delta'])
+                        prob_profit = prob_itm if option_type == 'put' else (1 - prob_itm)
+                    else:  # BULLISH
+                        is_put = 0 if option_type == 'call' else 1
+                        directional_delta = abs(greeks['delta'])
+                        prob_profit = prob_itm if option_type == 'call' else (1 - prob_itm)
+                    
+                    # Penalize wrong direction
+                    direction_score = (50 * is_put) if direction == 'BEARISH' else (50 * (1 - is_put))
+                    direction_score += directional_delta * 50  # 0-50 points
+                    
+                    # 2. STRIKE SELECTION SCORE (Sweet Spot Analysis)
+                    # Best strikes are 5-15% OTM
+                    if option_type == 'put':
+                        moneyness_diff = (current_price - strike) / current_price
+                        if 0.05 <= moneyness_diff <= 0.15:
+                            strike_quality = 100  # Perfect OTM zone
+                        elif 0 <= moneyness_diff < 0.05:
+                            strike_quality = 80   # Slightly ITM
+                        elif moneyness_diff > 0.15:
+                            strike_quality = 70   # Deep OTM
+                        else:
+                            strike_quality = 20   # Way ITM (bad)
+                    else:  # call
+                        moneyness_diff = (strike - current_price) / current_price
+                        if 0.05 <= moneyness_diff <= 0.15:
+                            strike_quality = 100
+                        elif 0 <= moneyness_diff < 0.05:
+                            strike_quality = 80
+                        elif moneyness_diff > 0.15:
+                            strike_quality = 70
+                        else:
+                            strike_quality = 20
+                    
+                    # Bonus if strike matches target exactly
+                    target_bonus = 0
+                    if distance_from_target < (distance_to_target * 0.1):
+                        target_bonus = 30
+                    
+                    # 3. GAMMA QUALITY SCORE (Hedging ability)
+                    # Peak gamma near ATM, good for rebalancing
+                    gamma_score = min(100, greeks['gamma'] * 10000)  # Scale to 0-100
+                    
+                    # 4. THETA ADVANTAGE SCORE (Time decay)
+                    # For sellers, positive theta is gold
+                    theta_annual = greeks['theta'] * 365
+                    theta_score = min(100, max(0, theta_annual * 50))
+                    
+                    # Boost weekly theta (faster decay)
+                    if exp_type == '⚡ WEEKLY':
+                        theta_score *= 1.3
+                    
+                    # 5. VEGA STABILITY SCORE (IV risk management)
+                    vega_pct_per_contract = (greeks['vega'] / mid_price * 100) if mid_price > 0 else 0
+                    
+                    # Lower vega = more stable (good for gamma scalping)
+                    vega_stability = 100 - min(100, vega_pct_per_contract * 2)
+                    
+                    # 6. LIQUIDITY SCORE (Market quality)
+                    spread = ask - bid
+                    spread_pct = (spread / mid_price * 100) if mid_price > 0 else 100
+                    bid_ask_ratio = bid / ask if ask > 0 else 0
+                    
+                    # Spreads: <0.5% excellent, 0.5-2% good, >2% poor
+                    if spread_pct < 0.5:
+                        liquidity_score = 100
+                    elif spread_pct < 2:
+                        liquidity_score = 80
+                    elif spread_pct < 5:
+                        liquidity_score = 50
+                    else:
+                        liquidity_score = 20
+                    
+                    # Volume bonus
+                    volume_bonus = min(20, volume / 100) if volume > 0 else 0
+                    oi_bonus = min(15, oi / 10000) if oi > 0 else 0
+                    liquidity_score += volume_bonus + oi_bonus
+                    liquidity_score = min(100, liquidity_score)
+                    
+                    # 7. EDGE OPPORTUNITY SCORE (Advanced MM thinking)
+                    # IV percentile, skew analysis
+                    edge_score = 50
+                    
+                    # IV too high = opportunity to sell vol
+                    if iv > 0.25:
+                        edge_score += 10
+                    # IV too low = opportunity to buy vol
+                    elif iv < 0.15:
+                        edge_score -= 10
+                    
+                    # Vanna effects (delta-vega correlation)
+                    vanna_benefit = abs(greeks.get('vanna', 0)) * 1000  # Scale benefit
+                    edge_score += min(10, vanna_benefit)
+                    
+                    # 8. EXPIRATION TIMING SCORE
+                    # Sweet spot: 7-21 DTE for gamma scalping
+                    if 7 <= dte <= 21:
+                        timing_score = 100
+                    elif 4 <= dte < 7:
+                        timing_score = 85  # Very tight, high theta
+                    elif 21 < dte <= 45:
+                        timing_score = 80  # More stable
+                    else:
+                        timing_score = 50  # Too far or too close
+                    
+                    # ════════════════════════════════════════════════════════════════
+                    # COMPOSITE MM SCORE (Weighted Professional Model)
+                    # ════════════════════════════════════════════════════════════════
+                    
+                    mm_score = (
+                        direction_score * 0.25 +      # 25% - Directional fit
+                        strike_quality * 0.20 +        # 20% - Strike quality (sweet spot)
+                        gamma_score * 0.15 +           # 15% - Gamma for scalping
+                        theta_score * 0.15 +           # 15% - Theta decay
+                        liquidity_score * 0.12 +       # 12% - Tradability
+                        vega_stability * 0.08 +        # 8%  - IV stability
+                        timing_score * 0.05            # 5%  - Expiration timing
+                    ) * exp_weight  # Adjust by expiration type preference
+                    
+                    # Apply target bonus
+                    if target_bonus > 0:
+                        mm_score += target_bonus
+                        mm_score = min(100, mm_score)
+                    
+                    # Calculate expected value (simplified)
+                    expected_value = prob_profit * mid_price * 0.6  # Assume 60% of profit taken
+                    
+                    results.append({
+                        'ticker': ticker,
+                        'exp_date': exp_date,
+                        'dte': dte,
+                        'exp_type': exp_type,
+                        'strike': strike,
+                        'option_type': option_type.upper(),
+                        'bid': bid,
+                        'ask': ask,
+                        'mid': mid_price,
+                        'spread': spread,
+                        'spread_pct': spread_pct,
+                        'iv': iv,
+                        'volume': volume,
+                        'oi': oi,
+                        'delta': greeks['delta'],
+                        'gamma': greeks['gamma'],
+                        'theta': greeks['theta'],
+                        'vega': greeks['vega'],
+                        'rho': greeks['rho'],
+                        'vanna': greeks.get('vanna', 0),
+                        'volga': greeks.get('volga', 0),
+                        'charm': greeks.get('charm', 0),
+                        'prob_itm': prob_itm,
+                        'prob_profit': prob_profit,
+                        'distance_pct': distance_pct,
+                        'direction': direction,
+                        'mm_score': mm_score,
+                        'direction_score': direction_score,
+                        'strike_quality': strike_quality,
+                        'gamma_score': gamma_score,
+                        'theta_score': theta_score,
+                        'liquidity_score': liquidity_score,
+                        'expected_value': expected_value,
+                        'moneyness': moneyness
+                    })
+                    
+                except Exception as e:
+                    continue
+        
+        if not results:
+            return pd.DataFrame()
+        
+        # Sort by MM Score
+        df_results = pd.DataFrame(results)
+        df_results = df_results.sort_values('mm_score', ascending=False)
+        
+        return df_results
+        
+    except Exception as e:
+        logger.error(f"MM Scanner Error: {str(e)}")
+        return pd.DataFrame()
+
+
+def display_mm_contract_winner(df_contracts, ticker, current_price, target_price):
+    """Display the winning contract selection with detailed MM analysis."""
+    
+    if df_contracts.empty:
+        st.warning("⚠️ No contracts available for analysis")
+        return
+    
+    # Get top contracts by type
+    top_weekly = df_contracts[df_contracts['exp_type'] == '⚡ WEEKLY'].head(1)
+    top_monthly = df_contracts[df_contracts['exp_type'] == '📅 MONTHLY'].head(1)
+    top_overall = df_contracts.head(1)
+    
+    direction = "🔴 BEARISH" if target_price < current_price else "🟢 BULLISH"
+    move_magnitude = abs(target_price - current_price)
+    move_pct = (move_magnitude / current_price) * 100
+    
+    # Display Summary
+    st.markdown("### 📊 Market Setup")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Current Price", f"${current_price:.2f}")
+    with col2:
+        st.metric("Target Price", f"${target_price:.2f}", delta=f"{move_pct:.2f}%")
+    with col3:
+        st.metric("Direction", direction)
+    with col4:
+        st.metric("Distance", f"${move_magnitude:.2f}")
+    
+    st.divider()
+    
+    # Display Winners
+    st.subheader("🏆 MM Winning Contracts (Professional Grade)")
+    
+    # Weekly Winner
+    if not top_weekly.empty:
+        row = top_weekly.iloc[0]
+        
+        # Create tabs for detailed view
+        col_w1, col_w2 = st.columns([2, 1])
+        
+        with col_w1:
+            st.markdown(f"### ⚡ Weekly Winner - {row['option_type']} ${row['strike']:.2f}")
+            
+            # Main metrics
+            metric_cols = st.columns(5)
+            with metric_cols[0]:
+                st.write(f"**Price**\n${row['bid']:.2f}-${row['ask']:.2f}")
+            with metric_cols[1]:
+                st.write(f"**Delta**\n{row['delta']:.3f}")
+            with metric_cols[2]:
+                st.write(f"**Gamma**\n{row['gamma']:.6f}")
+            with metric_cols[3]:
+                st.write(f"**Theta**\n${row['theta']:.4f}/day")
+            with metric_cols[4]:
+                st.write(f"**IV**\n{row['iv']:.1%}")
+            
+            st.write(f"⭐ **MM Score: {row['mm_score']:.1f}/100**")
+            
+            # Breakdown
+            breakdown_cols = st.columns(3)
+            with breakdown_cols[0]:
+                st.write(f"📍 Directional: {row['direction_score']:.0f}")
+            with breakdown_cols[1]:
+                st.write(f"🎯 Strike Quality: {row['strike_quality']:.0f}")
+            with breakdown_cols[2]:
+                st.write(f"🎢 Gamma Score: {row['gamma_score']:.0f}")
+            
+            breakdown_cols2 = st.columns(3)
+            with breakdown_cols2[0]:
+                st.write(f"⏰ Theta Score: {row['theta_score']:.0f}")
+            with breakdown_cols2[1]:
+                st.write(f"💧 Liquidity: {row['liquidity_score']:.0f}")
+            with breakdown_cols2[2]:
+                st.write(f"📈 Expected Value: ${row['expected_value']:.2f}")
+        
+        with col_w2:
+            st.write(f"**Probability Stats**")
+            st.write(f"• ITM: {row['prob_itm']:.1%}")
+            st.write(f"• Profit: {row['prob_profit']:.1%}")
+            st.write(f"• DTE: {row['dte']} days")
+            st.write(f"• Volume: {row['volume']:.0f}")
+            st.write(f"• OI: {row['oi']:.0f}")
+    
+    st.markdown("---")
+    
+    # Monthly Winner
+    if not top_monthly.empty:
+        row = top_monthly.iloc[0]
+        
+        col_m1, col_m2 = st.columns([2, 1])
+        
+        with col_m1:
+            st.markdown(f"### 📅 Monthly Winner - {row['option_type']} ${row['strike']:.2f}")
+            
+            metric_cols = st.columns(5)
+            with metric_cols[0]:
+                st.write(f"**Price**\n${row['bid']:.2f}-${row['ask']:.2f}")
+            with metric_cols[1]:
+                st.write(f"**Delta**\n{row['delta']:.3f}")
+            with metric_cols[2]:
+                st.write(f"**Gamma**\n{row['gamma']:.6f}")
+            with metric_cols[3]:
+                st.write(f"**Theta**\n${row['theta']:.4f}/day")
+            with metric_cols[4]:
+                st.write(f"**IV**\n{row['iv']:.1%}")
+            
+            st.write(f"⭐ **MM Score: {row['mm_score']:.1f}/100**")
+            
+            breakdown_cols = st.columns(3)
+            with breakdown_cols[0]:
+                st.write(f"📍 Directional: {row['direction_score']:.0f}")
+            with breakdown_cols[1]:
+                st.write(f"🎯 Strike Quality: {row['strike_quality']:.0f}")
+            with breakdown_cols[2]:
+                st.write(f"🎢 Gamma Score: {row['gamma_score']:.0f}")
+            
+            breakdown_cols2 = st.columns(3)
+            with breakdown_cols2[0]:
+                st.write(f"⏰ Theta Score: {row['theta_score']:.0f}")
+            with breakdown_cols2[1]:
+                st.write(f"💧 Liquidity: {row['liquidity_score']:.0f}")
+            with breakdown_cols2[2]:
+                st.write(f"📈 Expected Value: ${row['expected_value']:.2f}")
+        
+        with col_m2:
+            st.write(f"**Probability Stats**")
+            st.write(f"• ITM: {row['prob_itm']:.1%}")
+            st.write(f"• Profit: {row['prob_profit']:.1%}")
+            st.write(f"• DTE: {row['dte']} days")
+            st.write(f"• Volume: {row['volume']:.0f}")
+            st.write(f"• OI: {row['oi']:.0f}")
+    
+    st.divider()
+    
+    # Greeks Explanation
+    with st.expander("📚 Complete Greeks Reference Guide"):
+        col_ref1, col_ref2 = st.columns(2)
+        
+        with col_ref1:
+            st.markdown("""
+            ### First-Order Greeks (Primary Risk Factors)
+            
+            **DELTA (Δ)** - Directional Exposure
+            - Range: Call [0→1], Put [-1→0]
+            - Meaning: Change in option price per $1 stock move
+            - MM Use: Hedge ratio for delta-neutral trading
+            
+            **GAMMA (Γ)** - Delta Acceleration
+            - Always positive, peaks at ATM
+            - Meaning: Rate of delta change
+            - MM Use: Rebalancing frequency, scalping opportunities
+            
+            **THETA (Θ)** - Time Decay
+            - Positive for sellers (negative for buyers)
+            - Meaning: Daily value loss from time
+            - MM Use: Income generation via theta harvesting
+            
+            **VEGA (ν)** - Volatility Exposure
+            - Same for calls and puts
+            - Meaning: Change per 1% IV move
+            - MM Use: IV crush/expansion bets
+            
+            **RHO (ρ)** - Interest Rate Sensitivity
+            - Minimal for equities (critical for futures)
+            - Meaning: Change per 1% rate move
+            - MM Use: Long-term positioning
+            """)
+        
+        with col_ref2:
+            st.markdown("""
+            ### Second-Order Greeks (Advanced Risk)
+            
+            **VANNA** - Delta-Vega Correlation
+            - Cross-Greek sensitivity
+            - Meaning: Delta change per 1% IV move
+            - MM Use: IV spike hedging
+            
+            **VOLGA** - Vega Convexity
+            - Vega sensitivity to IV changes
+            - Meaning: Vega change per 1% IV move
+            - MM Use: Vol-of-vol positioning
+            
+            **CHARM** - Delta Decay
+            - "Decay of gamma over time"
+            - Meaning: Delta change per day
+            - MM Use: Daily rebalancing forecasting
+            
+            ### MM Score Components
+            
+            The professional MM Score weighs:
+            - **25%** Direction alignment (delta match)
+            - **20%** Strike quality (sweet spot 5-15% OTM)
+            - **15%** Gamma (scalping ability)
+            - **15%** Theta (time decay benefit)
+            - **12%** Liquidity (spread + volume)
+            - **8%** Vega stability (IV risk)
+            - **5%** Expiration timing (sweet spot 7-21 DTE)
+            """)
+
+
+
 # --- Main App --
 # --- Main App ---
 # --- Main App ---
@@ -7180,6 +7767,151 @@ def main():
     with tab8:
         st.subheader("📊 US Equity Metrics Dashboard")
         
+        # ═══════════════════════════════════════════════════════════════════════════════
+        # MM CONTRACT SCANNER - GREEKS-BASED OPTIMAL CONTRACT SELECTION
+        # ═══════════════════════════════════════════════════════════════════════════════
+        
+        st.markdown("---")
+        st.subheader("🎯 MM Contract Scanner - Greeks & Optimal Selection")
+        st.markdown("""
+        **Smart option contract selector using Black-Scholes Greeks analysis.**
+        Identify the best weekly/monthly contracts based on Delta, Gamma, Theta, Vega, and probability of profit.
+        """)
+        
+        # Input columns
+        col_mm1, col_mm2, col_mm3 = st.columns(3)
+        with col_mm1:
+            mm_ticker = st.text_input("Stock Ticker", value="SPY", key="mm_ticker_input").upper()
+        with col_mm2:
+            mm_current_price = st.number_input("Current Price", value=450.0, step=0.01, key="mm_current_price")
+        with col_mm3:
+            mm_target_price = st.number_input("Target Price", value=448.0, step=0.01, key="mm_target_price")
+        
+        if st.button("🔍 Scan Optimal Contracts", key="mm_scan_button"):
+            with st.spinner("Fetching option chains and analyzing Greeks..."):
+                try:
+                    # Get expiration dates
+                    exp_dates = get_expiration_dates(mm_ticker)
+                    
+                    if not exp_dates:
+                        st.error(f"❌ No expiration dates found for {mm_ticker}")
+                    else:
+                        # Fetch option chains for multiple expirations
+                        mm_chains = {}
+                        mm_exp_dict = {}
+                        
+                        for exp_date in exp_dates[:5]:  # Get first 5 expirations
+                            chain_data = get_option_chain(mm_ticker, exp_date)
+                            if chain_data:
+                                mm_chains[exp_date] = chain_data
+                                mm_exp_dict[exp_date] = None  # Placeholder
+                        
+                        if not mm_chains:
+                            st.error(f"❌ Could not fetch option chains for {mm_ticker}")
+                        else:
+                            # Run MM Scanner
+                            df_mm_results = mm_contract_scanner(
+                                ticker=mm_ticker,
+                                current_price=mm_current_price,
+                                target_price=mm_target_price,
+                                expiration_dates_dict=mm_exp_dict,
+                                option_chains_dict=mm_chains,
+                                risk_free_rate=0.045
+                            )
+                            
+                            if not df_mm_results.empty:
+                                # Display winners
+                                display_mm_contract_winner(
+                                    df_mm_results,
+                                    mm_ticker,
+                                    mm_current_price,
+                                    mm_target_price
+                                )
+                                
+                                st.divider()
+                                
+                                # Display detailed results table
+                                st.subheader("📋 All Contracts Ranked by MM Score")
+                                
+                                # Filter options
+                                col_filter1, col_filter2, col_filter3 = st.columns(3)
+                                with col_filter1:
+                                    filter_exp_type = st.multiselect(
+                                        "Expiration Type",
+                                        df_mm_results['exp_type'].unique(),
+                                        default=df_mm_results['exp_type'].unique(),
+                                        key="mm_exp_type_filter"
+                                    )
+                                with col_filter2:
+                                    filter_option_type = st.multiselect(
+                                        "Option Type",
+                                        df_mm_results['option_type'].unique(),
+                                        default=df_mm_results['option_type'].unique(),
+                                        key="mm_option_type_filter"
+                                    )
+                                with col_filter3:
+                                    min_score = st.slider(
+                                        "Minimum MM Score",
+                                        min_value=float(df_mm_results['mm_score'].min()),
+                                        max_value=float(df_mm_results['mm_score'].max()),
+                                        value=float(df_mm_results['mm_score'].quantile(0.25)),
+                                        key="mm_score_slider"
+                                    )
+                                
+                                # Apply filters
+                                df_filtered = df_mm_results[
+                                    (df_mm_results['exp_type'].isin(filter_exp_type)) &
+                                    (df_mm_results['option_type'].isin(filter_option_type)) &
+                                    (df_mm_results['mm_score'] >= min_score)
+                                ]
+                                
+                                if not df_filtered.empty:
+                                    # Format display columns
+                                    df_display = df_filtered[[
+                                        'exp_type', 'strike', 'option_type', 'dte', 'bid', 'ask',
+                                        'delta', 'gamma', 'theta', 'vega',
+                                        'iv', 'prob_itm', 'prob_profit', 'volume', 'oi', 'mm_score'
+                                    ]].copy()
+                                    
+                                    df_display.columns = [
+                                        'Exp Type', 'Strike', 'Type', 'DTE', 'Bid', 'Ask',
+                                        'Δ', 'Γ', 'Θ', 'ν',
+                                        'IV', 'P(ITM)', 'P(Profit)', 'Vol', 'OI', 'MM Score'
+                                    ]
+                                    
+                                    # Format numbers
+                                    for col in ['Bid', 'Ask']:
+                                        df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
+                                    for col in ['Strike']:
+                                        df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
+                                    for col in ['Δ', 'Γ', 'ν', 'P(ITM)', 'P(Profit)', 'IV']:
+                                        df_display[col] = df_display[col].apply(
+                                            lambda x: f"{x:.4f}" if abs(x) < 0.1 else f"{x:.1%}"
+                                        )
+                                    df_display['Θ'] = df_display['Θ'].apply(lambda x: f"${x:.3f}")
+                                    df_display['MM Score'] = df_display['MM Score'].apply(lambda x: f"{x:.1f}")
+                                    
+                                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+                                    
+                                    # Download option
+                                    csv = df_mm_results.to_csv(index=False)
+                                    st.download_button(
+                                        label="📥 Download Full Results (CSV)",
+                                        data=csv,
+                                        file_name=f"mm_contracts_{mm_ticker}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                        mime="text/csv",
+                                        key="mm_download_csv"
+                                    )
+                                else:
+                                    st.info("No contracts match the selected filters")
+                            else:
+                                st.error("No valid contracts found for analysis")
+                                
+                except Exception as e:
+                    st.error(f"❌ Error scanning contracts: {str(e)}")
+                    logger.error(f"MM Scanner Error: {str(e)}")
+        
+        st.markdown("---")
 
         # Helper Functions
         def fmt(x, nd=2):
