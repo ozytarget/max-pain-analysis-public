@@ -7899,26 +7899,27 @@ def main():
                                     
                                     # Display BOTH WEEKLY AND MONTHLY TARGETS IN PARALLEL
                                     st.markdown("### 📍 Select Target & Expiration")
+                                    st.write("*Selecciona un target y el análisis corre automáticamente*")
                                     
                                     col_weekly, col_monthly = st.columns(2)
                                     
                                     # WEEKLY COLUMN
                                     with col_weekly:
                                         st.subheader("📅 WEEKLY (0-7 DTE)")
-                                        weekly_options = [
-                                            f"📉 Support ${support_level:.2f}",
-                                            f"📈 Resistance ${resistance_level:.2f}",
-                                            "⚙️ Custom Target"
-                                        ]
-                                        weekly_choice = st.radio(
+                                        weekly_choice = st.selectbox(
                                             "Choose Weekly Target:",
-                                            weekly_options,
-                                            key="radio_weekly",
-                                            index=None
+                                            [
+                                                f"📉 Support ${support_level:.2f}",
+                                                f"📈 Resistance ${resistance_level:.2f}",
+                                                "⚙️ Custom Target"
+                                            ],
+                                            key="selectbox_weekly",
+                                            index=None,
+                                            label_visibility="collapsed"
                                         )
                                         
-                                        weekly_target = None
                                         if weekly_choice:
+                                            weekly_target = None
                                             if "Support" in weekly_choice:
                                                 weekly_target = support_level
                                             elif "Resistance" in weekly_choice:
@@ -7935,20 +7936,20 @@ def main():
                     # MONTHLY COLUMN
                     with col_monthly:
                         st.subheader("📆 MONTHLY (8-60+ DTE)")
-                        monthly_options = [
-                            f"📉 Support ${support_level:.2f}",
-                            f"📈 Resistance ${resistance_level:.2f}",
-                            "⚙️ Custom Target"
-                        ]
-                        monthly_choice = st.radio(
+                        monthly_choice = st.selectbox(
                             "Choose Monthly Target:",
-                            monthly_options,
-                            key="radio_monthly",
-                            index=None
+                            [
+                                f"📉 Support ${support_level:.2f}",
+                                f"📈 Resistance ${resistance_level:.2f}",
+                                "⚙️ Custom Target"
+                            ],
+                            key="selectbox_monthly",
+                            index=None,
+                            label_visibility="collapsed"
                         )
                         
-                        monthly_target = None
                         if monthly_choice:
+                            monthly_target = None
                             if "Support" in monthly_choice:
                                 monthly_target = support_level
                             elif "Resistance" in monthly_choice:
