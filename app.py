@@ -7772,143 +7772,258 @@ def main():
         # ═══════════════════════════════════════════════════════════════════════════════
         
         st.markdown("---")
-        st.subheader("🎯 MM Contract Scanner - Greeks & Optimal Selection")
+        st.subheader("🎯 MM Contract Scanner - Intelligent Greeks Analysis")
         st.markdown("""
-        **Smart option contract selector using Black-Scholes Greeks analysis.**
-        Identify the best weekly/monthly contracts based on Delta, Gamma, Theta, Vega, and probability of profit.
+        **Smart option analyzer** - Just enter a ticker and the scanner automatically:
+        1. Fetches current price in real-time
+        2. Analyzes all option chains (weekly/monthly)
+        3. Calculates Greeks & probability of profit
+        4. Identifies optimal contracts with MM scoring
+        5. Suggests best directional plays
         """)
         
-        # Input columns
-        col_mm1, col_mm2, col_mm3 = st.columns(3)
-        with col_mm1:
-            mm_ticker = st.text_input("Stock Ticker", value="SPY", key="mm_ticker_input").upper()
-        with col_mm2:
-            mm_current_price = st.number_input("Current Price", value=450.0, step=0.01, key="mm_current_price")
-        with col_mm3:
-            mm_target_price = st.number_input("Target Price", value=448.0, step=0.01, key="mm_target_price")
+        # Simple single input - just the ticker
+        col_ticker, col_scan = st.columns([3, 1])
+        with col_ticker:
+            mm_ticker = st.text_input(
+                "📊 Enter Stock Ticker (e.g., SPY, AAPL, QQQ)", 
+                value="SPY", 
+                key="mm_ticker_input",
+                placeholder="Ticker symbol"
+            ).upper()
+        with col_scan:
+            scan_button = st.button("🔍 SCAN", key="mm_scan_button", use_container_width=True)
         
-        if st.button("🔍 Scan Optimal Contracts", key="mm_scan_button"):
-            with st.spinner("Fetching option chains and analyzing Greeks..."):
+        if scan_button:
+            with st.spinner(f"🔄 Analyzing {mm_ticker}... Fetching prices, chains, Greeks..."):
                 try:
-                    # Get expiration dates
-                    exp_dates = get_expiration_dates(mm_ticker)
+                    # Get current price AUTOMATICALLY
+                    mm_current_price = get_current_price(mm_ticker)
                     
-                    if not exp_dates:
-                        st.error(f"❌ No expiration dates found for {mm_ticker}")
+                    if mm_current_price == 0.0 or mm_current_price is None:
+                        st.error(f"❌ Could not fetch price for {mm_ticker}. Check ticker symbol.")
                     else:
-                        # Fetch option chains for multiple expirations
-                        mm_chains = {}
-                        mm_exp_dict = {}
+                        st.success(f"✅ {mm_ticker} @ **${mm_current_price:.2f}**")
                         
-                        for exp_date in exp_dates[:5]:  # Get first 5 expirations
-                            chain_data = get_option_chain(mm_ticker, exp_date)
-                            if chain_data:
-                                mm_chains[exp_date] = chain_data
-                                mm_exp_dict[exp_date] = None  # Placeholder
+                        # Get expiration dates
+                        exp_dates = get_expiration_dates(mm_ticker)
                         
-                        if not mm_chains:
-                            st.error(f"❌ Could not fetch option chains for {mm_ticker}")
+                        if not exp_dates:
+                            st.error(f"❌ No option expirations found for {mm_ticker}")
                         else:
-                            # Run MM Scanner
-                            df_mm_results = mm_contract_scanner(
-                                ticker=mm_ticker,
-                                current_price=mm_current_price,
-                                target_price=mm_target_price,
-                                expiration_dates_dict=mm_exp_dict,
-                                option_chains_dict=mm_chains,
-                                risk_free_rate=0.045
-                            )
+                            # Fetch option chains for multiple expirations
+                            mm_chains = {}
+                            mm_exp_dict = {}
                             
-                            if not df_mm_results.empty:
-                                # Display winners
-                                display_mm_contract_winner(
-                                    df_mm_results,
-                                    mm_ticker,
-                                    mm_current_price,
-                                    mm_target_price
-                                )
-                                
-                                st.divider()
-                                
-                                # Display detailed results table
-                                st.subheader("📋 All Contracts Ranked by MM Score")
-                                
-                                # Filter options
-                                col_filter1, col_filter2, col_filter3 = st.columns(3)
-                                with col_filter1:
-                                    filter_exp_type = st.multiselect(
-                                        "Expiration Type",
-                                        df_mm_results['exp_type'].unique(),
-                                        default=df_mm_results['exp_type'].unique(),
-                                        key="mm_exp_type_filter"
-                                    )
-                                with col_filter2:
-                                    filter_option_type = st.multiselect(
-                                        "Option Type",
-                                        df_mm_results['option_type'].unique(),
-                                        default=df_mm_results['option_type'].unique(),
-                                        key="mm_option_type_filter"
-                                    )
-                                with col_filter3:
-                                    min_score = st.slider(
-                                        "Minimum MM Score",
-                                        min_value=float(df_mm_results['mm_score'].min()),
-                                        max_value=float(df_mm_results['mm_score'].max()),
-                                        value=float(df_mm_results['mm_score'].quantile(0.25)),
-                                        key="mm_score_slider"
-                                    )
-                                
-                                # Apply filters
-                                df_filtered = df_mm_results[
-                                    (df_mm_results['exp_type'].isin(filter_exp_type)) &
-                                    (df_mm_results['option_type'].isin(filter_option_type)) &
-                                    (df_mm_results['mm_score'] >= min_score)
-                                ]
-                                
-                                if not df_filtered.empty:
-                                    # Format display columns
-                                    df_display = df_filtered[[
-                                        'exp_type', 'strike', 'option_type', 'dte', 'bid', 'ask',
-                                        'delta', 'gamma', 'theta', 'vega',
-                                        'iv', 'prob_itm', 'prob_profit', 'volume', 'oi', 'mm_score'
-                                    ]].copy()
+                            progress_bar = st.progress(0)
+                            for idx, exp_date in enumerate(exp_dates[:5]):  # Get first 5 expirations
+                                chain_data = get_options_data(mm_ticker, exp_date)
+                                if chain_data:
+                                    # Convert to expected format
+                                    formatted_chain = []
+                                    if isinstance(chain_data, list):
+                                        formatted_chain = chain_data
+                                    elif isinstance(chain_data, pd.DataFrame):
+                                        formatted_chain = chain_data.to_dict('records')
                                     
-                                    df_display.columns = [
-                                        'Exp Type', 'Strike', 'Type', 'DTE', 'Bid', 'Ask',
-                                        'Δ', 'Γ', 'Θ', 'ν',
-                                        'IV', 'P(ITM)', 'P(Profit)', 'Vol', 'OI', 'MM Score'
-                                    ]
-                                    
-                                    # Format numbers
-                                    for col in ['Bid', 'Ask']:
-                                        df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
-                                    for col in ['Strike']:
-                                        df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
-                                    for col in ['Δ', 'Γ', 'ν', 'P(ITM)', 'P(Profit)', 'IV']:
-                                        df_display[col] = df_display[col].apply(
-                                            lambda x: f"{x:.4f}" if abs(x) < 0.1 else f"{x:.1%}"
-                                        )
-                                    df_display['Θ'] = df_display['Θ'].apply(lambda x: f"${x:.3f}")
-                                    df_display['MM Score'] = df_display['MM Score'].apply(lambda x: f"{x:.1f}")
-                                    
-                                    st.dataframe(df_display, use_container_width=True, hide_index=True)
-                                    
-                                    # Download option
-                                    csv = df_mm_results.to_csv(index=False)
-                                    st.download_button(
-                                        label="📥 Download Full Results (CSV)",
-                                        data=csv,
-                                        file_name=f"mm_contracts_{mm_ticker}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                                        mime="text/csv",
-                                        key="mm_download_csv"
-                                    )
-                                else:
-                                    st.info("No contracts match the selected filters")
+                                    if formatted_chain:
+                                        mm_chains[exp_date] = formatted_chain
+                                        mm_exp_dict[exp_date] = None
+                                
+                                progress_bar.progress((idx + 1) / 5)
+                            
+                            if not mm_chains:
+                                st.error(f"❌ Could not fetch option chains for {mm_ticker}")
                             else:
-                                st.error("No valid contracts found for analysis")
+                                st.info(f"📊 Analyzing {sum(len(v) for v in mm_chains.values())} contracts across {len(mm_chains)} expirations...")
+                                
+                                # ═══════════════════════════════════════════════════════════════
+                                # INTELLIGENT TARGET SELECTION (No manual input needed!)
+                                # ═══════════════════════════════════════════════════════════════
+                                
+                                # Analyze max pain and technical levels to suggest targets
+                                all_strikes = []
+                                for chain in mm_chains.values():
+                                    for opt in chain:
+                                        try:
+                                            all_strikes.append(float(opt.get('strike', 0)))
+                                        except:
+                                            pass
+                                
+                                if all_strikes:
+                                    all_strikes = sorted(set(all_strikes))
+                                    
+                                    # Suggest targets based on options market
+                                    puts_below = [s for s in all_strikes if s < mm_current_price]
+                                    calls_above = [s for s in all_strikes if s > mm_current_price]
+                                    
+                                    # Calculate max pain or key levels
+                                    support_level = puts_below[-1] if puts_below else mm_current_price * 0.95
+                                    resistance_level = calls_above[0] if calls_above else mm_current_price * 1.05
+                                    
+                                    # Market sentiment analysis - see where volume/OI clusters
+                                    oi_by_strike = {}
+                                    for chain in mm_chains.values():
+                                        for opt in chain:
+                                            try:
+                                                strike = float(opt.get('strike', 0))
+                                                oi = int(opt.get('open_interest', 0))
+                                                oi_by_strike[strike] = oi_by_strike.get(strike, 0) + oi
+                                            except:
+                                                pass
+                                    
+                                    # Find the strike with highest OI (market maker target)
+                                    if oi_by_strike:
+                                        max_oi_strike = max(oi_by_strike, key=oi_by_strike.get)
+                                    else:
+                                        max_oi_strike = mm_current_price
+                                    
+                                    # Determine market bias by comparing put vs call volume
+                                    total_put_oi = sum(int(opt.get('open_interest', 0)) for chain in mm_chains.values() for opt in chain if opt.get('type', '').lower() == 'put')
+                                    total_call_oi = sum(int(opt.get('open_interest', 0)) for chain in mm_chains.values() for opt in chain if opt.get('type', '').lower() == 'call')
+                                    
+                                    # Display auto-detected targets
+                                    st.markdown("### 🎯 Auto-Detected Market Targets")
+                                    col_target1, col_target2, col_target3, col_target4 = st.columns(4)
+                                    
+                                    with col_target1:
+                                        st.metric("Current", f"${mm_current_price:.2f}")
+                                    with col_target2:
+                                        st.metric("Support (Puts)", f"${support_level:.2f}", delta=f"{((support_level-mm_current_price)/mm_current_price*100):.1f}%")
+                                    with col_target3:
+                                        st.metric("Resistance (Calls)", f"${resistance_level:.2f}", delta=f"{((resistance_level-mm_current_price)/mm_current_price*100):.1f}%")
+                                    with col_target4:
+                                        market_bias = "🐻 BEARISH" if total_put_oi > total_call_oi else "🐂 BULLISH"
+                                        st.metric("Market Bias", market_bias)
+                                    
+                                    st.divider()
+                                    
+                                    # Let user choose which target to analyze
+                                    st.markdown("### 📍 Select Analysis Target")
+                                    col_t1, col_t2, col_t3 = st.columns(3)
+                                    
+                                    analyze_support = col_t1.button(f"📉 Support ${support_level:.2f}", use_container_width=True, key="btn_support")
+                                    analyze_resistance = col_t2.button(f"📈 Resistance ${resistance_level:.2f}", use_container_width=True, key="btn_resistance")
+                                    analyze_custom = col_t3.button("⚙️ Custom Target", use_container_width=True, key="btn_custom")
+                                    
+                                    mm_target_price = None
+                                    
+                                    if analyze_support:
+                                        mm_target_price = support_level
+                                    elif analyze_resistance:
+                                        mm_target_price = resistance_level
+                                    elif analyze_custom:
+                                        mm_target_price = st.number_input(
+                                            "Enter custom target price",
+                                            value=mm_current_price,
+                                            step=0.50,
+                                            key="custom_target"
+                                        )
+                                    
+                                    # Run scanner for selected target
+                                    if mm_target_price is not None:
+                                        st.info(f"🎯 Scanning for optimal contracts targeting ${mm_target_price:.2f}...")
+                                        
+                                        # Run MM Scanner
+                                        df_mm_results = mm_contract_scanner(
+                                            ticker=mm_ticker,
+                                            current_price=mm_current_price,
+                                            target_price=mm_target_price,
+                                            expiration_dates_dict=mm_exp_dict,
+                                            option_chains_dict=mm_chains,
+                                            risk_free_rate=0.045
+                                        )
+                                        
+                                        if not df_mm_results.empty:
+                                            # Display winners
+                                            display_mm_contract_winner(
+                                                df_mm_results,
+                                                mm_ticker,
+                                                mm_current_price,
+                                                mm_target_price
+                                            )
+                                            
+                                            st.divider()
+                                            
+                                            # Display detailed results table
+                                            st.subheader("📋 All Contracts Ranked by MM Score")
+                                            
+                                            # Filter options
+                                            col_filter1, col_filter2, col_filter3 = st.columns(3)
+                                            with col_filter1:
+                                                filter_exp_type = st.multiselect(
+                                                    "Expiration Type",
+                                                    df_mm_results['exp_type'].unique(),
+                                                    default=df_mm_results['exp_type'].unique(),
+                                                    key="mm_exp_type_filter"
+                                                )
+                                            with col_filter2:
+                                                filter_option_type = st.multiselect(
+                                                    "Option Type",
+                                                    df_mm_results['option_type'].unique(),
+                                                    default=df_mm_results['option_type'].unique(),
+                                                    key="mm_option_type_filter"
+                                                )
+                                            with col_filter3:
+                                                min_score = st.slider(
+                                                    "Minimum MM Score",
+                                                    min_value=float(df_mm_results['mm_score'].min()),
+                                                    max_value=float(df_mm_results['mm_score'].max()),
+                                                    value=float(df_mm_results['mm_score'].quantile(0.25)),
+                                                    key="mm_score_slider"
+                                                )
+                                            
+                                            # Apply filters
+                                            df_filtered = df_mm_results[
+                                                (df_mm_results['exp_type'].isin(filter_exp_type)) &
+                                                (df_mm_results['option_type'].isin(filter_option_type)) &
+                                                (df_mm_results['mm_score'] >= min_score)
+                                            ]
+                                            
+                                            if not df_filtered.empty:
+                                                # Format display columns
+                                                df_display = df_filtered[[
+                                                    'exp_type', 'strike', 'option_type', 'dte', 'bid', 'ask',
+                                                    'delta', 'gamma', 'theta', 'vega',
+                                                    'iv', 'prob_itm', 'prob_profit', 'volume', 'oi', 'mm_score'
+                                                ]].copy()
+                                                
+                                                df_display.columns = [
+                                                    'Exp Type', 'Strike', 'Type', 'DTE', 'Bid', 'Ask',
+                                                    'Δ', 'Γ', 'Θ', 'ν',
+                                                    'IV', 'P(ITM)', 'P(Profit)', 'Vol', 'OI', 'MM Score'
+                                                ]
+                                                
+                                                # Format numbers
+                                                for col in ['Bid', 'Ask']:
+                                                    df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
+                                                for col in ['Strike']:
+                                                    df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
+                                                for col in ['Δ', 'Γ', 'ν', 'P(ITM)', 'P(Profit)', 'IV']:
+                                                    df_display[col] = df_display[col].apply(
+                                                        lambda x: f"{x:.4f}" if abs(x) < 0.1 else f"{x:.1%}"
+                                                    )
+                                                df_display['Θ'] = df_display['Θ'].apply(lambda x: f"${x:.3f}")
+                                                df_display['MM Score'] = df_display['MM Score'].apply(lambda x: f"{x:.1f}")
+                                                
+                                                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                                                
+                                                # Download option
+                                                csv = df_mm_results.to_csv(index=False)
+                                                st.download_button(
+                                                    label="📥 Download Full Results (CSV)",
+                                                    data=csv,
+                                                    file_name=f"mm_contracts_{mm_ticker}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                                    mime="text/csv",
+                                                    key="mm_download_csv"
+                                                )
+                                            else:
+                                                st.info("No contracts match the selected filters")
+                                        else:
+                                            st.error("No valid contracts found for analysis")
                                 
                 except Exception as e:
-                    st.error(f"❌ Error scanning contracts: {str(e)}")
+                    st.error(f"❌ Error: {str(e)}")
                     logger.error(f"MM Scanner Error: {str(e)}")
         
         st.markdown("---")
