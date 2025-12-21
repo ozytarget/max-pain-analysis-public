@@ -3669,138 +3669,116 @@ def mm_contract_scanner(ticker, current_price, target_price, expiration_dates_di
                     moneyness = strike / current_price
                     
                     # ════════════════════════════════════════════════════════════════
-                    # MM SCORING ALGORITHM - PROFESSIONAL GRADE
+                    # MM SCORING ALGORITHM - PROFESSIONAL GRADE (GAMMA-CENTRIC)
+                    # Pensando como MM: GAMMA es el motor, Theta es el profit, IV es el edge
                     # ════════════════════════════════════════════════════════════════
                     
-                    # 1. DIRECTIONAL ALIGNMENT SCORE
-                    if direction == 'BEARISH':
-                        is_put = 1 if option_type == 'put' else 0
-                        directional_delta = abs(greeks['delta'])
-                        prob_profit = prob_itm if option_type == 'put' else (1 - prob_itm)
-                    else:  # BULLISH
-                        is_put = 0 if option_type == 'call' else 1
-                        directional_delta = abs(greeks['delta'])
-                        prob_profit = prob_itm if option_type == 'call' else (1 - prob_itm)
+                    # === 1. GAMMA SCORE (40%) - CORAZÓN DEL ESCALPEO MM ===
+                    # MM vive de scalping gamma, necesita gamma ALTA y accesible
+                    gamma_value = greeks['gamma']
+                    gamma_dollar_risk = gamma_value * (current_price ** 2) / 100  # Risk per 1% move
                     
-                    # Penalize wrong direction
-                    direction_score = (50 * is_put) if direction == 'BEARISH' else (50 * (1 - is_put))
-                    direction_score += directional_delta * 50  # 0-50 points
+                    # Gamma absoluto normalizado
+                    gamma_score = min(100, gamma_value * 10000)
                     
-                    # 2. STRIKE SELECTION SCORE (Sweet Spot Analysis)
-                    # Best strikes are 5-15% OTM
-                    if option_type == 'put':
-                        moneyness_diff = (current_price - strike) / current_price
-                        if 0.05 <= moneyness_diff <= 0.15:
-                            strike_quality = 100  # Perfect OTM zone
-                        elif 0 <= moneyness_diff < 0.05:
-                            strike_quality = 80   # Slightly ITM
-                        elif moneyness_diff > 0.15:
-                            strike_quality = 70   # Deep OTM
-                        else:
-                            strike_quality = 20   # Way ITM (bad)
-                    else:  # call
-                        moneyness_diff = (strike - current_price) / current_price
-                        if 0.05 <= moneyness_diff <= 0.15:
-                            strike_quality = 100
-                        elif 0 <= moneyness_diff < 0.05:
-                            strike_quality = 80
-                        elif moneyness_diff > 0.15:
-                            strike_quality = 70
-                        else:
-                            strike_quality = 20
+                    # BONUS si está ATM (donde gamma es máximo)
+                    atm_distance = abs(strike - current_price) / current_price
+                    if atm_distance < 0.01:  # Muy cerca de ATM
+                        gamma_score = 100
+                    elif atm_distance < 0.05:  # Cerca de ATM (sweet spot)
+                        gamma_score = min(100, gamma_score * 1.3)
+                    elif atm_distance < 0.10:  # Razonablemente cerca
+                        gamma_score = min(100, gamma_score * 1.1)
+                    else:
+                        gamma_score *= 0.8  # Lejos de ATM = gamma débil
                     
-                    # Bonus if strike matches target exactly
-                    target_bonus = 0
-                    if distance_from_target < (distance_to_target * 0.1):
-                        target_bonus = 30
+                    # === 2. THETA SCORE (25%) - GANANCIA DIARIA ===
+                    # Theta solo importa si es SHORT con GAMMA high
+                    theta_daily = greeks['theta']
+                    theta_annual = theta_daily * 365
                     
-                    # 3. GAMMA QUALITY SCORE (Hedging ability)
-                    # Peak gamma near ATM, good for rebalancing
-                    gamma_score = min(100, greeks['gamma'] * 10000)  # Scale to 0-100
+                    # Theta absoluto
+                    theta_score = min(100, max(0, abs(theta_daily) * 100))
                     
-                    # 4. THETA ADVANTAGE SCORE (Time decay)
-                    # For sellers, positive theta is gold
-                    theta_annual = greeks['theta'] * 365
-                    theta_score = min(100, max(0, theta_annual * 50))
+                    # BONUS para weeklies (theta decay exponencial)
+                    if dte <= 7:
+                        theta_score = min(100, theta_score * 1.4)  # Theta muy acelerado
+                    elif dte <= 14:
+                        theta_score = min(100, theta_score * 1.2)
                     
-                    # Boost weekly theta (faster decay)
-                    if exp_type == '⚡ WEEKLY':
-                        theta_score *= 1.3
+                    # === 3. IV EDGE SCORE (20%) - EL EDGE DEL MM ===
+                    # MM es SHORT VEGA (vende vol cara, compra vol barata)
+                    # Lógica: IV extremo = oportunidad
                     
-                    # 5. VEGA STABILITY SCORE (IV risk management)
-                    vega_pct_per_contract = (greeks['vega'] / mid_price * 100) if mid_price > 0 else 0
+                    # Estimación de IV percentile (sin histórico, usamos heurística)
+                    # IV alta típicamente > 0.30 para equities
+                    # IV baja típicamente < 0.15
+                    iv_edge_score = 50  # Base neutral
                     
-                    # Lower vega = more stable (good for gamma scalping)
-                    vega_stability = 100 - min(100, vega_pct_per_contract * 2)
+                    if iv > 0.35:  # IV EXTREMADAMENTE ALTA
+                        iv_edge_score = 100  # VENDER VOL (mejor score)
+                    elif iv > 0.28:  # IV ALTA
+                        iv_edge_score = 85  # Buena oportunidad de venta
+                    elif iv > 0.22:  # IV NORMAL-ALTA
+                        iv_edge_score = 70
+                    elif iv < 0.12:  # IV EXTREMADAMENTE BAJA
+                        iv_edge_score = 30  # Evitar (comprar vol es malo)
+                    elif iv < 0.16:  # IV BAJA
+                        iv_edge_score = 50
                     
-                    # 6. LIQUIDITY SCORE (Market quality)
+                    # VANNA benefit (delta-vega correlation)
+                    # Vanna positivo = put prices rise cuando vol sube (bueno para long vol)
+                    vanna_benefit = abs(greeks.get('vanna', 0)) * 1000
+                    iv_edge_score += min(15, vanna_benefit)
+                    iv_edge_score = min(100, iv_edge_score)
+                    
+                    # === 4. LIQUIDITY SCORE (10%) - TRADABILIDAD ===
                     spread = ask - bid
                     spread_pct = (spread / mid_price * 100) if mid_price > 0 else 100
-                    bid_ask_ratio = bid / ask if ask > 0 else 0
                     
-                    # Spreads: <0.5% excellent, 0.5-2% good, >2% poor
                     if spread_pct < 0.5:
-                        liquidity_score = 100
+                        liquidity_score = 100  # Excelente
+                    elif spread_pct < 1:
+                        liquidity_score = 90
                     elif spread_pct < 2:
-                        liquidity_score = 80
+                        liquidity_score = 80  # Bueno
                     elif spread_pct < 5:
-                        liquidity_score = 50
+                        liquidity_score = 60  # Aceptable
                     else:
-                        liquidity_score = 20
+                        liquidity_score = 30  # Pobre
                     
-                    # Volume bonus
-                    volume_bonus = min(20, volume / 100) if volume > 0 else 0
-                    oi_bonus = min(15, oi / 10000) if oi > 0 else 0
-                    liquidity_score += volume_bonus + oi_bonus
-                    liquidity_score = min(100, liquidity_score)
+                    # Volumen y OI bonus
+                    if volume > 500:
+                        liquidity_score = min(100, liquidity_score + 10)
+                    if oi > 50000:
+                        liquidity_score = min(100, liquidity_score + 10)
                     
-                    # 7. EDGE OPPORTUNITY SCORE (Advanced MM thinking)
-                    # IV percentile, skew analysis
-                    edge_score = 50
+                    # === 5. HEDGING COST SCORE (5%) - COSTO DE DELTA HEDGING ===
+                    # MM necesita hedgear delta a cero
+                    # Costo = spread * delta
+                    delta_abs = abs(greeks['delta'])
+                    hedging_cost = spread_pct * delta_abs * 100
                     
-                    # IV too high = opportunity to sell vol
-                    if iv > 0.25:
-                        edge_score += 10
-                    # IV too low = opportunity to buy vol
-                    elif iv < 0.15:
-                        edge_score -= 10
-                    
-                    # Vanna effects (delta-vega correlation)
-                    vanna_benefit = abs(greeks.get('vanna', 0)) * 1000  # Scale benefit
-                    edge_score += min(10, vanna_benefit)
-                    
-                    # 8. EXPIRATION TIMING SCORE
-                    # Sweet spot: 7-21 DTE for gamma scalping
-                    if 7 <= dte <= 21:
-                        timing_score = 100
-                    elif 4 <= dte < 7:
-                        timing_score = 85  # Very tight, high theta
-                    elif 21 < dte <= 45:
-                        timing_score = 80  # More stable
-                    else:
-                        timing_score = 50  # Too far or too close
+                    hedging_cost_score = max(0, 100 - hedging_cost * 10)
                     
                     # ════════════════════════════════════════════════════════════════
-                    # COMPOSITE MM SCORE (Weighted Professional Model)
+                    # COMPOSITE MM SCORE (PROFESSIONAL MARKET MAKER LOGIC)
                     # ════════════════════════════════════════════════════════════════
                     
                     mm_score = (
-                        direction_score * 0.25 +      # 25% - Directional fit
-                        strike_quality * 0.20 +        # 20% - Strike quality (sweet spot)
-                        gamma_score * 0.15 +           # 15% - Gamma for scalping
-                        theta_score * 0.15 +           # 15% - Theta decay
-                        liquidity_score * 0.12 +       # 12% - Tradability
-                        vega_stability * 0.08 +        # 8%  - IV stability
-                        timing_score * 0.05            # 5%  - Expiration timing
-                    ) * exp_weight  # Adjust by expiration type preference
+                        gamma_score * 0.40 +           # 40% - GAMMA es el motor
+                        theta_score * 0.25 +           # 25% - Theta es el profit
+                        iv_edge_score * 0.20 +         # 20% - IV es el edge
+                        liquidity_score * 0.10 +       # 10% - Spreads importan
+                        hedging_cost_score * 0.05      # 5%  - Costo de hedge
+                    ) * exp_weight  # Ajusta por tipo de expiration
                     
-                    # Apply target bonus
-                    if target_bonus > 0:
-                        mm_score += target_bonus
-                        mm_score = min(100, mm_score)
+                    # BONUS si estamos en zona de gamma máximo
+                    if atm_distance < 0.02:
+                        mm_score = min(100, mm_score * 1.15)
                     
                     # Calculate expected value (simplified)
-                    expected_value = prob_profit * mid_price * 0.6  # Assume 60% of profit taken
+                    expected_value = abs(theta_daily) * mid_price  # Theta profit potential
                     
                     results.append({
                         'ticker': ticker,
