@@ -3670,39 +3670,35 @@ def mm_contract_scanner(ticker, current_price, target_price, expiration_dates_di
                     
                     # ════════════════════════════════════════════════════════════════
                     # MM SCORING ALGORITHM - PROFESSIONAL GRADE (GAMMA-CENTRIC)
-                    # Pensando como MM: GAMMA es el motor, Theta es el profit, IV es el edge
+                    # SCAN TODOS LOS STRIKES: El scoring determinará el mejor automáticamente
                     # ════════════════════════════════════════════════════════════════
                     
                     # === 1. GAMMA SCORE (40%) - CORAZÓN DEL ESCALPEO MM ===
-                    # MM vive de scalping gamma, necesita gamma ALTA y accesible
+                    # MM vive de scalping gamma - BUSCA GAMMA MÁXIMO donde sea
+                    # NO discrimina strikes, deja que gamma hable
                     gamma_value = greeks['gamma']
-                    gamma_dollar_risk = gamma_value * (current_price ** 2) / 100  # Risk per 1% move
                     
-                    # Gamma absoluto normalizado
+                    # Gamma Score: valor absoluto, normalizado 0-100
+                    # El strike con gamma más alto ganará automáticamente
                     gamma_score = min(100, gamma_value * 10000)
                     
-                    # BONUS si está ATM (donde gamma es máximo)
-                    atm_distance = abs(strike - current_price) / current_price
-                    if atm_distance < 0.01:  # Muy cerca de ATM
-                        gamma_score = 100
-                    elif atm_distance < 0.05:  # Cerca de ATM (sweet spot)
-                        gamma_score = min(100, gamma_score * 1.3)
-                    elif atm_distance < 0.10:  # Razonablemente cerca
-                        gamma_score = min(100, gamma_score * 1.1)
-                    else:
-                        gamma_score *= 0.8  # Lejos de ATM = gamma débil
+                    # CERO penalidades por distancia
+                    # Si gamma es alto en 690 cuando price es 680, ¡ES UN GANADOR!
+                    # No apliques multiplicadores reducidos (*0.8, *0.7, etc)
+                    # El gamma absoluto es la verdad
                     
                     # === 2. THETA SCORE (25%) - GANANCIA DIARIA ===
-                    # Theta solo importa si es SHORT con GAMMA high
+                    # Theta absoluto: cuánto dinero ganas por día
+                    # NO importa si está ATM o no - theta es theta
                     theta_daily = greeks['theta']
                     theta_annual = theta_daily * 365
                     
-                    # Theta absoluto
+                    # Theta Score: valor absoluto sin penalidades
                     theta_score = min(100, max(0, abs(theta_daily) * 100))
                     
-                    # BONUS para weeklies (theta decay exponencial)
+                    # BONUS para weeklies (theta decay exponencial - es real)
                     if dte <= 7:
-                        theta_score = min(100, theta_score * 1.4)  # Theta muy acelerado
+                        theta_score = min(100, theta_score * 1.4)  # Aceleración real
                     elif dte <= 14:
                         theta_score = min(100, theta_score * 1.2)
                     
