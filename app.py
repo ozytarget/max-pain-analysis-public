@@ -7765,22 +7765,11 @@ def main():
 
     # Tab 8: US Equity Metrics Z-Score Dashboard
     with tab8:
-        st.subheader("📊 US Equity Metrics Dashboard")
+        st.subheader("🎯 SCANNER OPTIONS")
         
         # ═══════════════════════════════════════════════════════════════════════════════
         # MM CONTRACT SCANNER - GREEKS-BASED OPTIMAL CONTRACT SELECTION
         # ═══════════════════════════════════════════════════════════════════════════════
-        
-        st.markdown("---")
-        st.subheader("🎯 MM Contract Scanner - Intelligent Greeks Analysis")
-        st.markdown("""
-        **Smart option analyzer** - Just enter a ticker and the scanner automatically:
-        1. Fetches current price in real-time
-        2. Analyzes all option chains (weekly/monthly)
-        3. Calculates Greeks & probability of profit
-        4. Identifies optimal contracts with MM scoring
-        5. Suggests best directional plays
-        """)
         
         # Simple single input - just the ticker
         col_ticker, col_scan = st.columns([3, 1])
