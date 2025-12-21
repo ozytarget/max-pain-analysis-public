@@ -7938,11 +7938,11 @@ def main():
                             else:
                                 st.info(f"📊 Analyzing {sum(len(v) for v in mm_chains.values())} contracts across {len(mm_chains)} expirations...")
                                 
-                                # ═══════════════════════════════════════════════════════════════
-                                # INTELLIGENT TARGET SELECTION (No manual input needed!)
-                                # ═══════════════════════════════════════════════════════════════
+                                # ═══════════════════════════════════════════════════════════════════════════════
+                                # PROFESSIONAL INSTITUTIONAL ANALYSIS - BLOOMBERG/REFINITIV GRADE
+                                # ═══════════════════════════════════════════════════════════════════════════════
                                 
-                                # Analyze max pain and technical levels to suggest targets
+                                # Auto-detect all targets from OI & technical analysis
                                 all_strikes = []
                                 for chain in mm_chains.values():
                                     for opt in chain:
@@ -7951,43 +7951,33 @@ def main():
                                         except:
                                             pass
                                 
-                                if all_strikes:
+                                if not all_strikes:
+                                    st.error("❌ No valid strikes found")
+                                else:
                                     all_strikes = sorted(set(all_strikes))
                                     
-                                    # Calculate OI concentration by strike (PROFESSIONAL METHOD)
-                                    # Find REAL strikes (que existen en la cadena)
-                                    # Support = closest strike BELOW current price
-                                    # Resistance = closest strike ABOVE current price
-                                    # NO inventes niveles técnicos - usa strikes REALES
+                                    # ────────────────────────────────────────────────────────────────
+                                    # LEVEL 1: OI CLUSTERING ANALYSIS - Where institutional money sits
+                                    # ────────────────────────────────────────────────────────────────
                                     
-                                    strikes_below = sorted([s for s in all_strikes if s < mm_current_price], reverse=True)
-                                    strikes_above = sorted([s for s in all_strikes if s > mm_current_price])
-                                    
-                                    # Support = closest strike below (or fallback)
-                                    if strikes_below:
-                                        support_level = strikes_below[0]  # Closest below
-                                    else:
-                                        support_level = mm_current_price * 0.95
-                                    
-                                    # Resistance = closest strike above (or fallback)
-                                    if strikes_above:
-                                        resistance_level = strikes_above[0]  # Closest above
-                                    else:
-                                        resistance_level = mm_current_price * 1.05
-                                    
-                                    # Calculate OI for display
                                     oi_by_strike = {}
                                     put_oi_by_strike = {}
                                     call_oi_by_strike = {}
+                                    volume_by_strike = {}
+                                    iv_by_strike = {}
                                     
                                     for chain in mm_chains.values():
                                         for opt in chain:
                                             try:
                                                 strike = float(opt.get('strike', 0))
                                                 oi = int(opt.get('open_interest', 0))
+                                                volume = int(opt.get('volume', 0))
+                                                iv = float(opt.get('implied_volatility', 0.20))
                                                 opt_type = opt.get('type', '').lower()
                                                 
                                                 oi_by_strike[strike] = oi_by_strike.get(strike, 0) + oi
+                                                volume_by_strike[strike] = volume_by_strike.get(strike, 0) + volume
+                                                iv_by_strike[strike] = iv  # Store latest IV
                                                 
                                                 if opt_type == 'put':
                                                     put_oi_by_strike[strike] = put_oi_by_strike.get(strike, 0) + oi
@@ -7996,213 +7986,253 @@ def main():
                                             except:
                                                 pass
                                     
-                                    # Determine market bias by comparing put vs call volume
-                                    total_put_oi = sum(put_oi_by_strike.values())
-                                    total_call_oi = sum(call_oi_by_strike.values())
+                                    # Find OI clusters (institutional positioning)
+                                    if oi_by_strike:
+                                        # Find top 3 OI levels
+                                        sorted_by_oi = sorted(oi_by_strike.items(), key=lambda x: x[1], reverse=True)
+                                        top_oi_strikes = [s[0] for s in sorted_by_oi[:3]]
+                                        
+                                        # Calculate put/call ratio for market structure
+                                        total_call_oi = sum(call_oi_by_strike.values())
+                                        total_put_oi = sum(put_oi_by_strike.values())
+                                        put_call_ratio = total_put_oi / max(total_call_oi, 1)
+                                        
+                                        # Market bias
+                                        if total_call_oi > total_put_oi * 1.5:
+                                            market_bias_symbol = "🟢 BULLISH SKEW"
+                                            market_bias_color = "green"
+                                        elif total_put_oi > total_call_oi * 1.5:
+                                            market_bias_symbol = "🔴 BEARISH SKEW"
+                                            market_bias_color = "red"
+                                        else:
+                                            market_bias_symbol = "🟡 NEUTRAL"
+                                            market_bias_color = "orange"
                                     
-                                    # Display auto-detected targets
-                                    st.markdown("### 🎯 Auto-Detected Market Targets")
-                                    col_target1, col_target2, col_target3, col_target4 = st.columns(4)
+                                    # ────────────────────────────────────────────────────────────────
+                                    # LEVEL 2: PROFESSIONAL MARKET DISPLAY
+                                    # ────────────────────────────────────────────────────────────────
                                     
-                                    with col_target1:
-                                        st.metric("Current", f"${mm_current_price:.2f}")
-                                    with col_target2:
-                                        st.metric("Support (Puts)", f"${support_level:.2f}", delta=f"{((support_level-mm_current_price)/mm_current_price*100):.1f}%")
-                                    with col_target3:
-                                        st.metric("Resistance (Calls)", f"${resistance_level:.2f}", delta=f"{((resistance_level-mm_current_price)/mm_current_price*100):.1f}%")
-                                    with col_target4:
-                                        market_bias = "🐻 BEARISH" if total_put_oi > total_call_oi else "🐂 BULLISH"
-                                        st.metric("Market Bias", market_bias)
+                                    st.markdown("### 📊 INSTITUTIONAL MARKET STRUCTURE")
+                                    
+                                    # Row 1: Core metrics
+                                    col_price, col_pcr, col_bias, col_dte = st.columns(4)
+                                    
+                                    with col_price:
+                                        st.metric(
+                                            "Current Price",
+                                            f"${mm_current_price:.2f}",
+                                            f"{mm_ticker}",
+                                            delta_color="off"
+                                        )
+                                    
+                                    with col_pcr:
+                                        st.metric(
+                                            "Put/Call Ratio",
+                                            f"{put_call_ratio:.2f}x",
+                                            "OI Weighted",
+                                            delta_color="off"
+                                        )
+                                    
+                                    with col_bias:
+                                        st.metric(
+                                            "Market Structure",
+                                            market_bias_symbol,
+                                            f"({total_put_oi:,} puts vs {total_call_oi:,} calls)",
+                                            delta_color="off"
+                                        )
+                                    
+                                    with col_dte:
+                                        earliest_exp = min([datetime.strptime(e, '%Y-%m-%d') for e in mm_chains.keys()])
+                                        earliest_dte = (earliest_exp.date() - datetime.now().date()).days
+                                        st.metric(
+                                            "Earliest Exp",
+                                            f"{earliest_dte}d",
+                                            "Days to Expiration",
+                                            delta_color="off"
+                                        )
                                     
                                     st.divider()
                                     
-                                    # Initialize session state for selections
-                                    if 'mm_selected_target' not in st.session_state:
-                                        st.session_state.mm_selected_target = None
+                                    # ────────────────────────────────────────────────────────────────
+                                    # LEVEL 3: OI HEAT MAP - Where institutional positions cluster
+                                    # ────────────────────────────────────────────────────────────────
                                     
-                                    # Display BOTH WEEKLY AND MONTHLY TARGETS IN PARALLEL
-                                    st.markdown("### 📍 Select Target & Expiration")
-                                    st.write("*Selecciona un target y el análisis corre automáticamente*")
+                                    st.markdown("### 🔥 OPEN INTEREST HEAT MAP - Institutional Positioning")
                                     
-                                    col_weekly, col_monthly = st.columns(2)
+                                    # Create OI distribution chart
+                                    oi_data = pd.DataFrame([
+                                        {
+                                            'Strike': s,
+                                            'Total OI': oi_by_strike.get(s, 0),
+                                            'Put OI': put_oi_by_strike.get(s, 0),
+                                            'Call OI': call_oi_by_strike.get(s, 0),
+                                            'Put/Call': put_oi_by_strike.get(s, 0) / max(call_oi_by_strike.get(s, 1), 1)
+                                        }
+                                        for s in all_strikes
+                                    ]).sort_values('Strike')
                                     
-                                    # WEEKLY COLUMN
-                                    with col_weekly:
-                                        st.subheader("📅 WEEKLY (0-7 DTE)")
-                                        weekly_choice = st.selectbox(
-                                            "Choose Weekly Target:",
-                                            [
-                                                f"📉 Support ${support_level:.2f}",
-                                                f"📈 Resistance ${resistance_level:.2f}",
-                                                "⚙️ Custom Target"
-                                            ],
-                                            key="selectbox_weekly",
-                                            index=None,
-                                            label_visibility="collapsed"
+                                    # Chart 1: Total OI by strike (where money sits)
+                                    fig_oi = go.Figure()
+                                    fig_oi.add_trace(go.Bar(
+                                        x=oi_data['Strike'],
+                                        y=oi_data['Total OI'],
+                                        marker_color=['red' if oi_data['Strike'].iloc[i] < mm_current_price else 'green' 
+                                                     for i in range(len(oi_data))],
+                                        name='Total OI',
+                                        opacity=0.7
+                                    ))
+                                    fig_oi.add_vline(x=mm_current_price, line_dash="dash", line_color="blue", 
+                                                    annotation_text=f"Current ${mm_current_price:.2f}")
+                                    fig_oi.update_layout(
+                                        title="Open Interest Distribution (Where Institutional $ Sits)",
+                                        xaxis_title="Strike Price",
+                                        yaxis_title="Open Interest",
+                                        hovermode='x unified',
+                                        height=400,
+                                        template="plotly_dark"
+                                    )
+                                    st.plotly_chart(fig_oi, use_container_width=True)
+                                    
+                                    # Chart 2: Put/Call skew (market structure)
+                                    fig_skew = go.Figure()
+                                    fig_skew.add_trace(go.Scatter(
+                                        x=oi_data['Strike'],
+                                        y=oi_data['Put/Call'],
+                                        fill='tozeroy',
+                                        name='Put/Call Ratio',
+                                        line=dict(color='purple', width=2)
+                                    ))
+                                    fig_skew.add_hline(y=1.0, line_dash="dash", line_color="gray", 
+                                                      annotation_text="Neutral (1.0x)")
+                                    fig_skew.add_vline(x=mm_current_price, line_dash="dash", line_color="blue")
+                                    fig_skew.update_layout(
+                                        title="Put/Call Skew Profile (Risk Structure)",
+                                        xaxis_title="Strike Price",
+                                        yaxis_title="Put/Call Ratio",
+                                        height=350,
+                                        template="plotly_dark"
+                                    )
+                                    st.plotly_chart(fig_skew, use_container_width=True)
+                                    
+                                    st.divider()
+                                    
+                                    # ────────────────────────────────────────────────────────────────
+                                    # LEVEL 4: INTELLIGENT TARGET DETECTION
+                                    # ────────────────────────────────────────────────────────────────
+                                    
+                                    st.markdown("### 🎯 RECOMMENDED TARGETS (Based on OI Clustering)")
+                                    
+                                    # Generate targets from OI clusters
+                                    targets_analysis = []
+                                    
+                                    # Support = max put OI below current
+                                    puts_below = [(s, put_oi_by_strike.get(s, 0)) for s in all_strikes if s < mm_current_price]
+                                    if puts_below:
+                                        support_strike, support_oi = max(puts_below, key=lambda x: x[1])
+                                        support_distance = ((mm_current_price - support_strike) / mm_current_price) * 100
+                                        targets_analysis.append({
+                                            'type': '📉 PUT WALL (SUPPORT)',
+                                            'strike': support_strike,
+                                            'oi': support_oi,
+                                            'distance': support_distance,
+                                            'description': f'Max put OI cluster: {support_oi:,} contracts at ${support_strike:.2f} ({support_distance:.2f}% below)'
+                                        })
+                                    
+                                    # Resistance = max call OI above current
+                                    calls_above = [(s, call_oi_by_strike.get(s, 0)) for s in all_strikes if s > mm_current_price]
+                                    if calls_above:
+                                        resistance_strike, resistance_oi = max(calls_above, key=lambda x: x[1])
+                                        resistance_distance = ((resistance_strike - mm_current_price) / mm_current_price) * 100
+                                        targets_analysis.append({
+                                            'type': '📈 CALL WALL (RESISTANCE)',
+                                            'strike': resistance_strike,
+                                            'oi': resistance_oi,
+                                            'distance': resistance_distance,
+                                            'description': f'Max call OI cluster: {resistance_oi:,} contracts at ${resistance_strike:.2f} ({resistance_distance:.2f}% above)'
+                                        })
+                                    
+                                    # Center of gravity = weighted average strike
+                                    if all_strikes:
+                                        weighted_strike = sum([s * oi_by_strike.get(s, 1) for s in all_strikes]) / max(sum(oi_by_strike.values()), 1)
+                                        cog_distance = ((weighted_strike - mm_current_price) / mm_current_price) * 100
+                                        targets_analysis.append({
+                                            'type': '⚖️ CENTER OF GRAVITY',
+                                            'strike': weighted_strike,
+                                            'oi': sum(oi_by_strike.values()),
+                                            'distance': cog_distance,
+                                            'description': f'Weighted average: {weighted_strike:.2f} ({cog_distance:+.2f}%) - where all OI balances'
+                                        })
+                                    
+                                    # Display targets
+                                    for i, target in enumerate(targets_analysis):
+                                        col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+                                        with col1:
+                                            st.markdown(f"**{target['type']}**")
+                                        with col2:
+                                            st.markdown(f"💰 ${target['strike']:.2f}")
+                                        with col3:
+                                            direction_arrow = "↑" if target['distance'] > 0 else "↓"
+                                            st.markdown(f"{direction_arrow} {abs(target['distance']):.2f}%")
+                                        with col4:
+                                            st.markdown(f"{target['description']}")
+                                    
+                                    st.divider()
+                                    
+                                    # ────────────────────────────────────────────────────────────────
+                                    # LEVEL 5: EXPIRATION & TARGET SELECTION
+                                    # ────────────────────────────────────────────────────────────────
+                                    
+                                    st.markdown("### ⚙️ SCAN PARAMETERS")
+                                    
+                                    col_select_exp, col_select_target = st.columns(2)
+                                    
+                                    with col_select_exp:
+                                        exp_dates_list = sorted(list(mm_chains.keys()))
+                                        selected_exp = st.selectbox(
+                                            "📅 Select Expiration Date",
+                                            exp_dates_list,
+                                            format_func=lambda x: f"{x} ({(datetime.strptime(x, '%Y-%m-%d').date() - datetime.now().date()).days} DTE)",
+                                            key="professional_exp_select"
+                                        )
+                                    
+                                    with col_select_target:
+                                        target_options = [f"${t['strike']:.2f} - {t['type']}" for t in targets_analysis]
+                                        selected_target_idx = st.selectbox(
+                                            "🎯 Select Target (OI-Based)",
+                                            range(len(target_options)),
+                                            format_func=lambda x: target_options[x],
+                                            key="professional_target_select"
+                                        )
+                                        selected_target_strike = targets_analysis[selected_target_idx]['strike']
+                                    
+                                    # Run scanner on selection
+                                    if selected_exp and selected_target_strike:
+                                        st.markdown("---")
+                                        st.info(f"🔄 Running institutional MM scanner: {mm_ticker} → {selected_exp} → Target ${selected_target_strike:.2f}")
+                                        
+                                        # Get expiration dates dict
+                                        mm_exp_dict = {selected_exp: None}
+                                        
+                                        # Run scanner
+                                        df_mm_results = mm_contract_scanner(
+                                            ticker=mm_ticker,
+                                            current_price=mm_current_price,
+                                            target_price=selected_target_strike,
+                                            expiration_dates_dict=mm_exp_dict,
+                                            option_chains_dict={selected_exp: mm_chains[selected_exp]},
+                                            risk_free_rate=0.045
                                         )
                                         
-                                        if weekly_choice:
-                                            weekly_target = None
-                                            if "Support" in weekly_choice:
-                                                weekly_target = support_level
-                                            elif "Resistance" in weekly_choice:
-                                                weekly_target = resistance_level
-                                            elif "Custom" in weekly_choice:
-                                                weekly_target = "custom"
-                                            
-                                            if weekly_target:
-                                                st.session_state.mm_selected_target = {
-                                                    'exp_type': 'weekly',
-                                                    'target_price': weekly_target
-                                                }
-                    
-                    # MONTHLY COLUMN
-                    with col_monthly:
-                        st.subheader("📆 MONTHLY (8-60+ DTE)")
-                        monthly_choice = st.selectbox(
-                            "Choose Monthly Target:",
-                            [
-                                f"📉 Support ${support_level:.2f}",
-                                f"📈 Resistance ${resistance_level:.2f}",
-                                "⚙️ Custom Target"
-                            ],
-                            key="selectbox_monthly",
-                            index=None,
-                            label_visibility="collapsed"
-                        )
-                        
-                        if monthly_choice:
-                            monthly_target = None
-                            if "Support" in monthly_choice:
-                                monthly_target = support_level
-                            elif "Resistance" in monthly_choice:
-                                monthly_target = resistance_level
-                            elif "Custom" in monthly_choice:
-                                monthly_target = "custom"
-                            
-                            if monthly_target:
-                                st.session_state.mm_selected_target = {
-                                    'exp_type': 'monthly',
-                                    'target_price': monthly_target
-                                }
-                    
-                    # Handle selection
-                    if st.session_state.mm_selected_target:
-                        exp_type = st.session_state.mm_selected_target['exp_type']
-                        mm_target_price = None
-                        
-                        if st.session_state.mm_selected_target['target_price'] == 'custom':
-                            st.divider()
-                            mm_target_price = st.number_input(
-                                f"Enter custom target price for {exp_type.upper()} options",
-                                value=mm_current_price,
-                                step=0.50,
-                                key="custom_target_input"
-                            )
-                        else:
-                            mm_target_price = st.session_state.mm_selected_target['target_price']
-                        
-                        # Run scanner for selected target
-                        if mm_target_price is not None:
-                            st.info(f"🎯 Scanning for optimal {exp_type.upper()} contracts targeting ${mm_target_price:.2f}...")
-                            
-                            # Run MM Scanner
-                            df_mm_results = mm_contract_scanner(
-                                ticker=mm_ticker,
-                                current_price=mm_current_price,
-                                target_price=mm_target_price,
-                                expiration_dates_dict=mm_exp_dict,
-                                option_chains_dict=mm_chains,
-                                risk_free_rate=0.045
-                            )
-                            
-                            if not df_mm_results.empty:
-                                # Display winners
-                                display_mm_contract_winner(
-                                    df_mm_results,
-                                    mm_ticker,
-                                    mm_current_price,
-                                    mm_target_price
-                                )
-                                
-                                st.divider()
-                                
-                                # Display detailed results table
-                                st.subheader("📋 All Contracts Ranked by MM Score")
-                                
-                                # Filter options
-                                col_filter1, col_filter2, col_filter3 = st.columns(3)
-                                with col_filter1:
-                                    filter_exp_type = st.multiselect(
-                                        "Expiration Type",
-                                        df_mm_results['exp_type'].unique(),
-                                        default=df_mm_results['exp_type'].unique(),
-                                        key="mm_exp_type_filter"
-                                    )
-                                with col_filter2:
-                                    filter_option_type = st.multiselect(
-                                        "Option Type",
-                                        df_mm_results['option_type'].unique(),
-                                        default=df_mm_results['option_type'].unique(),
-                                        key="mm_option_type_filter"
-                                    )
-                                with col_filter3:
-                                    min_score = st.slider(
-                                        "Minimum MM Score",
-                                        min_value=float(df_mm_results['mm_score'].min()),
-                                        max_value=float(df_mm_results['mm_score'].max()),
-                                        value=float(df_mm_results['mm_score'].quantile(0.25)),
-                                        key="mm_score_slider"
-                                    )
-                                
-                                # Apply filters
-                                df_filtered = df_mm_results[
-                                    (df_mm_results['exp_type'].isin(filter_exp_type)) &
-                                    (df_mm_results['option_type'].isin(filter_option_type)) &
-                                    (df_mm_results['mm_score'] >= min_score)
-                                ]
-                                
-                                if not df_filtered.empty:
-                                    # Format display columns
-                                    df_display = df_filtered[[
-                                        'exp_type', 'strike', 'option_type', 'dte', 'bid', 'ask',
-                                        'delta', 'gamma', 'theta', 'vega',
-                                        'iv', 'prob_itm', 'prob_profit', 'volume', 'oi', 'mm_score'
-                                    ]].copy()
-                                    
-                                    df_display.columns = [
-                                        'Exp Type', 'Strike', 'Type', 'DTE', 'Bid', 'Ask',
-                                        'Δ', 'Γ', 'Θ', 'ν',
-                                        'IV', 'P(ITM)', 'P(Profit)', 'Vol', 'OI', 'MM Score'
-                                    ]
-                                    
-                                    # Format numbers
-                                    for col in ['Bid', 'Ask']:
-                                        df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
-                                    for col in ['Strike']:
-                                        df_display[col] = df_display[col].apply(lambda x: f"${x:.2f}")
-                                    for col in ['Δ', 'Γ', 'ν', 'P(ITM)', 'P(Profit)', 'IV']:
-                                        df_display[col] = df_display[col].apply(
-                                            lambda x: f"{x:.4f}" if abs(x) < 0.1 else f"{x:.1%}"
-                                        )
-                                    df_display['Θ'] = df_display['Θ'].apply(lambda x: f"${x:.3f}")
-                                    df_display['MM Score'] = df_display['MM Score'].apply(lambda x: f"{x:.1f}")
-                                    
-                                    st.dataframe(df_display, use_container_width=True, hide_index=True)
-                                    
-                                    # Download option
-                                    csv = df_mm_results.to_csv(index=False)
-                                    st.download_button(
-                                        label="📥 Download Full Results (CSV)",
-                                        data=csv,
-                                        file_name=f"mm_contracts_{mm_ticker}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                                        mime="text/csv",
-                                        key="mm_download_csv"
-                                    )
-                                else:
-                                    st.info("No contracts match the selected filters")
-                            else:
-                                st.error("No valid contracts found for analysis")
+                                        if not df_mm_results.empty:
+                                            # Display professional results
+                                            display_mm_contract_winner(
+                                                df_mm_results,
+                                                mm_ticker,
+                                                mm_current_price,
+                                                selected_target_strike
+                                            )
+                                        else:
+                                            st.error("No valid contracts found for this combination")
                 
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
