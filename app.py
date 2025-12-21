@@ -7898,64 +7898,70 @@ def main():
                                     
                                     st.divider()
                                     
+                                    # Initialize session state for selections
+                                    if 'mm_exp_type' not in st.session_state:
+                                        st.session_state.mm_exp_type = None
+                                    if 'mm_target_price' not in st.session_state:
+                                        st.session_state.mm_target_price = None
+                                    
                                     # Step 1: Select expiration type (Weekly or Monthly)
                                     st.markdown("### ⏰ Select Expiration Type")
                                     col_exp1, col_exp2 = st.columns(2)
                                     
-                                    exp_type_weekly = col_exp1.button("📅 WEEKLY (0-7 DTE)", use_container_width=True, key="btn_exp_weekly")
-                                    exp_type_monthly = col_exp2.button("📆 MONTHLY (8-60+ DTE)", use_container_width=True, key="btn_exp_monthly")
+                                    if col_exp1.button("📅 WEEKLY (0-7 DTE)", use_container_width=True, key="btn_exp_weekly"):
+                                        st.session_state.mm_exp_type = "weekly"
+                                        st.session_state.mm_target_price = None
                                     
-                                    selected_exp_type = None
-                                    if exp_type_weekly:
-                                        selected_exp_type = "weekly"
-                                    elif exp_type_monthly:
-                                        selected_exp_type = "monthly"
+                                    if col_exp2.button("📆 MONTHLY (8-60+ DTE)", use_container_width=True, key="btn_exp_monthly"):
+                                        st.session_state.mm_exp_type = "monthly"
+                                        st.session_state.mm_target_price = None
                                     
-                                    if selected_exp_type:
-                                        st.success(f"✅ Analyzing **{selected_exp_type.upper()}** options")
+                                    if st.session_state.mm_exp_type:
+                                        st.success(f"✅ Selected: **{st.session_state.mm_exp_type.upper()}** options")
                                         st.divider()
                                         
                                         # Step 2: Select target price
                                         st.markdown("### 📍 Select Price Target")
                                         col_t1, col_t2, col_t3 = st.columns(3)
                                         
-                                        target_support_key = f"btn_support_{selected_exp_type}"
-                                        target_resistance_key = f"btn_resistance_{selected_exp_type}"
-                                        target_custom_key = f"btn_custom_{selected_exp_type}"
+                                        exp_label = st.session_state.mm_exp_type.upper()
                                         
-                                        analyze_support = col_t1.button(
-                                            f"📉 Support\n${support_level:.2f}\n({selected_exp_type.upper()})",
+                                        if col_t1.button(
+                                            f"📉 Support\n${support_level:.2f}\n({exp_label})",
                                             use_container_width=True,
-                                            key=target_support_key
-                                        )
-                                        analyze_resistance = col_t2.button(
-                                            f"📈 Resistance\n${resistance_level:.2f}\n({selected_exp_type.upper()})",
-                                            use_container_width=True,
-                                            key=target_resistance_key
-                                        )
-                                        analyze_custom = col_t3.button(
-                                            f"⚙️ Custom Target\n({selected_exp_type.upper()})",
-                                            use_container_width=True,
-                                            key=target_custom_key
-                                        )
+                                            key="btn_support_target"
+                                        ):
+                                            st.session_state.mm_target_price = support_level
                                         
+                                        if col_t2.button(
+                                            f"📈 Resistance\n${resistance_level:.2f}\n({exp_label})",
+                                            use_container_width=True,
+                                            key="btn_resistance_target"
+                                        ):
+                                            st.session_state.mm_target_price = resistance_level
+                                        
+                                        if col_t3.button(
+                                            f"⚙️ Custom Target\n({exp_label})",
+                                            use_container_width=True,
+                                            key="btn_custom_target"
+                                        ):
+                                            st.session_state.mm_target_price = "custom"
+                                        
+                                        # Handle custom input
                                         mm_target_price = None
-                                        
-                                        if analyze_support:
-                                            mm_target_price = support_level
-                                        elif analyze_resistance:
-                                            mm_target_price = resistance_level
-                                        elif analyze_custom:
+                                        if st.session_state.mm_target_price == "custom":
                                             mm_target_price = st.number_input(
-                                                f"Enter custom target price for {selected_exp_type.upper()} options",
+                                                f"Enter custom target price for {exp_label} options",
                                                 value=mm_current_price,
                                                 step=0.50,
-                                                key=f"custom_target_{selected_exp_type}"
+                                                key="custom_target_input"
                                             )
+                                        elif st.session_state.mm_target_price:
+                                            mm_target_price = st.session_state.mm_target_price
                                         
                                         # Run scanner for selected target
                                         if mm_target_price is not None:
-                                            st.info(f"🎯 Scanning for optimal {selected_exp_type.upper()} contracts targeting ${mm_target_price:.2f}...")
+                                            st.info(f"🎯 Scanning for optimal {st.session_state.mm_exp_type.upper()} contracts targeting ${mm_target_price:.2f}...")
                                             
                                             # Run MM Scanner
                                             df_mm_results = mm_contract_scanner(
