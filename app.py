@@ -7910,72 +7910,62 @@ def main():
                                     # WEEKLY COLUMN
                                     with col_weekly:
                                         st.subheader("📅 WEEKLY (0-7 DTE)")
-                                        wcol1, wcol2, wcol3 = st.columns(3)
+                                        weekly_options = [
+                                            f"📉 Support ${support_level:.2f}",
+                                            f"📈 Resistance ${resistance_level:.2f}",
+                                            "⚙️ Custom Target"
+                                        ]
+                                        weekly_choice = st.radio(
+                                            "Choose Weekly Target:",
+                                            weekly_options,
+                                            key="radio_weekly",
+                                            index=None
+                                        )
                                         
-                                        if wcol1.button(
-                                            f"📉 Support\n${support_level:.2f}",
-                                            use_container_width=True,
-                                            key="btn_weekly_support"
-                                        ):
-                                            st.session_state.mm_selected_target = {
-                                                'exp_type': 'weekly',
-                                                'target_price': support_level
-                                            }
-                                        
-                                        if wcol2.button(
-                                            f"📈 Resistance\n${resistance_level:.2f}",
-                                            use_container_width=True,
-                                            key="btn_weekly_resistance"
-                                        ):
-                                            st.session_state.mm_selected_target = {
-                                                'exp_type': 'weekly',
-                                                'target_price': resistance_level
-                                            }
-                                        
-                                        if wcol3.button(
-                                            f"⚙️ Custom",
-                                            use_container_width=True,
-                                            key="btn_weekly_custom"
-                                        ):
-                                            st.session_state.mm_selected_target = {
-                                                'exp_type': 'weekly',
-                                                'target_price': 'custom'
-                                            }
+                                        weekly_target = None
+                                        if weekly_choice:
+                                            if "Support" in weekly_choice:
+                                                weekly_target = support_level
+                                            elif "Resistance" in weekly_choice:
+                                                weekly_target = resistance_level
+                                            elif "Custom" in weekly_choice:
+                                                weekly_target = "custom"
+                                            
+                                            if weekly_target:
+                                                st.session_state.mm_selected_target = {
+                                                    'exp_type': 'weekly',
+                                                    'target_price': weekly_target
+                                                }
                     
                     # MONTHLY COLUMN
                     with col_monthly:
                         st.subheader("📆 MONTHLY (8-60+ DTE)")
-                        mcol1, mcol2, mcol3 = st.columns(3)
+                        monthly_options = [
+                            f"📉 Support ${support_level:.2f}",
+                            f"📈 Resistance ${resistance_level:.2f}",
+                            "⚙️ Custom Target"
+                        ]
+                        monthly_choice = st.radio(
+                            "Choose Monthly Target:",
+                            monthly_options,
+                            key="radio_monthly",
+                            index=None
+                        )
                         
-                        if mcol1.button(
-                            f"📉 Support\n${support_level:.2f}",
-                            use_container_width=True,
-                            key="btn_monthly_support"
-                        ):
-                            st.session_state.mm_selected_target = {
-                                'exp_type': 'monthly',
-                                'target_price': support_level
-                            }
-                        
-                        if mcol2.button(
-                            f"📈 Resistance\n${resistance_level:.2f}",
-                            use_container_width=True,
-                            key="btn_monthly_resistance"
-                        ):
-                            st.session_state.mm_selected_target = {
-                                'exp_type': 'monthly',
-                                'target_price': resistance_level
-                            }
-                        
-                        if mcol3.button(
-                            f"⚙️ Custom",
-                            use_container_width=True,
-                            key="btn_monthly_custom"
-                        ):
-                            st.session_state.mm_selected_target = {
-                                'exp_type': 'monthly',
-                                'target_price': 'custom'
-                            }
+                        monthly_target = None
+                        if monthly_choice:
+                            if "Support" in monthly_choice:
+                                monthly_target = support_level
+                            elif "Resistance" in monthly_choice:
+                                monthly_target = resistance_level
+                            elif "Custom" in monthly_choice:
+                                monthly_target = "custom"
+                            
+                            if monthly_target:
+                                st.session_state.mm_selected_target = {
+                                    'exp_type': 'monthly',
+                                    'target_price': monthly_target
+                                }
                     
                     # Handle selection
                     if st.session_state.mm_selected_target:
