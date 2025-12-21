@@ -8093,26 +8093,38 @@ def main():
                                     )
                                     st.plotly_chart(fig_oi, use_container_width=True)
                                     
-                                    # Chart 2: Put/Call skew (market structure)
-                                    fig_skew = go.Figure()
-                                    fig_skew.add_trace(go.Scatter(
-                                        x=oi_data['Strike'],
-                                        y=oi_data['Put/Call'],
-                                        fill='tozeroy',
-                                        name='Put/Call Ratio',
-                                        line=dict(color='purple', width=2)
-                                    ))
-                                    fig_skew.add_hline(y=1.0, line_dash="dash", line_color="gray", 
-                                                      annotation_text="Neutral (1.0x)")
-                                    fig_skew.add_vline(x=mm_current_price, line_dash="dash", line_color="blue")
-                                    fig_skew.update_layout(
-                                        title="Put/Call Skew Profile (Risk Structure)",
-                                        xaxis_title="Strike Price",
-                                        yaxis_title="Put/Call Ratio",
-                                        height=350,
-                                        template="plotly_dark"
-                                    )
-                                    st.plotly_chart(fig_skew, use_container_width=True)
+                                    st.divider()
+                                    
+                                    # Put/Call Skew Profile as TEXT (no unnecessary extension)
+                                    st.markdown("### 📊 PUT/CALL SKEW PROFILE")
+                                    
+                                    skew_data = []
+                                    for s in sorted(oi_data['Strike'].unique()):
+                                        put_vol = put_oi_by_strike.get(s, 0)
+                                        call_vol = call_oi_by_strike.get(s, 0)
+                                        ratio = put_vol / max(call_vol, 1)
+                                        
+                                        if ratio > 1.5:
+                                            structure = "🔴 HEAVY PUTS"
+                                        elif ratio > 1.2:
+                                            structure = "🟠 PUT BIAS"
+                                        elif ratio > 0.8:
+                                            structure = "🟡 BALANCED"
+                                        elif ratio > 0.5:
+                                            structure = "🟢 CALL BIAS"
+                                        else:
+                                            structure = "🟢 HEAVY CALLS"
+                                        
+                                        skew_data.append({
+                                            'Strike': f"${s:.2f}",
+                                            'Put OI': f"{put_vol:,}",
+                                            'Call OI': f"{call_vol:,}",
+                                            'Ratio': f"{ratio:.2f}x",
+                                            'Structure': structure
+                                        })
+                                    
+                                    skew_df = pd.DataFrame(skew_data)
+                                    st.dataframe(skew_df, use_container_width=True, hide_index=True)
                                     
                                     st.divider()
                                     
@@ -8182,33 +8194,35 @@ def main():
                                     # LEVEL 5: EXPIRATION & TARGET SELECTION
                                     # ────────────────────────────────────────────────────────────────
                                     
-                                    st.markdown("### ⚙️ SCAN PARAMETERS")
+                                    st.markdown("### ⚙️ RUN SCANNER")
                                     
-                                    col_select_exp, col_select_target = st.columns(2)
+                                    col_select_exp, col_select_target, col_run = st.columns([1, 1, 0.8])
                                     
                                     with col_select_exp:
                                         exp_dates_list = sorted(list(mm_chains.keys()))
                                         selected_exp = st.selectbox(
-                                            "📅 Select Expiration Date",
+                                            "Expiration",
                                             exp_dates_list,
-                                            format_func=lambda x: f"{x} ({(datetime.strptime(x, '%Y-%m-%d').date() - datetime.now().date()).days} DTE)",
+                                            format_func=lambda x: f"{x} ({(datetime.strptime(x, '%Y-%m-%d').date() - datetime.now().date()).days}d)",
                                             key="professional_exp_select"
                                         )
                                     
                                     with col_select_target:
-                                        target_options = [f"${t['strike']:.2f} - {t['type']}" for t in targets_analysis]
+                                        target_options = [f"${t['strike']:.2f} {t['type']}" for t in targets_analysis]
                                         selected_target_idx = st.selectbox(
-                                            "🎯 Select Target (OI-Based)",
+                                            "Target",
                                             range(len(target_options)),
                                             format_func=lambda x: target_options[x],
                                             key="professional_target_select"
                                         )
                                         selected_target_strike = targets_analysis[selected_target_idx]['strike']
                                     
+                                    with col_run:
+                                        run_scan = st.button("▶️ SCAN", use_container_width=True)
+                                    
                                     # Run scanner on selection
-                                    if selected_exp and selected_target_strike:
-                                        st.markdown("---")
-                                        st.info(f"🔄 Running institutional MM scanner: {mm_ticker} → {selected_exp} → Target ${selected_target_strike:.2f}")
+                                    if run_scan and selected_exp and selected_target_strike:
+                                        st.divider()
                                         
                                         # Get expiration dates dict
                                         mm_exp_dict = {selected_exp: None}
@@ -8231,8 +8245,46 @@ def main():
                                                 mm_current_price,
                                                 selected_target_strike
                                             )
+                                            
+                                            st.divider()
+                                            
+                                            # Results table
+                                            st.subheader("📋 Contracts Ranked")
+                                            
+                                            df_display = df_mm_results[[
+                                                'strike', 'option_type', 'dte', 'bid', 'ask',
+                                                'delta', 'gamma', 'theta', 'iv',
+                                                'volume', 'oi', 'mm_score'
+                                            ]].copy()
+                                            
+                                            df_display.columns = [
+                                                'Strike', 'Type', 'DTE', 'Bid', 'Ask',
+                                                'Δ', 'Γ', 'Θ', 'IV',
+                                                'Vol', 'OI', 'Score'
+                                            ]
+                                            
+                                            # Format
+                                            df_display['Strike'] = df_display['Strike'].apply(lambda x: f"${x:.2f}")
+                                            df_display['Bid'] = df_display['Bid'].apply(lambda x: f"${x:.2f}")
+                                            df_display['Ask'] = df_display['Ask'].apply(lambda x: f"${x:.2f}")
+                                            df_display['Δ'] = df_display['Δ'].apply(lambda x: f"{x:.3f}")
+                                            df_display['Γ'] = df_display['Γ'].apply(lambda x: f"{x:.6f}")
+                                            df_display['Θ'] = df_display['Θ'].apply(lambda x: f"${x:.4f}")
+                                            df_display['IV'] = df_display['IV'].apply(lambda x: f"{x:.1%}")
+                                            df_display['Score'] = df_display['Score'].apply(lambda x: f"{x:.1f}")
+                                            
+                                            st.dataframe(df_display, use_container_width=True, hide_index=True)
+                                            
+                                            # Download
+                                            csv = df_mm_results.to_csv(index=False)
+                                            st.download_button(
+                                                label="📥 Download CSV",
+                                                data=csv,
+                                                file_name=f"mm_{mm_ticker}_{selected_exp}.csv",
+                                                mime="text/csv"
+                                            )
                                         else:
-                                            st.error("No valid contracts found for this combination")
+                                            st.error("No valid contracts found")
                 
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
