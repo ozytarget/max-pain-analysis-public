@@ -9,473 +9,411 @@ from typing import Dict, List, Tuple
 import logging
 from dataclasses import dataclass
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class WallData:
-    """Estructura de pared de opciones"""
-    strike: float
-    oi: int
-    type: str  # 'call' o 'put'
-    distance_pct: float
-    strength: str  # 'WEAK', 'MEDIUM', 'STRONG'
-
+    """Estructura para datos de paredes de opciones"""
+    strikes: List[float]
+    volumes: List[float]
+    strength: float
+    density: float
 
 @dataclass
 class RegimeData:
-    """Clasificación de régimen"""
-    classification: str  # 'CHOP', 'TREND', 'SQUEEZE'
-    confidence: float  # 0-1
-    gamma_health: str  # 'POSITIVE', 'NEUTRAL', 'NEGATIVE'
-    pin_probability: float  # 0-1
-    vol_risk: str  # 'COMPRESSION', 'NEUTRAL', 'EXPANSION'
-
+    """Estructura para datos de régimen de mercado"""
+    regime: str
+    volatility: str
+    call_put_ratio: float
+    avg_iv: float
 
 class QuantEngine:
-    """Motor cuantitativo de market making"""
+    """Motor cuantitativo para análisis de mercado microestructura"""
     
-    def __init__(self):
-        self.wall_strength_threshold = 1.5  # OI es 1.5x el promedio
-        self.chop_atr_percentile = 30  # Volatilidad baja = chop
-        self.trend_atr_percentile = 70  # Volatilidad alta = trend
+    def __init__(self, debug: bool = False):
+        self.debug = debug
     
-    def calculate_gex(self, contracts: List[Dict], price: float) -> Dict[str, float]:
+    def calculate_gex(self, contracts: List[Dict], price: float, expiration: str) -> Dict:
         """
-        Calcular Gamma Exposure por strike - MEJORADO
-        
-        GEX = sum(gamma * oi * price²) para cada strike
-        Ponderado por: vol, bid-ask spread, moneyness
-        
-        Interpretación:
-        - GEX > 0: Mercado quiere mean reversion (long gamma)
-        - GEX < 0: Mercado frágil (short gamma) = riesgo trend
+        Gamma Exposure Index ajustado por:
+        - Liquidez (OI/Spread ratio)
+        - IV (volatilidad normalizada)
+        - Moneyness (distancia al strike)
         """
-        gex_by_strike = {}
-        
-        for contract in contracts:
-            try:
-                strike = float(contract.get('strike', 0))
-                gamma = float(contract.get('gamma', 0))
-                oi = int(contract.get('open_interest', 0))
-                bid = float(contract.get('bid', 0))
-                ask = float(contract.get('ask', 0))
-                iv = float(contract.get('iv', 0.25))
-                
-                if strike <= 0 or gamma == 0:
+        try:
+            if not contracts:
+                return {'gex_index': 0, 'direction': 'neutral', 'by_strike': {}}
+            
+            gex_by_strike = {}
+            total_gex = 0
+            total_weight = 0
+            
+            for contract in contracts:
+                try:
+                    strike = float(contract.get('strike', 0))
+                    call_gamma = float(contract.get('call_gamma', 0))
+                    put_gamma = float(contract.get('put_gamma', 0))
+                    call_oi = float(contract.get('call_oi', 0))
+                    put_oi = float(contract.get('put_oi', 0))
+                    call_iv = float(contract.get('call_iv', 1.0))
+                    put_iv = float(contract.get('put_iv', 1.0))
+                    bid = float(contract.get('bid', 0.01))
+                    ask = float(contract.get('ask', 0.02))
+                    
+                    # 1. GEX base: call_gamma * call_oi - put_gamma * put_oi
+                    gex_raw = (call_gamma * call_oi) - (put_gamma * put_oi)
+                    
+                    # 2. Factor de liquidez
+                    spread = max(ask - bid, 0.01)
+                    oi_total = call_oi + put_oi
+                    liquidity_factor = (oi_total / max(spread, 0.01)) / 10000 if spread > 0 else 0.8
+                    liquidity_factor = min(liquidity_factor, 1.5)
+                    
+                    # 3. Factor IV - normalizar volatilidad
+                    avg_iv = (call_iv + put_iv) / 2
+                    iv_factor = 1.0 if avg_iv < 0.5 else (1.5 if avg_iv > 1.0 else 1.0 + avg_iv/2)
+                    
+                    # 4. Factor moneyness - penalizar strikes lejanos
+                    moneyness = abs(strike - price) / price if price > 0 else 0
+                    moneyness_factor = 1.0 if moneyness < 0.05 else max(0.5, 1.0 - moneyness)
+                    
+                    # GEX ajustado
+                    gex_adjusted = gex_raw * liquidity_factor * iv_factor * moneyness_factor
+                    gex_by_strike[strike] = {
+                        'gex_raw': gex_raw,
+                        'gex_adjusted': gex_adjusted,
+                        'liquidity_factor': liquidity_factor,
+                        'iv_factor': iv_factor,
+                        'moneyness_factor': moneyness_factor
+                    }
+                    
+                    total_gex += gex_adjusted
+                    total_weight += abs(gex_adjusted)
+                    
+                except (ValueError, KeyError) as e:
+                    logger.debug(f"Error procesando contrato: {e}")
                     continue
-                
-                # Base GEX
-                gex = gamma * oi * (price ** 2)
-                
-                # Ajuste por liquidez (penalizar spreads amplios)
-                spread = ask - bid if ask > bid else 0.01
-                spread_pct = spread / ((bid + ask) / 2) if (bid + ask) > 0 else 0.1
-                liquidity_factor = max(0.5, 1.0 - spread_pct * 10)
-                
-                # Ajuste por IV (higher IV = more gamma meaningful)
-                iv_factor = max(0.8, min(1.2, iv / 0.20))  # Normalized to 20% IV
-                
-                # Ajuste por moneyness (ATM gamma > importante)
-                moneyness = abs(strike - price) / price
-                moneyness_factor = max(0.3, 1.0 - moneyness)
-                
-                # GEX ajustado
-                gex_adjusted = gex * liquidity_factor * iv_factor * moneyness_factor
-                
-                if strike not in gex_by_strike:
-                    gex_by_strike[strike] = 0
-                gex_by_strike[strike] += gex_adjusted
-                
-            except (ValueError, TypeError):
-                continue
-        
-        return gex_by_strike
-        - GEX positivo alto → mercado quiere mean reversion
-        - GEX negativo alto → mercado frágil, riesgo de trend explosivo
-        """
-        gex_by_strike = {}
-        
-        for contract in contracts:
-            strike = contract.get('strike')
-            gamma = contract.get('gamma', 0)
-            oi = contract.get('oi', 0)
-            contract_type = contract.get('type', 'call').lower()
             
-            # Gamma negativa para puts (por convención MM)
-            gamma_signed = gamma if contract_type == 'call' else -gamma
+            # Normalizar índice
+            if total_weight > 0:
+                gex_index = total_gex / total_weight * 100
+            else:
+                gex_index = 0
             
-            if strike not in gex_by_strike:
-                gex_by_strike[strike] = 0
+            # Interpretación
+            if gex_index > 100:
+                direction = 'bullish'
+            elif gex_index < -100:
+                direction = 'bearish'
+            else:
+                direction = 'neutral'
             
-            # GEX = gamma * OI * price²
-            gex_value = gamma_signed * oi * (price ** 2)
-            gex_by_strike[strike] += gex_value
-        
-        return gex_by_strike
-    
-    def detect_walls(self, contracts: List[Dict], price: float, 
-                    expiration: str) -> Tuple[WallData, WallData]:
-        """
-        Detectar call wall (encima) y put wall (debajo)
-        
-        Wall = strike con máximo OI relativo (>1.5x promedio cercano)
-        """
-        # Separar por tipo y expiración
-        calls = [c for c in contracts 
-                if c.get('type', '').lower() == 'call' and c.get('expiration') == expiration]
-        puts = [c for c in contracts 
-               if c.get('type', '').lower() == 'put' and c.get('expiration') == expiration]
-        
-        call_wall = self._find_wall(calls, price, 'call')
-        put_wall = self._find_wall(puts, price, 'put')
-        
-        return call_wall, put_wall
-    
-    def _find_wall(self, contracts: List[Dict], price: float, 
-                  wall_type: str) -> WallData:
-        """Helper para detectar una pared"""
-        if not contracts:
-            return WallData(strike=price, oi=0, type=wall_type, distance_pct=0, strength='NONE')
-        
-        strikes = sorted(set(c.get('strike') for c in contracts))
-        ois = {c.get('strike'): c.get('oi', 0) for c in contracts}
-        
-        # Filtrar por tipo
-        if wall_type == 'call':
-            relevant_strikes = [s for s in strikes if s > price]
-        else:
-            relevant_strikes = [s for s in strikes if s < price]
-        
-        if not relevant_strikes:
-            return WallData(strike=price, oi=0, type=wall_type, distance_pct=0, strength='NONE')
-        
-        # Encontrar máximo OI
-        max_strike = max(relevant_strikes, key=lambda s: ois.get(s, 0))
-        max_oi = ois.get(max_strike, 0)
-        
-        # Comparar con promedio cercano (±2%)
-        nearby = [s for s in relevant_strikes 
-                 if abs(s - max_strike) / max_strike < 0.02]
-        avg_oi_nearby = np.mean([ois.get(s, 0) for s in nearby]) if nearby else max_oi
-        
-        # Determinar fuerza
-        oi_ratio = max_oi / max(avg_oi_nearby, 1)
-        if oi_ratio > 2.0:
-            strength = 'STRONG'
-        elif oi_ratio > 1.5:
-            strength = 'MEDIUM'
-        else:
-            strength = 'WEAK'
-        
-        distance = abs(max_strike - price) / price * 100
-        
-        return WallData(
-            strike=max_strike,
-            oi=max_oi,
-            type=wall_type,
-            distance_pct=distance if wall_type == 'call' else -distance,
-            strength=strength
-        )
-    
-    def calculate_pinning_score(self, call_wall: WallData, put_wall: WallData,
-                               price: float, gamma_neta: float, 
-                               historical_pin_rate: float = 0.5) -> float:
-        """
-        Score MEJORADO de probabilidad de pinning
-        
-        Factores:
-        1. Distancia a walls (exponencial - muy sensible)
-        2. Fuerza de walls (OI poder magnético)
-        3. Salud gamma (positiva = presión a mean-revert)
-        4. Simetría de walls (balanced = más probable pinning)
-        5. Hit rate histórico (aprendizaje)
-        6. Spread de opciones (liquidez)
-        
-        Resultado: 0-1 (probabilidad con máxima precision)
-        """
-        score = 0.0
-        weights = {
-            'distance': 0.25,
-            'wall_strength': 0.25,
-            'gamma_health': 0.20,
-            'symmetry': 0.15,
-            'historical': 0.10,
-            'spread': 0.05
-        }
-        
-        # Factor 1: Distancia (exponencial - más sensible)
-        call_dist = abs(call_wall.distance_pct) if call_wall.strike > price else 999
-        put_dist = abs(put_wall.distance_pct) if put_wall.strike < price else 999
-        closest_dist = min(call_dist, put_dist)
-        
-        # Exponencial: 0% dist = 1.0, 5% dist = 0.0
-        distance_factor = max(0.0, 1.0 - (closest_dist / 5.0) ** 1.5) if closest_dist < 5 else 0.1
-        
-        # Factor 2: Fuerza de walls (OI absoluto + relativo)
-        total_oi = max(call_wall.oi + put_wall.oi, 1)
-        call_strength_value = (call_wall.oi / max(total_oi, 1)) * {
-            'STRONG': 1.0, 'MEDIUM': 0.6, 'WEAK': 0.2
-        }.get(call_wall.strength, 0.1)
-        put_strength_value = (put_wall.oi / max(total_oi, 1)) * {
-            'STRONG': 1.0, 'MEDIUM': 0.6, 'WEAK': 0.2
-        }.get(put_wall.strength, 0.1)
-        wall_strength = (call_strength_value + put_strength_value) / 2
-        
-        # Factor 3: Salud gamma (positiva = buena para pinning)
-        if gamma_neta > 0:
-            gamma_factor = min(1.0, 0.5 + (gamma_neta / 1e6))  # Normalized
-        elif gamma_neta > -1e6:
-            gamma_factor = max(0.2, 0.5 - (abs(gamma_neta) / 1e6))
-        else:
-            gamma_factor = 0.1
-        
-        # Factor 4: Simetría de walls (balanced = más probable pinning)
-        oi_imbalance = abs(call_wall.oi - put_wall.oi) / max(call_wall.oi + put_wall.oi, 1)
-        symmetry_factor = max(0.3, 1.0 - oi_imbalance)
-        
-        # Factor 5: Hit rate histórico (suavizado para evitar overfit)
-        historical_factor = 0.3 + (historical_pin_rate * 0.7)
-        
-        # Spread factor (penalizar opciones ilíquidas) - placeholder
-        spread_factor = 0.9  # Podría mejorar con datos de bid-ask
-        
-        # Calcular score ponderado
-        score = (
-            distance_factor * weights['distance'] +
-            wall_strength * weights['wall_strength'] +
-            gamma_factor * weights['gamma_health'] +
-            symmetry_factor * weights['symmetry'] +
-            historical_factor * weights['historical'] +
-            spread_factor * weights['spread']
-        )
-        
-        return min(1.0, max(0.0, score))
-        
-        # Factor 2: Fuerza de walls
-        wall_strength = 0
-        if call_wall.strength == 'STRONG':
-            wall_strength += 0.4
-        elif call_wall.strength == 'MEDIUM':
-            wall_strength += 0.2
-        
-        if put_wall.strength == 'STRONG':
-            wall_strength += 0.4
-        elif put_wall.strength == 'MEDIUM':
-            wall_strength += 0.2
-        
-        # Factor 3: Gamma (positiva = mean reversion = más pinning)
-        if gamma_neta > 0:
-            gamma_factor = 0.4
-        else:
-            gamma_factor = 0.1
-        
-        # Factor 4: Histórico
-        historical_factor = historical_pin_rate * 0.3
-        
-        # Combinar
-        score = (
-            distance_factor * 0.4 +
-            wall_strength * 0.3 +
-            gamma_factor * 0.2 +
-            historical_factor * 0.1
-        )
-        
-        return min(max(score, 0), 1.0)
-    
-    def classify_regime(self, contracts: List[Dict], price: float,
-                       historical_prices: List[float] = None,
-                       gamma_neta: float = 0) -> RegimeData:
-        """
-        Clasificar régimen: CHOP, TREND o SQUEEZE
-        
-        CHOP:
-        - ATR bajo / vol baja
-        - Gamma positiva neta
-        - Precio oscila entre walls
-        
-        TREND:
-        - ATR alto / vol alta
-        - Gamma negativa (fragilidad)
-        - Riesgo de ruptura
-        
-        SQUEEZE:
-        - Bollinger Bands estrechas
-        - IV baja
-        - Explosión probable
-        """
-        
-        # Calcular ATR (si tenemos precios históricos)
-        if historical_prices and len(historical_prices) > 14:
-            atr = self._calculate_atr(historical_prices)
-            atr_percentile = self._estimate_atr_percentile(atr, historical_prices)
-        else:
-            atr_percentile = 50
-        
-        # Clasificación
-        if atr_percentile < self.chop_atr_percentile:
-            classification = 'CHOP'
-            confidence = 0.7
-        elif atr_percentile > self.trend_atr_percentile:
-            classification = 'TREND'
-            confidence = 0.75
-        else:
-            classification = 'SQUEEZE'
-            confidence = 0.6
-        
-        # Gamma health
-        if gamma_neta > 0:
-            gamma_health = 'POSITIVE'
-        elif gamma_neta < -0.001:
-            gamma_health = 'NEGATIVE'
-        else:
-            gamma_health = 'NEUTRAL'
-        
-        # Pin probability
-        if classification == 'CHOP':
-            pin_prob = 0.7
-        elif classification == 'TREND':
-            pin_prob = 0.2
-        else:
-            pin_prob = 0.5
-        
-        # Vol risk
-        if classification == 'SQUEEZE':
-            vol_risk = 'EXPANSION'
-        elif classification == 'TREND':
-            vol_risk = 'EXPANSION'
-        else:
-            vol_risk = 'NEUTRAL'
-        
-        return RegimeData(
-            classification=classification,
-            confidence=confidence,
-            gamma_health=gamma_health,
-            pin_probability=pin_prob,
-            vol_risk=vol_risk
-        )
-    
-    def _calculate_atr(self, prices: List[float], period: int = 14) -> float:
-        """Calcular ATR simple"""
-        if len(prices) < period:
-            return np.std(prices) * 100 / np.mean(prices)
-        
-        returns = np.diff(prices) / prices[:-1]
-        tr = np.abs(returns)
-        atr = np.mean(tr[-period:]) * prices[-1]
-        return atr
-    
-    def _estimate_atr_percentile(self, atr: float, prices: List[float]) -> float:
-        """Estimar percentil de ATR histórico"""
-        if len(prices) < 30:
-            return 50
-        
-        historical_atrs = []
-        for i in range(30, len(prices)):
-            h_atr = self._calculate_atr(prices[i-30:i])
-            historical_atrs.append(h_atr)
-        
-        if not historical_atrs:
-            return 50
-        
-        percentile = np.percentileofscore(historical_atrs, atr)
-        return percentile
-    
-    def calculate_targets(self, call_wall: WallData, put_wall: WallData,
-                         price: float, atr: float = None) -> Dict[str, Dict]:
-        """
-        Calcular targets MEJORADOS con máxima precisión
-        
-        Basado en:
-        1. Paredes de opciones (magnéticos principales)
-        2. ATR + volatilidad (rango probable)
-        3. Simetría/asimetría de paredes
-        4. Estadística histórica de ruptura
-        5. Distancia y fuerza relativa
-        """
-        
-        if atr is None:
-            atr = price * 0.02
-        
-        targets = {}
-        
-        # Calcular probabilidades dinámicas basado en wall strength + distance
-        call_distance_pct = call_wall.distance_pct / 100.0 if call_wall.distance_pct else 0.05
-        put_distance_pct = abs(put_wall.distance_pct / 100.0) if put_wall.distance_pct else 0.05
-        
-        # Strength multiplier
-        call_strength_mult = {
-            'STRONG': 1.5,
-            'MEDIUM': 1.0,
-            'WEAK': 0.5,
-            'NONE': 0.1
-        }.get(call_wall.strength, 0.1)
-        
-        put_strength_mult = {
-            'STRONG': 1.5,
-            'MEDIUM': 1.0,
-            'WEAK': 0.5,
-            'NONE': 0.1
-        }.get(put_wall.strength, 0.1)
-        
-        # Distance multiplier (más cerca = más probable)
-        call_distance_mult = max(0.5, 1.0 - call_distance_pct * 5)
-        put_distance_mult = max(0.5, 1.0 - put_distance_pct * 5)
-        
-        # Target A: Call wall
-        if call_wall.strength != 'NONE':
-            call_prob = 0.35 * call_strength_mult * call_distance_mult
-            call_prob = min(0.60, max(0.15, call_prob))  # Clamp 15-60%
-            
-            targets['target_a'] = {
-                'target': call_wall.strike,
-                'probability': round(call_prob, 2),
-                'invalidation': round(call_wall.strike + atr * 2, 2),
-                'type': 'bullish',
-                'reasoning': f"Call wall OI concentration at ${call_wall.strike:.2f}"
+            return {
+                'gex_index': float(gex_index),
+                'direction': direction,
+                'by_strike': gex_by_strike,
+                'interpretation': self._interpret_gex(gex_index)
             }
         
-        # Target B: Put wall
-        if put_wall.strength != 'NONE':
-            put_prob = 0.35 * put_strength_mult * put_distance_mult
-            put_prob = min(0.60, max(0.15, put_prob))  # Clamp 15-60%
+        except Exception as e:
+            logger.error(f"Error en calculate_gex: {e}")
+            return {'gex_index': 0, 'direction': 'neutral', 'by_strike': {}}
+    
+    def _interpret_gex(self, gex_index: float) -> str:
+        """Interpretar GEX en contexto de market microstructure"""
+        if gex_index > 200:
+            return "Mercado fuerte bullish - Demanda extrema de upside"
+        elif gex_index > 100:
+            return "GEX positivo - Mercado prefiere mean reversion al alza"
+        elif gex_index > 0:
+            return "Ligera sesgo bullish - Probabilidad de soporte dinamico"
+        elif gex_index > -100:
+            return "Ligera sesgo bearish - Presión en soporte"
+        elif gex_index > -200:
+            return "GEX negativo - Mercado frágil, riesgo de trend explosivo"
+        else:
+            return "GEX extremadamente negativo - Alto riesgo de capitulación"
+    
+    def detect_walls(self, contracts: List[Dict], price: float, expiration: str) -> Tuple[WallData, WallData]:
+        """
+        Detecta paredes de opciones (concentraciones de OI)
+        Retorna (call_walls, put_walls)
+        """
+        try:
+            call_walls = []
+            call_vols = []
+            put_walls = []
+            put_vols = []
             
-            targets['target_b'] = {
-                'target': put_wall.strike,
-                'probability': round(put_prob, 2),
-                'invalidation': round(put_wall.strike - atr * 2, 2),
-                'type': 'bearish',
-                'reasoning': f"Put wall OI concentration at ${put_wall.strike:.2f}"
+            for contract in contracts:
+                try:
+                    strike = float(contract.get('strike', 0))
+                    call_oi = float(contract.get('call_oi', 0))
+                    put_oi = float(contract.get('put_oi', 0))
+                    
+                    if call_oi > 1000:
+                        call_walls.append(strike)
+                        call_vols.append(call_oi)
+                    
+                    if put_oi > 1000:
+                        put_walls.append(strike)
+                        put_vols.append(put_oi)
+                
+                except (ValueError, KeyError):
+                    continue
+            
+            # Analizar densidad de paredes
+            call_strength = np.mean(call_vols) / 10000 if call_vols else 0
+            put_strength = np.mean(put_vols) / 10000 if put_vols else 0
+            
+            call_density = len(call_walls) / max(abs(max(call_walls or [price]) - min(call_walls or [price])), 1)
+            put_density = len(put_walls) / max(abs(max(put_walls or [price]) - min(put_walls or [price])), 1)
+            
+            return (
+                WallData(strikes=call_walls, volumes=call_vols, strength=call_strength, density=call_density),
+                WallData(strikes=put_walls, volumes=put_vols, strength=put_strength, density=put_density)
+            )
+        
+        except Exception as e:
+            logger.error(f"Error en detect_walls: {e}")
+            return (
+                WallData(strikes=[], volumes=[], strength=0, density=0),
+                WallData(strikes=[], volumes=[], strength=0, density=0)
+            )
+    
+    def calculate_pinning_score(self, contracts: List[Dict], price: float, expiration: str) -> Dict:
+        """
+        Score de pinning con 6 factores ponderados:
+        1. Distancia (strikes cercanos ITM/OTM)
+        2. Fuerza de pared (concentration)
+        3. Gamma health (curvatura)
+        4. Simetría (call/put balance)
+        5. Histórico (tendencias previas)
+        6. Spread (liquidez del mercado)
+        """
+        try:
+            if not contracts:
+                return {'pinning_score': 0, 'risk': 'low', 'factors': {}}
+            
+            # 1. FACTOR DISTANCIA - Qué tan cerca están los strikes al precio
+            distances = []
+            itm_calls = []
+            itm_puts = []
+            
+            for contract in contracts:
+                strike = float(contract.get('strike', 0))
+                call_oi = float(contract.get('call_oi', 0))
+                put_oi = float(contract.get('put_oi', 0))
+                
+                dist = abs(strike - price)
+                distances.append(dist)
+                
+                if strike < price:
+                    itm_calls.append(call_oi)
+                if strike > price:
+                    itm_puts.append(put_oi)
+            
+            distance_factor = 1.0 - (np.mean(distances) / price if distances and price > 0 else 0.5)
+            distance_factor = max(0, min(distance_factor, 1.0)) * 15  # peso 15
+            
+            # 2. FACTOR PARED - Fuerza de concentración
+            call_walls, put_walls = self.detect_walls(contracts, price, expiration)
+            wall_strength = (call_walls.strength + put_walls.strength) / 2
+            wall_factor = min(wall_strength * 20, 15)  # peso 15
+            
+            # 3. FACTOR GAMMA - Health de la curvatura
+            gammas = [float(c.get('call_gamma', 0)) + float(c.get('put_gamma', 0)) for c in contracts]
+            avg_gamma = np.mean(gammas) if gammas else 0.01
+            gamma_health = min(abs(avg_gamma) * 100, 15)  # peso 15
+            
+            # 4. FACTOR SIMETRÍA - Balance call/put
+            total_call_oi = sum(float(c.get('call_oi', 0)) for c in contracts)
+            total_put_oi = sum(float(c.get('put_oi', 0)) for c in contracts)
+            total_oi = total_call_oi + total_put_oi
+            
+            if total_oi > 0:
+                balance = abs(total_call_oi - total_put_oi) / total_oi
+            else:
+                balance = 0.5
+            
+            symmetry_factor = (1.0 - balance) * 15  # peso 15
+            
+            # 5. FACTOR HISTÓRICO - Simular tendencia (en real: lookback)
+            historical_factor = 10  # Default 10 (sin datos históricos reales)
+            
+            # 6. FACTOR SPREAD - Liquidez
+            spreads = []
+            for contract in contracts:
+                try:
+                    bid = float(contract.get('bid', 0.01))
+                    ask = float(contract.get('ask', 0.02))
+                    spreads.append(ask - bid)
+                except:
+                    pass
+            
+            avg_spread = np.mean(spreads) if spreads else 0.5
+            spread_factor = max(0, 15 - avg_spread * 10)  # peso 15
+            
+            # SCORE TOTAL - suma ponderada (máx 100)
+            total_score = (distance_factor + wall_factor + gamma_health + 
+                          symmetry_factor + historical_factor + spread_factor)
+            pinning_score = min(total_score, 100)
+            
+            # Risk level
+            if pinning_score > 75:
+                risk = 'critical'
+            elif pinning_score > 50:
+                risk = 'high'
+            elif pinning_score > 25:
+                risk = 'medium'
+            else:
+                risk = 'low'
+            
+            return {
+                'pinning_score': float(pinning_score),
+                'risk': risk,
+                'factors': {
+                    'distance': float(distance_factor),
+                    'wall_strength': float(wall_factor),
+                    'gamma_health': float(gamma_health),
+                    'symmetry': float(symmetry_factor),
+                    'historical': float(historical_factor),
+                    'spread_liquidity': float(spread_factor)
+                }
             }
         
-        # Target C: Mean reversion o equilibrio
-        if call_wall.strike > 0 and put_wall.strike > 0:
-            center = (call_wall.strike + put_wall.strike) / 2
+        except Exception as e:
+            logger.error(f"Error en calculate_pinning_score: {e}")
+            return {'pinning_score': 0, 'risk': 'low', 'factors': {}}
+    
+    def calculate_targets(self, price: float, gex_index: float, pinning_score: float, 
+                         contracts: List[Dict], expiration: str) -> Dict:
+        """
+        Calcula targets usando GEX + pinning + probabilidades dinámicas
+        Retorna: {upside_target, downside_target, invalidation, probability, reasoning}
+        """
+        try:
+            # 1. Rango ATR (simulado - en real usar ATR de 20D)
+            atr = price * 0.02  # 2% como default
             
-            # Probability based on wall symmetry
-            oi_ratio = min(call_wall.oi, put_wall.oi) / max(call_wall.oi, put_wall.oi) if max(call_wall.oi, put_wall.oi) > 0 else 0.5
-            center_prob = 0.25 * (0.5 + oi_ratio * 0.5)  # 12.5-25%
+            # 2. Probabilidad dinámica basada en GEX
+            if gex_index > 100:
+                gex_prob = 0.65
+            elif gex_index > 0:
+                gex_prob = 0.55
+            elif gex_index > -100:
+                gex_prob = 0.45
+            else:
+                gex_prob = 0.35
             
-            targets['target_c'] = {
-                'target': round(center, 2),
-                'probability': round(center_prob, 2),
-                'invalidation': 'sustains outside wall range',
-                'type': 'mean_reversion',
-                'reasoning': f"Equilibrium between walls (OI balance: {oi_ratio:.1%})"
+            # 3. Ajuste por pinning (high pinning = menor movimiento)
+            pinning_prob_adjust = 1.0 - (pinning_score / 100) * 0.3
+            
+            # Probabilidad final
+            probability = gex_prob * pinning_prob_adjust
+            
+            # 4. Identificar resistencias/soportes desde paredes
+            call_walls, put_walls = self.detect_walls(contracts, price, expiration)
+            
+            resistances = sorted([s for s in call_walls.strikes if s > price])
+            supports = sorted([s for s in put_walls.strikes if s < price], reverse=True)
+            
+            # 5. Calcular targets
+            if resistances:
+                upside_target = resistances[0]
+            else:
+                upside_target = price + (atr * 2)
+            
+            if supports:
+                downside_target = supports[0]
+            else:
+                downside_target = price - (atr * 2)
+            
+            # 6. Niveles de invalidación (2x ATR)
+            upside_invalidation = price + (atr * 2)
+            downside_invalidation = price - (atr * 2)
+            
+            # 7. Balance OI para dirección
+            total_call_oi = sum(float(c.get('call_oi', 0)) for c in contracts)
+            total_put_oi = sum(float(c.get('put_oi', 0)) for c in contracts)
+            
+            if total_call_oi > total_put_oi:
+                bias = 'bullish'
+            elif total_put_oi > total_call_oi:
+                bias = 'bearish'
+            else:
+                bias = 'balanced'
+            
+            # 8. Reasoning text
+            reasoning = f"GEX {gex_index:.1f} ({bias}). Pinning risk {pinning_score:.1f}/100. "
+            if probability > 0.55:
+                reasoning += "Alta probabilidad de movimiento alcista."
+            elif probability < 0.45:
+                reasoning += "Presión bajista detectada."
+            else:
+                reasoning += "Balance neutral."
+            
+            return {
+                'upside_target': float(upside_target),
+                'downside_target': float(downside_target),
+                'upside_invalidation': float(upside_invalidation),
+                'downside_invalidation': float(downside_invalidation),
+                'probability': float(probability),
+                'bias': bias,
+                'reasoning': reasoning
             }
         
-        # Normalizar probabilidades a suma = 1.0
-        total_prob = sum(t.get('probability', 0) for t in targets.values())
-        if total_prob > 0:
-            for target_key in targets:
-                targets[target_key]['probability'] = round(
-                    targets[target_key]['probability'] / total_prob, 2
-                )
+        except Exception as e:
+            logger.error(f"Error en calculate_targets: {e}")
+            return {
+                'upside_target': price * 1.02,
+                'downside_target': price * 0.98,
+                'upside_invalidation': price * 1.04,
+                'downside_invalidation': price * 0.96,
+                'probability': 0.5,
+                'bias': 'balanced',
+                'reasoning': 'Error en cálculo'
+            }
+    
+    def analyze_regime(self, contracts: List[Dict]) -> Dict:
+        """
+        Clasifica régimen de mercado: Bullish, Bearish, Choppy, Trapped
+        """
+        try:
+            if not contracts:
+                return {'regime': 'unknown', 'volatility': 'low'}
+            
+            ivs = [float(c.get('call_iv', 0.5)) for c in contracts]
+            avg_iv = np.mean(ivs) if ivs else 0.5
+            
+            call_oi_total = sum(float(c.get('call_oi', 0)) for c in contracts)
+            put_oi_total = sum(float(c.get('put_oi', 0)) for c in contracts)
+            
+            ratio = call_oi_total / (put_oi_total + 0.01)
+            
+            if avg_iv > 0.8:
+                vol = 'high'
+            elif avg_iv > 0.5:
+                vol = 'medium'
+            else:
+                vol = 'low'
+            
+            if ratio > 1.3:
+                regime = 'bullish'
+            elif ratio < 0.7:
+                regime = 'bearish'
+            elif avg_iv > 0.7:
+                regime = 'choppy'
+            else:
+                regime = 'trapped'
+            
+            return {
+                'regime': regime,
+                'volatility': vol,
+                'call_put_ratio': float(ratio),
+                'avg_iv': float(avg_iv)
+            }
         
-        return targets
-
-
-if __name__ == "__main__":
-    engine = QuantEngine()
-    logger.info("✅ Quant engine initialized")
+        except Exception as e:
+            logger.error(f"Error en analyze_regime: {e}")
+            return {'regime': 'unknown', 'volatility': 'low'}
