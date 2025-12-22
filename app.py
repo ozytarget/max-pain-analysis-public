@@ -787,6 +787,48 @@ def get_options_data(ticker: str, expiration_date: str) -> List[Dict]:
         return []
 
 
+def _generate_mock_contracts(ticker: str, price: float) -> List[Dict]:
+    """Generate realistic mock options data for demo when API fails"""
+    import random
+    
+    # Define strike range
+    strikes = []
+    for i in range(-20, 21, 1):
+        strikes.append(round(price + i, 2))
+    
+    contracts = []
+    base_iv = 0.20 + random.uniform(-0.05, 0.05)
+    
+    for strike in strikes:
+        for opt_type in ['call', 'put']:
+            # Realistic OI distribution (higher near ATM)
+            distance_from_atm = abs(strike - price) / price
+            oi_multiplier = max(0.3, 1.0 - distance_from_atm * 2)
+            oi = int(random.uniform(5000, 50000) * oi_multiplier)
+            
+            # Greeks
+            delta = random.uniform(-0.95, 0.95) if opt_type == 'call' else random.uniform(-0.95, 0.05)
+            gamma = random.uniform(0.001, 0.02)
+            theta = random.uniform(-0.05, 0.01)
+            vega = random.uniform(0.1, 2.0)
+            iv = base_iv + random.uniform(-0.02, 0.02)
+            
+            contracts.append({
+                'strike': strike,
+                'type': opt_type,
+                'open_interest': oi,
+                'volume': max(1, int(oi * 0.1)),
+                'bid': max(0.01, round(random.uniform(0.1, 5.0), 2)),
+                'ask': round(random.uniform(0.15, 5.5), 2),
+                'delta': round(delta, 3),
+                'gamma': round(gamma, 6),
+                'theta': round(theta, 4),
+                'vega': round(vega, 2),
+                'iv': round(iv, 3),
+                'last_price': round(random.uniform(0.10, 4.50), 2)
+            })
+    
+    return contracts
 
 
 
@@ -7919,8 +7961,11 @@ def main():
                         else:
                             # Fetch options data
                             chain_data = get_options_data(ticker, expiration)
+                            
+                            # If no data from API, use mock data for demo
                             if not chain_data:
-                                st.error(f"Error: No options data available for {ticker}")
+                                st.warning(f"Using mock data for {ticker} (API unavailable)")
+                                chain_data = _generate_mock_contracts(ticker, mm_current_price)
                             else:
                                 # Convert to contract list
                                 if isinstance(chain_data, pd.DataFrame):
