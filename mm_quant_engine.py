@@ -43,11 +43,55 @@ class QuantEngine:
     
     def calculate_gex(self, contracts: List[Dict], price: float) -> Dict[str, float]:
         """
-        Calcular Gamma Exposure por strike
+        Calcular Gamma Exposure por strike - MEJORADO
         
         GEX = sum(gamma * oi * price²) para cada strike
+        Ponderado por: vol, bid-ask spread, moneyness
         
         Interpretación:
+        - GEX > 0: Mercado quiere mean reversion (long gamma)
+        - GEX < 0: Mercado frágil (short gamma) = riesgo trend
+        """
+        gex_by_strike = {}
+        
+        for contract in contracts:
+            try:
+                strike = float(contract.get('strike', 0))
+                gamma = float(contract.get('gamma', 0))
+                oi = int(contract.get('open_interest', 0))
+                bid = float(contract.get('bid', 0))
+                ask = float(contract.get('ask', 0))
+                iv = float(contract.get('iv', 0.25))
+                
+                if strike <= 0 or gamma == 0:
+                    continue
+                
+                # Base GEX
+                gex = gamma * oi * (price ** 2)
+                
+                # Ajuste por liquidez (penalizar spreads amplios)
+                spread = ask - bid if ask > bid else 0.01
+                spread_pct = spread / ((bid + ask) / 2) if (bid + ask) > 0 else 0.1
+                liquidity_factor = max(0.5, 1.0 - spread_pct * 10)
+                
+                # Ajuste por IV (higher IV = more gamma meaningful)
+                iv_factor = max(0.8, min(1.2, iv / 0.20))  # Normalized to 20% IV
+                
+                # Ajuste por moneyness (ATM gamma > importante)
+                moneyness = abs(strike - price) / price
+                moneyness_factor = max(0.3, 1.0 - moneyness)
+                
+                # GEX ajustado
+                gex_adjusted = gex * liquidity_factor * iv_factor * moneyness_factor
+                
+                if strike not in gex_by_strike:
+                    gex_by_strike[strike] = 0
+                gex_by_strike[strike] += gex_adjusted
+                
+            except (ValueError, TypeError):
+                continue
+        
+        return gex_by_strike
         - GEX positivo alto → mercado quiere mean reversion
         - GEX negativo alto → mercado frágil, riesgo de trend explosivo
         """
@@ -139,30 +183,75 @@ class QuantEngine:
                                price: float, gamma_neta: float, 
                                historical_pin_rate: float = 0.5) -> float:
         """
-        Score de probabilidad de "pinning" (precio termina en wall)
+        Score MEJORADO de probabilidad de pinning
         
         Factores:
-        1. Distancia a walls (más cerca = más probable)
-        2. Fuerza de walls (OI mayor = más "gravedad")
-        3. Salud gamma (gamma positiva = mean reversion)
-        4. Hit rate histórico del ticker
+        1. Distancia a walls (exponencial - muy sensible)
+        2. Fuerza de walls (OI poder magnético)
+        3. Salud gamma (positiva = presión a mean-revert)
+        4. Simetría de walls (balanced = más probable pinning)
+        5. Hit rate histórico (aprendizaje)
+        6. Spread de opciones (liquidez)
         
-        Resultado: 0-1 (probabilidad)
+        Resultado: 0-1 (probabilidad con máxima precision)
         """
         score = 0.0
+        weights = {
+            'distance': 0.25,
+            'wall_strength': 0.25,
+            'gamma_health': 0.20,
+            'symmetry': 0.15,
+            'historical': 0.10,
+            'spread': 0.05
+        }
         
-        # Factor 1: Distancia
-        closest_wall_distance = min(
-            abs(call_wall.distance_pct) if call_wall.strike > price else 999,
-            abs(put_wall.distance_pct) if put_wall.strike < price else 999
+        # Factor 1: Distancia (exponencial - más sensible)
+        call_dist = abs(call_wall.distance_pct) if call_wall.strike > price else 999
+        put_dist = abs(put_wall.distance_pct) if put_wall.strike < price else 999
+        closest_dist = min(call_dist, put_dist)
+        
+        # Exponencial: 0% dist = 1.0, 5% dist = 0.0
+        distance_factor = max(0.0, 1.0 - (closest_dist / 5.0) ** 1.5) if closest_dist < 5 else 0.1
+        
+        # Factor 2: Fuerza de walls (OI absoluto + relativo)
+        total_oi = max(call_wall.oi + put_wall.oi, 1)
+        call_strength_value = (call_wall.oi / max(total_oi, 1)) * {
+            'STRONG': 1.0, 'MEDIUM': 0.6, 'WEAK': 0.2
+        }.get(call_wall.strength, 0.1)
+        put_strength_value = (put_wall.oi / max(total_oi, 1)) * {
+            'STRONG': 1.0, 'MEDIUM': 0.6, 'WEAK': 0.2
+        }.get(put_wall.strength, 0.1)
+        wall_strength = (call_strength_value + put_strength_value) / 2
+        
+        # Factor 3: Salud gamma (positiva = buena para pinning)
+        if gamma_neta > 0:
+            gamma_factor = min(1.0, 0.5 + (gamma_neta / 1e6))  # Normalized
+        elif gamma_neta > -1e6:
+            gamma_factor = max(0.2, 0.5 - (abs(gamma_neta) / 1e6))
+        else:
+            gamma_factor = 0.1
+        
+        # Factor 4: Simetría de walls (balanced = más probable pinning)
+        oi_imbalance = abs(call_wall.oi - put_wall.oi) / max(call_wall.oi + put_wall.oi, 1)
+        symmetry_factor = max(0.3, 1.0 - oi_imbalance)
+        
+        # Factor 5: Hit rate histórico (suavizado para evitar overfit)
+        historical_factor = 0.3 + (historical_pin_rate * 0.7)
+        
+        # Spread factor (penalizar opciones ilíquidas) - placeholder
+        spread_factor = 0.9  # Podría mejorar con datos de bid-ask
+        
+        # Calcular score ponderado
+        score = (
+            distance_factor * weights['distance'] +
+            wall_strength * weights['wall_strength'] +
+            gamma_factor * weights['gamma_health'] +
+            symmetry_factor * weights['symmetry'] +
+            historical_factor * weights['historical'] +
+            spread_factor * weights['spread']
         )
         
-        if closest_wall_distance < 1.0:
-            distance_factor = 0.8
-        elif closest_wall_distance < 2.0:
-            distance_factor = 0.6
-        else:
-            distance_factor = 0.3
+        return min(1.0, max(0.0, score))
         
         # Factor 2: Fuerza de walls
         wall_strength = 0
@@ -296,46 +385,93 @@ class QuantEngine:
     def calculate_targets(self, call_wall: WallData, put_wall: WallData,
                          price: float, atr: float = None) -> Dict[str, Dict]:
         """
-        Calcular targets probabilísticos
+        Calcular targets MEJORADOS con máxima precisión
         
         Basado en:
-        1. Paredes de opciones (imanes naturales)
-        2. ATR (rango típico)
-        3. Estadística histórica
+        1. Paredes de opciones (magnéticos principales)
+        2. ATR + volatilidad (rango probable)
+        3. Simetría/asimetría de paredes
+        4. Estadística histórica de ruptura
+        5. Distancia y fuerza relativa
         """
         
         if atr is None:
-            atr = price * 0.02  # Default 2%
+            atr = price * 0.02
         
         targets = {}
         
+        # Calcular probabilidades dinámicas basado en wall strength + distance
+        call_distance_pct = call_wall.distance_pct / 100.0 if call_wall.distance_pct else 0.05
+        put_distance_pct = abs(put_wall.distance_pct / 100.0) if put_wall.distance_pct else 0.05
+        
+        # Strength multiplier
+        call_strength_mult = {
+            'STRONG': 1.5,
+            'MEDIUM': 1.0,
+            'WEAK': 0.5,
+            'NONE': 0.1
+        }.get(call_wall.strength, 0.1)
+        
+        put_strength_mult = {
+            'STRONG': 1.5,
+            'MEDIUM': 1.0,
+            'WEAK': 0.5,
+            'NONE': 0.1
+        }.get(put_wall.strength, 0.1)
+        
+        # Distance multiplier (más cerca = más probable)
+        call_distance_mult = max(0.5, 1.0 - call_distance_pct * 5)
+        put_distance_mult = max(0.5, 1.0 - put_distance_pct * 5)
+        
         # Target A: Call wall
         if call_wall.strength != 'NONE':
+            call_prob = 0.35 * call_strength_mult * call_distance_mult
+            call_prob = min(0.60, max(0.15, call_prob))  # Clamp 15-60%
+            
             targets['target_a'] = {
-                'level': call_wall.strike,
-                'probability': 0.4 if call_wall.strength == 'STRONG' else 0.3,
-                'invalidation': f"breaks {call_wall.strike + atr:.2f}",
-                'type': 'bullish'
+                'target': call_wall.strike,
+                'probability': round(call_prob, 2),
+                'invalidation': round(call_wall.strike + atr * 2, 2),
+                'type': 'bullish',
+                'reasoning': f"Call wall OI concentration at ${call_wall.strike:.2f}"
             }
         
         # Target B: Put wall
         if put_wall.strength != 'NONE':
+            put_prob = 0.35 * put_strength_mult * put_distance_mult
+            put_prob = min(0.60, max(0.15, put_prob))  # Clamp 15-60%
+            
             targets['target_b'] = {
-                'level': put_wall.strike,
-                'probability': 0.35 if put_wall.strength == 'STRONG' else 0.25,
-                'invalidation': f"breaks {put_wall.strike - atr:.2f}",
-                'type': 'bearish'
+                'target': put_wall.strike,
+                'probability': round(put_prob, 2),
+                'invalidation': round(put_wall.strike - atr * 2, 2),
+                'type': 'bearish',
+                'reasoning': f"Put wall OI concentration at ${put_wall.strike:.2f}"
             }
         
-        # Target C: Mean reversion (centro)
-        if len(targets) < 2:
-            center = (call_wall.strike + put_wall.strike) / 2 if (call_wall.strike > 0 and put_wall.strike > 0) else price
+        # Target C: Mean reversion o equilibrio
+        if call_wall.strike > 0 and put_wall.strike > 0:
+            center = (call_wall.strike + put_wall.strike) / 2
+            
+            # Probability based on wall symmetry
+            oi_ratio = min(call_wall.oi, put_wall.oi) / max(call_wall.oi, put_wall.oi) if max(call_wall.oi, put_wall.oi) > 0 else 0.5
+            center_prob = 0.25 * (0.5 + oi_ratio * 0.5)  # 12.5-25%
+            
             targets['target_c'] = {
-                'level': center,
-                'probability': 0.3,
-                'invalidation': 'breaks a wall',
-                'type': 'neutral'
+                'target': round(center, 2),
+                'probability': round(center_prob, 2),
+                'invalidation': 'sustains outside wall range',
+                'type': 'mean_reversion',
+                'reasoning': f"Equilibrium between walls (OI balance: {oi_ratio:.1%})"
             }
+        
+        # Normalizar probabilidades a suma = 1.0
+        total_prob = sum(t.get('probability', 0) for t in targets.values())
+        if total_prob > 0:
+            for target_key in targets:
+                targets[target_key]['probability'] = round(
+                    targets[target_key]['probability'] / total_prob, 2
+                )
         
         return targets
 
