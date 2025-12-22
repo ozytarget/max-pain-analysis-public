@@ -33,7 +33,7 @@ class QuantEngine:
     def __init__(self, debug: bool = False):
         self.debug = debug
     
-    def calculate_gex(self, contracts: List[Dict], price: float, expiration: str) -> Dict:
+    def calculate_gex(self, contracts: List[Dict], price: float, expiration: str = None) -> Dict:
         """
         Gamma Exposure Index ajustado por:
         - Liquidez (OI/Spread ratio)
