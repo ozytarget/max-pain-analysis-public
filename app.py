@@ -7875,23 +7875,25 @@ def main():
         st.markdown("---")
         st.markdown("*Developed by Ozy | © 2025*")
 
-    # Tab 8: UNIFIED MM SCANNER + METRICS + PRICE TARGETS
+    # Tab 8: MM SCANNER - SINGLE TICKER ANALYSIS ONLY
     with tab8:
-        st.subheader("🎯 MM SCANNER - UNIFIED ANALYSIS")
+        st.subheader("🎯 MM SCANNER - SINGLE TICKER DEEP ANALYSIS")
+        st.info("⚡ **ONE TICKER INPUT ONLY** - Complete Market Structure + Greeks + Price Targets Analysis")
         
-        # Single ticker input
+        # SINGLE INPUT - EXPLICIT AND CLEAR
         col_ticker, col_scan = st.columns([3, 1])
         with col_ticker:
             mm_ticker = st.text_input(
-                "📊 Enter Stock Ticker (SPY, QQQ, NVDA, TSLA, AAPL, etc)", 
+                "📊 TICKER (SPY, QQQ, NVDA, TSLA, AAPL)", 
                 value="SPY", 
-                key="mm_ticker_unified"
+                key="mm_ticker_unified",
+                placeholder="Enter ONE ticker only"
             ).upper()
         with col_scan:
             scan_button = st.button("🔍 ANALYZE", key="mm_unified_scan", use_container_width=True)
         
         if scan_button and mm_ticker:
-            with st.spinner(f"🔄 Comprehensive analysis for {mm_ticker}..."):
+            with st.spinner(f"🔄 Complete MM analysis for {mm_ticker}..."):
                 try:
                     # Get price
                     mm_current_price = get_current_price(mm_ticker)
