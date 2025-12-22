@@ -234,7 +234,7 @@ class MemorySystem:
         
         try:
             c.execute('''
-                SELECT pin_hit_rate, wall_respect_rate, vol_expansion_freq, 
+                SELECT pinning_hit_rate, wall_respect_rate, vol_expansion_freq, 
                        regime_accuracy, best_scenario, total_predictions
                 FROM ticker_profiles
                 WHERE ticker = ?
