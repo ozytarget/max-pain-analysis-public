@@ -7877,8 +7877,8 @@ def main():
 
     # Tab 8: INSTITUTIONAL MM SYSTEM - Phase 1
     with tab8:
-        st.markdown("# 📊 MARKET MAKER SCANNER - Institutional Analysis")
-        st.markdown("*Gamma Exposure | Wall Detection | Regime Classification | Backtesting Memory*")
+        st.markdown("# Gamma-Based Market Microstructure Analysis")
+        st.markdown("*Quantitative Framework: GEX Calculation | OI Wall Detection | Regime Classification | Historical Performance Tracking*")
         st.divider()
         
         try:
@@ -7894,33 +7894,33 @@ def main():
             
             with col1:
                 ticker = st.selectbox(
-                    "🎯 Select Ticker",
+                    "Underlying Asset",
                     ["SPY", "QQQ", "NVDA", "TSLA"],
                     key="mm_ticker_select"
                 )
             
             with col2:
                 expiration = st.selectbox(
-                    "📅 Expiration",
+                    "Options Expiration",
                     ["2024-12-20", "2025-01-17", "2025-02-21"],
                     key="mm_expiration_select"
                 )
             
             with col3:
-                refresh = st.button("🔄 Analyze", use_container_width=True, key="mm_analyze_btn")
+                refresh = st.button("Compute", use_container_width=True, key="mm_analyze_btn")
             
             if refresh:
-                with st.spinner(f"📥 Analyzing {ticker}..."):
+                with st.spinner(f"Processing {ticker} options chain..."):
                     try:
                         # Get current price
                         mm_current_price = get_current_price(ticker)
                         if not mm_current_price or mm_current_price == 0:
-                            st.error(f"❌ Could not fetch price for {ticker}")
+                            st.error(f"Error: Unable to retrieve price data for {ticker}")
                         else:
                             # Fetch options data
                             chain_data = get_options_data(ticker, expiration)
                             if not chain_data:
-                                st.error(f"❌ No options data for {ticker}")
+                                st.error(f"Error: No options data available for {ticker}")
                             else:
                                 # Convert to contract list
                                 if isinstance(chain_data, pd.DataFrame):
@@ -7929,7 +7929,7 @@ def main():
                                     contracts = chain_data if isinstance(chain_data, list) else []
                                 
                                 if not contracts:
-                                    st.error("❌ No contracts available")
+                                    st.error("Error: Contract chain empty")
                                 else:
                                     # Get IV
                                     iv = 0.25
@@ -7948,10 +7948,10 @@ def main():
                                     )
                                     
                                     # ═════════════════════════════════════════════════════════════════
-                                    # SECTION 1: METRICS
+                                    # SECTION 1: CORE METRICS
                                     # ═════════════════════════════════════════════════════════════════
                                     st.divider()
-                                    st.markdown("### ⚙️ Quantitative Metrics")
+                                    st.markdown("## 1. Core Metrics")
                                     
                                     # Calculate GEX
                                     from mm_quant_engine import QuantEngine
@@ -7975,10 +7975,10 @@ def main():
                                         st.metric("P/C Ratio", f"{pcr:.2f}")
                                     
                                     # ═════════════════════════════════════════════════════════════════
-                                    # SECTION 2: WALLS
+                                    # SECTION 2: WALL DETECTION
                                     # ═════════════════════════════════════════════════════════════════
                                     st.divider()
-                                    st.markdown("### 🧱 Gamma Walls")
+                                    st.markdown("## 2. Gamma Wall Detection")
                                     
                                     call_wall, put_wall = quant.detect_walls(contracts, mm_current_price, expiration)
                                     
@@ -7993,10 +7993,10 @@ def main():
                                     st.dataframe(walls_df, use_container_width=True, hide_index=True)
                                     
                                     # ═════════════════════════════════════════════════════════════════
-                                    # SECTION 3: REGIME & SCENARIOS
+                                    # SECTION 3: REGIME & TARGETS
                                     # ═════════════════════════════════════════════════════════════════
                                     st.divider()
-                                    st.markdown("### 📈 Market Regime & Targets")
+                                    st.markdown("## 3. Market Regime Classification")
                                     
                                     regime = quant.classify_regime(contracts, mm_current_price, gamma_neta=gamma_neta)
                                     atr = mm_current_price * 0.02
@@ -8025,10 +8025,10 @@ def main():
                                     st.dataframe(pd.DataFrame(scenarios_data), use_container_width=True, hide_index=True)
                                     
                                     # ═════════════════════════════════════════════════════════════════
-                                    # SECTION 4: TICKER PROFILE
+                                    # SECTION 4: HISTORICAL PROFILE
                                     # ═════════════════════════════════════════════════════════════════
                                     st.divider()
-                                    st.markdown("### 📊 Historical Ticker Profile")
+                                    st.markdown("## 4. Historical Performance Profile")
                                     
                                     col_p1, col_p2, col_p3, col_p4 = st.columns(4)
                                     with col_p1:
@@ -8041,17 +8041,17 @@ def main():
                                         st.metric("Confidence", f"{profile['confidence']:.0%}")
                                     
                                     # ═════════════════════════════════════════════════════════════════
-                                    # SECTION 5: MM BRIEF
+                                    # SECTION 5: ANALYSIS BRIEF
                                     # ═════════════════════════════════════════════════════════════════
                                     st.divider()
-                                    st.markdown("### 📝 Market Maker Brief")
+                                    st.markdown("## 5. Quantitative Analysis Brief")
                                     st.markdown(brief)
                                     
                                     # ═════════════════════════════════════════════════════════════════
-                                    # SECTION 6: BACKTESTING
+                                    # SECTION 6: BACKTESTING METRICS
                                     # ═════════════════════════════════════════════════════════════════
                                     st.divider()
-                                    st.markdown("### 📉 Backtesting Summary")
+                                    st.markdown("## 6. Backtesting & Accuracy Tracking")
                                     
                                     summary = mem.get_backtesting_summary(ticker, days=30)
                                     
@@ -8063,15 +8063,15 @@ def main():
                                     with col_bt3:
                                         st.metric("Avg Move", f"{summary['avg_price_move']:.2f}%")
                                     
-                                    st.success(f"✅ {ticker} analysis complete | {expiration}")
+                                    st.success(f"✓ Analysis complete for {ticker} | Expiration {expiration}")
                     
                     except Exception as e:
-                        st.error(f"❌ Pipeline error: {str(e)}")
+                        st.error(f"Pipeline error: {str(e)}")
                         logger.error(f"MM Pipeline: {e}", exc_info=True)
         
         except ImportError as e:
-            st.error(f"❌ MM modules not found: {e}")
-            st.info("Install: pip install -r requirements.txt")
+            st.error(f"Module error: {e}")
+            st.info("Ensure all MM modules are installed")
         
         st.markdown("---")
 
