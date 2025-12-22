@@ -7934,7 +7934,6 @@ def main():
             exp_dates = get_expiration_dates(ticker) if ticker else []
             if not exp_dates:
                 # Fallback: generate next 5 friday expirations
-                from datetime import datetime, timedelta
                 today = datetime.now()
                 exp_dates = []
                 current = today
@@ -7959,7 +7958,6 @@ def main():
                 # Get fresh expirations when ticker changes
                 exp_dates = get_expiration_dates(ticker) if ticker else []
                 if not exp_dates:
-                    from datetime import datetime, timedelta
                     today = datetime.now()
                     exp_dates = []
                     current = today
