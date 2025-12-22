@@ -90,7 +90,7 @@ class MMScannerUI:
                 
                 # GEX
                 gex = self.quant.calculate_gex(stored_contracts, price)
-                gamma_neta = sum(gex.values())
+                gamma_neta = gex.get('gex_index', 0)
                 
                 col_gex1, col_gex2, col_gex3 = st.columns(3)
                 with col_gex1:

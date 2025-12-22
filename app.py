@@ -8026,7 +8026,7 @@ def main():
                                     from mm_quant_engine import QuantEngine
                                     quant = QuantEngine()
                                     gex = quant.calculate_gex(contracts, mm_current_price)
-                                    gamma_neta = sum(gex.values())
+                                    gamma_neta = gex.get('gex_index', 0)
                                     
                                     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                                     with col_m1:

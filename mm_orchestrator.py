@@ -60,7 +60,7 @@ class MMSystemOrchestrator:
         
         # GEX
         gex = self.quant.calculate_gex(stored_contracts, price)
-        gamma_neta = sum(gex.values())
+        gamma_neta = gex.get('gex_index', 0)
         
         # Walls
         call_wall, put_wall = self.quant.detect_walls(stored_contracts, price, expiration)
@@ -190,9 +190,9 @@ class MMSystemOrchestrator:
                 }
             },
             'gex_summary': {
-                'total_gamma_neta': round(sum(gex.values()), 2),
-                'max_gex_strike': float(max(gex, key=gex.get)) if gex else 0,
-                'regime_implication': 'Mean reversion' if sum(gex.values()) > 0 else 'Trend risk'
+                'total_gamma_neta': gex.get('gex_index', 0),
+                'max_gex_strike': float(max(gex.get('by_strike', {}), key=lambda x: abs(gex['by_strike'][x]['gex_adjusted']))) if gex.get('by_strike') else 0,
+                'regime_implication': 'Mean reversion' if gex.get('gex_index', 0) > 0 else 'Trend risk'
             }
         }
 
