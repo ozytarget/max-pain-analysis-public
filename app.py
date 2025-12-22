@@ -7875,232 +7875,203 @@ def main():
         st.markdown("---")
         st.markdown("*Developed by Ozy | © 2025*")
 
-    # Tab 8: MM SCANNER - SINGLE TICKER ANALYSIS ONLY
+    # Tab 8: INSTITUTIONAL MM SYSTEM - Phase 1
     with tab8:
-        st.subheader("🎯 MM SCANNER - SINGLE TICKER DEEP ANALYSIS")
-        st.info("⚡ **ONE TICKER INPUT ONLY** - Complete Market Structure + Greeks + Price Targets Analysis")
+        st.markdown("# 📊 MARKET MAKER SCANNER - Institutional Analysis")
+        st.markdown("*Gamma Exposure | Wall Detection | Regime Classification | Backtesting Memory*")
+        st.divider()
         
-        # SINGLE INPUT - EXPLICIT AND CLEAR
-        col_ticker, col_scan = st.columns([3, 1])
-        with col_ticker:
-            mm_ticker = st.text_input(
-                "📊 TICKER (SPY, QQQ, NVDA, TSLA, AAPL)", 
-                value="SPY", 
-                key="mm_ticker_unified",
-                placeholder="Enter ONE ticker only"
-            ).upper()
-        with col_scan:
-            scan_button = st.button("🔍 ANALYZE", key="mm_unified_scan", use_container_width=True)
-        
-        if scan_button and mm_ticker:
-            with st.spinner(f"🔄 Complete MM analysis for {mm_ticker}..."):
-                try:
-                    # Get price
-                    mm_current_price = get_current_price(mm_ticker)
-                    if not mm_current_price or mm_current_price == 0:
-                        st.error(f"❌ Could not fetch price for {mm_ticker}")
-                    else:
-                        st.success(f"✅ {mm_ticker} @ **${mm_current_price:.2f}**")
-                        
-                        # Get options chains
-                        exp_dates = get_expiration_dates(mm_ticker)
-                        if not exp_dates:
-                            st.error(f"❌ No expirations for {mm_ticker}")
+        try:
+            from mm_orchestrator import MMSystemOrchestrator
+            from mm_memory import MemorySystem
+            
+            # Initialize
+            orch = MMSystemOrchestrator()
+            mem = MemorySystem()
+            
+            # Input Section
+            col1, col2, col3 = st.columns([3, 2, 2])
+            
+            with col1:
+                ticker = st.selectbox(
+                    "🎯 Select Ticker",
+                    ["SPY", "QQQ", "NVDA", "TSLA"],
+                    key="mm_ticker_select"
+                )
+            
+            with col2:
+                expiration = st.selectbox(
+                    "📅 Expiration",
+                    ["2024-12-20", "2025-01-17", "2025-02-21"],
+                    key="mm_expiration_select"
+                )
+            
+            with col3:
+                refresh = st.button("🔄 Analyze", use_container_width=True, key="mm_analyze_btn")
+            
+            if refresh:
+                with st.spinner(f"📥 Analyzing {ticker}..."):
+                    try:
+                        # Get current price
+                        mm_current_price = get_current_price(ticker)
+                        if not mm_current_price or mm_current_price == 0:
+                            st.error(f"❌ Could not fetch price for {ticker}")
                         else:
-                            mm_chains = {}
-                            progress_bar = st.progress(0)
-                            
-                            for idx, exp_date in enumerate(exp_dates[:5]):
-                                chain_data = get_options_data(mm_ticker, exp_date)
-                                if chain_data:
-                                    if isinstance(chain_data, pd.DataFrame):
-                                        chain_data = chain_data.to_dict('records')
-                                    if chain_data:
-                                        mm_chains[exp_date] = chain_data
-                                progress_bar.progress((idx + 1) / 5)
-                            
-                            if not mm_chains:
-                                st.error(f"❌ No chains for {mm_ticker}")
+                            # Fetch options data
+                            chain_data = get_options_data(ticker, expiration)
+                            if not chain_data:
+                                st.error(f"❌ No options data for {ticker}")
                             else:
-                                # ═════════════════════════════════════════════════════════════════
-                                # SECTION 1: MARKET STRUCTURE
-                                # ═════════════════════════════════════════════════════════════════
-                                st.divider()
-                                st.markdown("## 1️⃣ MARKET STRUCTURE")
-                                
-                                # Build OI maps
-                                all_strikes = []
-                                oi_by_strike = {}
-                                put_oi_by_strike = {}
-                                call_oi_by_strike = {}
-                                
-                                for chain in mm_chains.values():
-                                    for opt in chain:
-                                        try:
-                                            strike = float(opt.get('strike', 0))
-                                            oi = int(opt.get('open_interest', 0))
-                                            opt_type = opt.get('type', '').lower()
-                                            
-                                            all_strikes.append(strike)
-                                            oi_by_strike[strike] = oi_by_strike.get(strike, 0) + oi
-                                            
-                                            if opt_type == 'put':
-                                                put_oi_by_strike[strike] = put_oi_by_strike.get(strike, 0) + oi
-                                            else:
-                                                call_oi_by_strike[strike] = call_oi_by_strike.get(strike, 0) + oi
-                                        except:
-                                            pass
-                                
-                                all_strikes = sorted(set(all_strikes))
-                                total_call_oi = sum(call_oi_by_strike.values())
-                                total_put_oi = sum(put_oi_by_strike.values())
-                                put_call_ratio = total_put_oi / max(total_call_oi, 1)
-                                
-                                # Market bias
-                                if total_call_oi > total_put_oi * 1.5:
-                                    market_bias = "🟢 BULLISH SKEW"
-                                elif total_put_oi > total_call_oi * 1.5:
-                                    market_bias = "🔴 BEARISH SKEW"
+                                # Convert to contract list
+                                if isinstance(chain_data, pd.DataFrame):
+                                    contracts = chain_data.to_dict('records')
                                 else:
-                                    market_bias = "🟡 NEUTRAL"
+                                    contracts = chain_data if isinstance(chain_data, list) else []
                                 
-                                col1, col2, col3, col4 = st.columns(4)
-                                with col1:
-                                    st.metric("Price", f"${mm_current_price:.2f}", delta_color="off")
-                                with col2:
-                                    st.metric("Put/Call", f"{put_call_ratio:.2f}x", delta_color="off")
-                                with col3:
-                                    st.metric("Bias", market_bias, delta_color="off")
-                                with col4:
-                                    earliest_exp = min([datetime.strptime(e, '%Y-%m-%d') for e in mm_chains.keys()])
-                                    dte = (earliest_exp.date() - datetime.now().date()).days
-                                    st.metric("DTE", f"{dte}d", delta_color="off")
-                                
-                                # ═════════════════════════════════════════════════════════════════
-                                # SECTION 2: SUPPORT/RESISTANCE WALLS
-                                # ═════════════════════════════════════════════════════════════════
-                                st.divider()
-                                st.markdown("## 2️⃣ SUPPORT/RESISTANCE WALLS")
-                                
-                                targets = []
-                                
-                                # Support
-                                puts_below = [(s, put_oi_by_strike.get(s, 0)) for s in all_strikes if s < mm_current_price]
-                                if puts_below:
-                                    support_strike, support_oi = max(puts_below, key=lambda x: x[1])
-                                    targets.append({
-                                        'type': '📉 PUT WALL',
-                                        'strike': support_strike,
-                                        'oi': support_oi,
-                                        'pct': -((mm_current_price - support_strike) / mm_current_price) * 100
-                                    })
-                                
-                                # Resistance
-                                calls_above = [(s, call_oi_by_strike.get(s, 0)) for s in all_strikes if s > mm_current_price]
-                                if calls_above:
-                                    resistance_strike, resistance_oi = max(calls_above, key=lambda x: x[1])
-                                    targets.append({
-                                        'type': '📈 CALL WALL',
-                                        'strike': resistance_strike,
-                                        'oi': resistance_oi,
-                                        'pct': ((resistance_strike - mm_current_price) / mm_current_price) * 100
-                                    })
-                                
-                                # COG
-                                if all_strikes:
-                                    weighted_strike = sum([s * oi_by_strike.get(s, 1) for s in all_strikes]) / max(sum(oi_by_strike.values()), 1)
-                                    targets.append({
-                                        'type': '⚖️ COG',
-                                        'strike': weighted_strike,
-                                        'oi': sum(oi_by_strike.values()),
-                                        'pct': ((weighted_strike - mm_current_price) / mm_current_price) * 100
-                                    })
-                                
-                                for target in targets:
-                                    col1, col2, col3 = st.columns([2, 1, 1])
-                                    with col1:
-                                        st.markdown(f"**{target['type']}** ${target['strike']:.2f}")
-                                    with col2:
-                                        st.markdown(f"{target['pct']:+.2f}%")
-                                    with col3:
-                                        st.markdown(f"{target['oi']:,} OI")
-                                
-                                # ═════════════════════════════════════════════════════════════════
-                                # SECTION 3: AUTO-RUN MM SCANNER
-                                # ═════════════════════════════════════════════════════════════════
-                                st.divider()
-                                st.markdown("## 3️⃣ OPTIMAL CONTRACTS (MM RANKING)")
-                                
-                                best_exp = sorted(list(mm_chains.keys()))[0]
-                                best_target = targets[0]['strike'] if targets else mm_current_price
-                                
-                                df_mm_results = mm_contract_scanner(
-                                    ticker=mm_ticker,
-                                    current_price=mm_current_price,
-                                    target_price=best_target,
-                                    expiration_dates_dict={best_exp: None},
-                                    option_chains_dict={best_exp: mm_chains[best_exp]},
-                                    risk_free_rate=0.045
-                                )
-                                
-                                if not df_mm_results.empty:
-                                    display_mm_contract_winner(df_mm_results, mm_ticker, mm_current_price, best_target)
+                                if not contracts:
+                                    st.error("❌ No contracts available")
+                                else:
+                                    # Get IV
+                                    iv = 0.25
                                     
-                                    st.divider()
-                                    st.subheader("📋 Top Ranked Contracts")
+                                    # Get ticker profile
+                                    profile = mem.get_ticker_profile(ticker)
                                     
-                                    df_display = df_mm_results.head(10)[[
-                                        'strike', 'option_type', 'dte', 'bid', 'ask',
-                                        'delta', 'gamma', 'theta', 'iv', 'volume', 'oi', 'mm_score'
-                                    ]].copy()
-                                    
-                                    df_display.columns = ['Strike', 'Type', 'DTE', 'Bid', 'Ask', 'Δ', 'Γ', 'Θ', 'IV', 'Vol', 'OI', 'Score']
-                                    df_display['Strike'] = df_display['Strike'].apply(lambda x: f"${x:.2f}")
-                                    df_display['Bid'] = df_display['Bid'].apply(lambda x: f"${x:.2f}")
-                                    df_display['Ask'] = df_display['Ask'].apply(lambda x: f"${x:.2f}")
-                                    df_display['Δ'] = df_display['Δ'].apply(lambda x: f"{x:.3f}")
-                                    df_display['Γ'] = df_display['Γ'].apply(lambda x: f"{x:.6f}")
-                                    df_display['Θ'] = df_display['Θ'].apply(lambda x: f"${x:.4f}")
-                                    df_display['IV'] = df_display['IV'].apply(lambda x: f"{x:.1%}")
-                                    df_display['Score'] = df_display['Score'].apply(lambda x: f"{x:.1f}")
-                                    
-                                    st.dataframe(df_display, use_container_width=True, hide_index=True)
-                                    
-                                    csv = df_mm_results.to_csv(index=False)
-                                    st.download_button(
-                                        label="📥 Download Results",
-                                        data=csv,
-                                        file_name=f"mm_{mm_ticker}_{best_exp}.csv",
-                                        mime="text/csv"
+                                    # Run full pipeline
+                                    brief = orch.analyze_ticker(
+                                        ticker=ticker,
+                                        contracts=contracts,
+                                        price=mm_current_price,
+                                        iv=iv,
+                                        expiration=expiration,
+                                        ticker_profile=profile
                                     )
-                                
-                                # ═════════════════════════════════════════════════════════════════
-                                # SECTION 4: PRICE TARGETS
-                                # ═════════════════════════════════════════════════════════════════
-                                st.divider()
-                                st.markdown("## 4️⃣ PRICE TARGETS & PROJECTION")
-                                
-                                col_t1, col_t2, col_t3 = st.columns(3)
-                                with col_t1:
-                                    st.markdown("### 🔴 DOWNSIDE")
-                                    if targets and '📉' in targets[0]['type']:
-                                        st.metric("Support", f"${targets[0]['strike']:.2f}", f"{targets[0]['pct']:.2f}%")
-                                
-                                with col_t2:
-                                    st.markdown("### 🟡 CURRENT")
-                                    st.metric("Price Now", f"${mm_current_price:.2f}", "Ref")
-                                
-                                with col_t3:
-                                    st.markdown("### 🟢 UPSIDE")
-                                    call_target = next((t for t in targets if '📈' in t['type']), None)
-                                    if call_target:
-                                        st.metric("Resistance", f"${call_target['strike']:.2f}", f"{call_target['pct']:+.2f}%")
-                                
-                                st.info(f"**{mm_ticker}** | Bias: {market_bias} | P/C: {put_call_ratio:.2f}x | DTE: {dte}d | Contracts: {sum(len(v) for v in mm_chains.values())}")
-                
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-                    logger.error(f"Unified MM Error: {str(e)}")
+                                    
+                                    # ═════════════════════════════════════════════════════════════════
+                                    # SECTION 1: METRICS
+                                    # ═════════════════════════════════════════════════════════════════
+                                    st.divider()
+                                    st.markdown("### ⚙️ Quantitative Metrics")
+                                    
+                                    # Calculate GEX
+                                    from mm_quant_engine import QuantEngine
+                                    quant = QuantEngine()
+                                    gex = quant.calculate_gex(contracts, mm_current_price)
+                                    gamma_neta = sum(gex.values())
+                                    
+                                    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                                    with col_m1:
+                                        st.metric("Price", f"${mm_current_price:.2f}")
+                                    with col_m2:
+                                        st.metric("IV", f"{iv:.1%}")
+                                    with col_m3:
+                                        gex_status = "MR" if gamma_neta > 0 else "TREND"
+                                        st.metric("Gamma Net", f"{gamma_neta:.2e}", gex_status)
+                                    with col_m4:
+                                        # Calculate P/C
+                                        total_put_oi = sum(c.get('open_interest', 0) for c in contracts if c.get('type', '').lower() == 'put')
+                                        total_call_oi = sum(c.get('open_interest', 0) for c in contracts if c.get('type', '').lower() == 'call')
+                                        pcr = total_put_oi / max(total_call_oi, 1)
+                                        st.metric("P/C Ratio", f"{pcr:.2f}")
+                                    
+                                    # ═════════════════════════════════════════════════════════════════
+                                    # SECTION 2: WALLS
+                                    # ═════════════════════════════════════════════════════════════════
+                                    st.divider()
+                                    st.markdown("### 🧱 Gamma Walls")
+                                    
+                                    call_wall, put_wall = quant.detect_walls(contracts, mm_current_price, expiration)
+                                    
+                                    walls_df = pd.DataFrame({
+                                        'Type': ['CALL WALL', 'PUT WALL'],
+                                        'Strike': [f"${call_wall.strike:.2f}", f"${put_wall.strike:.2f}"],
+                                        'OI': [f"{call_wall.oi:,}", f"{put_wall.oi:,}"],
+                                        'Distance': [f"{call_wall.distance_pct:.1%}", f"{put_wall.distance_pct:.1%}"],
+                                        'Strength': [call_wall.strength, put_wall.strength]
+                                    })
+                                    
+                                    st.dataframe(walls_df, use_container_width=True, hide_index=True)
+                                    
+                                    # ═════════════════════════════════════════════════════════════════
+                                    # SECTION 3: REGIME & SCENARIOS
+                                    # ═════════════════════════════════════════════════════════════════
+                                    st.divider()
+                                    st.markdown("### 📈 Market Regime & Targets")
+                                    
+                                    regime = quant.classify_regime(contracts, mm_current_price, gamma_neta=gamma_neta)
+                                    atr = mm_current_price * 0.02
+                                    targets = quant.calculate_targets(call_wall, put_wall, mm_current_price, atr)
+                                    
+                                    col_r1, col_r2, col_r3 = st.columns(3)
+                                    with col_r1:
+                                        emoji = "🔄" if regime.classification == "CHOP" else ("📊" if regime.classification == "TREND" else "⏸️")
+                                        st.metric(f"{emoji} Regime", regime.classification, f"{regime.confidence:.0%}")
+                                    with col_r2:
+                                        st.metric("Pinning Prob", f"{regime.pin_probability:.1%}")
+                                    with col_r3:
+                                        st.metric("Vol Risk", regime.vol_risk)
+                                    
+                                    # Scenarios table
+                                    scenarios_data = []
+                                    for scenario, data in targets.items():
+                                        scenarios_data.append({
+                                            'Scenario': scenario,
+                                            'Target': f"${data.get('target', 0):.2f}",
+                                            'Prob': f"{data.get('probability', 0):.0%}",
+                                            'Type': data.get('type', ''),
+                                            'Stop': f"${data.get('invalidation', 0):.2f}"
+                                        })
+                                    
+                                    st.dataframe(pd.DataFrame(scenarios_data), use_container_width=True, hide_index=True)
+                                    
+                                    # ═════════════════════════════════════════════════════════════════
+                                    # SECTION 4: TICKER PROFILE
+                                    # ═════════════════════════════════════════════════════════════════
+                                    st.divider()
+                                    st.markdown("### 📊 Historical Ticker Profile")
+                                    
+                                    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+                                    with col_p1:
+                                        st.metric("Pin Hit Rate", f"{profile['pin_hit_rate']:.1%}", f"n={profile['sample_size']}")
+                                    with col_p2:
+                                        st.metric("Wall Respect", f"{profile['wall_respect_rate']:.1%}")
+                                    with col_p3:
+                                        st.metric("Vol Expansion", f"{profile['vol_expansion_freq']:.1%}")
+                                    with col_p4:
+                                        st.metric("Confidence", f"{profile['confidence']:.0%}")
+                                    
+                                    # ═════════════════════════════════════════════════════════════════
+                                    # SECTION 5: MM BRIEF
+                                    # ═════════════════════════════════════════════════════════════════
+                                    st.divider()
+                                    st.markdown("### 📝 Market Maker Brief")
+                                    st.markdown(brief)
+                                    
+                                    # ═════════════════════════════════════════════════════════════════
+                                    # SECTION 6: BACKTESTING
+                                    # ═════════════════════════════════════════════════════════════════
+                                    st.divider()
+                                    st.markdown("### 📉 Backtesting Summary")
+                                    
+                                    summary = mem.get_backtesting_summary(ticker, days=30)
+                                    
+                                    col_bt1, col_bt2, col_bt3 = st.columns(3)
+                                    with col_bt1:
+                                        st.metric("Outcomes", summary['total_outcomes'])
+                                    with col_bt2:
+                                        st.metric("Hit Rate", f"{summary['hit_rate']:.1f}%")
+                                    with col_bt3:
+                                        st.metric("Avg Move", f"{summary['avg_price_move']:.2f}%")
+                                    
+                                    st.success(f"✅ {ticker} analysis complete | {expiration}")
+                    
+                    except Exception as e:
+                        st.error(f"❌ Pipeline error: {str(e)}")
+                        logger.error(f"MM Pipeline: {e}", exc_info=True)
+        
+        except ImportError as e:
+            st.error(f"❌ MM modules not found: {e}")
+            st.info("Install: pip install -r requirements.txt")
         
         st.markdown("---")
 
