@@ -7930,6 +7930,20 @@ def main():
             orch = MMSystemOrchestrator()
             mem = MemorySystem()
             
+            # Get expiration dates dynamically
+            exp_dates = get_expiration_dates(ticker) if ticker else []
+            if not exp_dates:
+                # Fallback: generate next 5 friday expirations
+                from datetime import datetime, timedelta
+                today = datetime.now()
+                exp_dates = []
+                current = today
+                while len(exp_dates) < 5:
+                    current += timedelta(days=1)
+                    # Find next Friday
+                    if current.weekday() == 4:  # Friday
+                        exp_dates.append(current.strftime("%Y-%m-%d"))
+            
             # Input Section
             col1, col2, col3 = st.columns([3, 2, 2])
             
@@ -7937,13 +7951,26 @@ def main():
                 ticker = st.selectbox(
                     "Underlying Asset",
                     ["SPY", "QQQ", "NVDA", "TSLA"],
-                    key="mm_ticker_select"
+                    key="mm_ticker_select",
+                    on_change=lambda: st.rerun()
                 )
             
             with col2:
+                # Get fresh expirations when ticker changes
+                exp_dates = get_expiration_dates(ticker) if ticker else []
+                if not exp_dates:
+                    from datetime import datetime, timedelta
+                    today = datetime.now()
+                    exp_dates = []
+                    current = today
+                    while len(exp_dates) < 5:
+                        current += timedelta(days=1)
+                        if current.weekday() == 4:
+                            exp_dates.append(current.strftime("%Y-%m-%d"))
+                
                 expiration = st.selectbox(
                     "Options Expiration",
-                    ["2024-12-20", "2025-01-17", "2025-02-21"],
+                    exp_dates if exp_dates else ["No expirations available"],
                     key="mm_expiration_select"
                 )
             
