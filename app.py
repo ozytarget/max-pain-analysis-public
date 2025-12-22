@@ -7920,7 +7920,6 @@ def main():
     # Tab 8: INSTITUTIONAL MM SYSTEM - Phase 1
     with tab8:
         st.markdown("# Gamma-Based Market Microstructure Analysis")
-        st.markdown("*Quantitative Framework: GEX Calculation | OI Wall Detection | Regime Classification | Historical Performance Tracking*")
         st.divider()
         
         try:
