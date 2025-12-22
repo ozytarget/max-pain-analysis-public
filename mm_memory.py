@@ -203,20 +203,24 @@ class MemorySystem:
             regime_accuracy = (regime_correct / total) if total > 0 else 0.5
             
             # Insert or update
-            c.execute('''
-                INSERT INTO ticker_profiles 
-                (ticker, total_predictions, pinning_hit_rate, wall_respect_rate, regime_accuracy, last_updated)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(ticker) DO UPDATE SET
-                    total_predictions = ?,
-                    pinning_hit_rate = ?,
-                    wall_respect_rate = ?,
-                    regime_accuracy = ?,
-                    last_updated = ?
-            ''', (
-                ticker, total, pinning_rate, wall_respect, regime_accuracy, datetime.now(),
-                total, pinning_rate, wall_respect, regime_accuracy, datetime.now()
-            ))
+            try:
+                c.execute('''
+                    INSERT INTO ticker_profiles 
+                    (ticker, total_predictions, pinning_hit_rate, wall_respect_rate, regime_accuracy, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(ticker) DO UPDATE SET
+                        total_predictions = ?,
+                        pinning_hit_rate = ?,
+                        wall_respect_rate = ?,
+                        regime_accuracy = ?,
+                        last_updated = ?
+                ''', (
+                    ticker, total, pinning_rate, wall_respect, regime_accuracy, datetime.now(),
+                    total, pinning_rate, wall_respect, regime_accuracy, datetime.now()
+                ))
+            except sqlite3.OperationalError as e:
+                # If column doesn't exist, skip this update silently
+                logger.warning(f"  ⚠️ {ticker}: Skipping profile update - {e}")
             
             conn.commit()
             logger.info(f"  📊 {ticker}: Pin={pinning_rate:.1%} Wall={wall_respect:.1%} Regime={regime_accuracy:.1%}")
@@ -233,12 +237,24 @@ class MemorySystem:
         c = conn.cursor()
         
         try:
-            c.execute('''
-                SELECT pinning_hit_rate, wall_respect_rate, vol_expansion_freq, 
-                       regime_accuracy, best_scenario, total_predictions
-                FROM ticker_profiles
-                WHERE ticker = ?
-            ''', (ticker,))
+            # Try to get all columns, fallback to defaults if column doesn't exist
+            try:
+                c.execute('''
+                    SELECT pinning_hit_rate, wall_respect_rate, vol_expansion_freq, 
+                           regime_accuracy, best_scenario, total_predictions
+                    FROM ticker_profiles
+                    WHERE ticker = ?
+                ''', (ticker,))
+            except sqlite3.OperationalError:
+                # Column doesn't exist, return defaults
+                return {
+                    'pin_hit_rate': 0.5,
+                    'wall_respect_rate': 0.6,
+                    'vol_expansion_freq': 0.3,
+                    'regime_accuracy': 0.5,
+                    'best_scenario': 'MIXED',
+                    'total_predictions': 0
+                }
             
             result = c.fetchone()
             
