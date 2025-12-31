@@ -247,24 +247,36 @@ def login_alumno():
             try:
                 conn = sqlite3.connect("auth_data/users.db", timeout=10)
                 cursor = conn.cursor()
-                # Buscar por password_hash
-                cursor.execute("SELECT password_hash, tier, daily_limit FROM users WHERE password_hash=?", (password,))
-                result = cursor.fetchone()
+                # Obtener todos los hashes
+                cursor.execute("SELECT id, password_hash, tier, daily_limit FROM users")
+                all_users = cursor.fetchall()
                 conn.close()
                 
-                if result:
-                    hashed_pwd, tier, daily_limit = result
-                    # Verificar contraseña con bcrypt
-                    if bcrypt.checkpw(password.encode('utf-8'), hashed_pwd.encode('utf-8')):
-                        st.session_state["authenticated"] = True
-                        st.session_state["current_user"] = f"alumno_{len(st.session_state)}"
-                        st.session_state["user_tier"] = tier
-                        st.session_state["daily_limit"] = daily_limit
-                        st.session_state["session_token"] = f"token_{password[:6]}"
-                        st.success("✅ ¡Acceso concedido!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Contraseña incorrecta")
+                # Buscar y verificar con bcrypt
+                authenticated = False
+                user_tier = None
+                daily_limit = None
+                user_id = None
+                
+                for uid, hash_pwd, tier, limit in all_users:
+                    try:
+                        if bcrypt.checkpw(password.encode('utf-8'), hash_pwd.encode('utf-8')):
+                            authenticated = True
+                            user_id = uid
+                            user_tier = tier
+                            daily_limit = limit
+                            break
+                    except:
+                        continue
+                
+                if authenticated:
+                    st.session_state["authenticated"] = True
+                    st.session_state["current_user"] = f"alumno_{user_id}"
+                    st.session_state["user_tier"] = user_tier
+                    st.session_state["daily_limit"] = daily_limit
+                    st.session_state["session_token"] = f"token_{user_id}"
+                    st.success("✅ ¡Acceso concedido!")
+                    st.rerun()
                 else:
                     st.error("❌ Contraseña no válida")
                     
