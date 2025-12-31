@@ -225,25 +225,63 @@ if "admin_failed_attempts" not in st.session_state:
 if "admin_lockout_time" not in st.session_state:
     st.session_state["admin_lockout_time"] = None
 
-# PERSISTENT SESSION VALIDATION - Restore user session from stored token file
+# SIMPLE LOGIN SCREEN - Solo usuario + contraseña
 # ═══════════════════════════════════════════════════════════════════════════════
-# AUTO-AUTHENTICATE WITHOUT PASSWORD - Direct access to app
-# ═══════════════════════════════════════════════════════════════════════════════
+def login_alumno():
+    """Pantalla de login simple para alumnos"""
+    st.set_page_config(
+        page_title="Pro Scanner - Login",
+        layout="centered",
+        initial_sidebar_state="collapsed"
+    )
+    
+    # Centrar contenido
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("# 🔐 Pro Scanner")
+        st.markdown("---")
+        
+        username = st.text_input("👤 Usuario", placeholder="juan_perez")
+        password = st.text_input("🔑 Contraseña", type="password", placeholder="Tu contraseña")
+        
+        if st.button("🚀 Entrar", use_container_width=True):
+            if not username or not password:
+                st.error("❌ Ingresa usuario y contraseña")
+                return
+            
+            # Verificar credenciales en BD
+            try:
+                conn = sqlite3.connect("auth_data/users.db", timeout=10)
+                cursor = conn.cursor()
+                cursor.execute("SELECT password_hash, tier, daily_limit FROM users WHERE username=?", (username,))
+                result = cursor.fetchone()
+                conn.close()
+                
+                if result:
+                    hashed_pwd, tier, daily_limit = result
+                    # Verificar contraseña
+                    if bcrypt.checkpw(password.encode('utf-8'), hashed_pwd.encode('utf-8')):
+                        st.session_state["authenticated"] = True
+                        st.session_state["current_user"] = username
+                        st.session_state["user_tier"] = tier
+                        st.session_state["daily_limit"] = daily_limit
+                        st.session_state["session_token"] = f"token_{username}"
+                        st.success(f"✅ Bienvenido {username}!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Contraseña incorrecta")
+                else:
+                    st.error("❌ Usuario no encontrado")
+                    
+            except Exception as e:
+                logger.error(f"Login error: {e}")
+                st.error("❌ Error al autenticar. Intenta de nuevo.")
 
+# Mostrar login si no está autenticado
 if not st.session_state["authenticated"]:
-    # Auto-authenticate as CEO/Admin - no password required
-    st.session_state["authenticated"] = True
-    st.session_state["current_user"] = "ozytarget"
-    token = "auto_session"
-    st.session_state["session_token"] = token
-    # Try to set query params if available (Streamlit 1.18+)
-    try:
-        if hasattr(st, 'query_params'):
-            st.query_params["session_token"] = token
-        elif hasattr(st, 'experimental_set_query_params'):
-            st.experimental_set_query_params(session_token=token)
-    except:
-        pass  # Query params not available or failed
+    login_alumno()
+    st.stop()
 
 # Optimized introductory animation (same format, faster duration)
 if not st.session_state["intro_shown"]:
