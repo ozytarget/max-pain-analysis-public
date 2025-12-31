@@ -229,12 +229,6 @@ if "admin_lockout_time" not in st.session_state:
 # ═══════════════════════════════════════════════════════════════════════════════
 def login_alumno():
     """Pantalla de login simple para alumnos"""
-    st.set_page_config(
-        page_title="Pro Scanner - Login",
-        layout="centered",
-        initial_sidebar_state="collapsed"
-    )
-    
     # Centrar contenido
     col1, col2, col3 = st.columns([1, 2, 1])
     
