@@ -60,6 +60,8 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 auth_data/
+# EXCEPT - Permitir la BD con los passwords
+!auth_data/users.db
 
 # Testing
 .coverage
