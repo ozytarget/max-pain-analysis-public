@@ -225,10 +225,10 @@ if "admin_failed_attempts" not in st.session_state:
 if "admin_lockout_time" not in st.session_state:
     st.session_state["admin_lockout_time"] = None
 
-# SIMPLE LOGIN SCREEN - Solo usuario + contraseña
+# SIMPLE LOGIN SCREEN - Solo contraseña
 # ═══════════════════════════════════════════════════════════════════════════════
 def login_alumno():
-    """Pantalla de login simple para alumnos"""
+    """Pantalla de login simple - Solo contraseña"""
     # Centrar contenido
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -236,37 +236,37 @@ def login_alumno():
         st.markdown("# 🔐 Pro Scanner")
         st.markdown("---")
         
-        username = st.text_input("👤 Usuario", placeholder="juan_perez")
-        password = st.text_input("🔑 Contraseña", type="password", placeholder="Tu contraseña")
+        password = st.text_input("🔑 Contraseña", type="password", placeholder="Ingresa tu contraseña")
         
         if st.button("🚀 Entrar", use_container_width=True):
-            if not username or not password:
-                st.error("❌ Ingresa usuario y contraseña")
+            if not password:
+                st.error("❌ Ingresa tu contraseña")
                 return
             
-            # Verificar credenciales en BD
+            # Verificar contraseña en BD
             try:
                 conn = sqlite3.connect("auth_data/users.db", timeout=10)
                 cursor = conn.cursor()
-                cursor.execute("SELECT password_hash, tier, daily_limit FROM users WHERE username=?", (username,))
+                # Buscar por password_hash
+                cursor.execute("SELECT password_hash, tier, daily_limit FROM users WHERE password_hash=?", (password,))
                 result = cursor.fetchone()
                 conn.close()
                 
                 if result:
                     hashed_pwd, tier, daily_limit = result
-                    # Verificar contraseña
+                    # Verificar contraseña con bcrypt
                     if bcrypt.checkpw(password.encode('utf-8'), hashed_pwd.encode('utf-8')):
                         st.session_state["authenticated"] = True
-                        st.session_state["current_user"] = username
+                        st.session_state["current_user"] = f"alumno_{len(st.session_state)}"
                         st.session_state["user_tier"] = tier
                         st.session_state["daily_limit"] = daily_limit
-                        st.session_state["session_token"] = f"token_{username}"
-                        st.success(f"✅ Bienvenido {username}!")
+                        st.session_state["session_token"] = f"token_{password[:6]}"
+                        st.success("✅ ¡Acceso concedido!")
                         st.rerun()
                     else:
                         st.error("❌ Contraseña incorrecta")
                 else:
-                    st.error("❌ Usuario no encontrado")
+                    st.error("❌ Contraseña no válida")
                     
             except Exception as e:
                 logger.error(f"Login error: {e}")
