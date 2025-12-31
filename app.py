@@ -260,13 +260,17 @@ def login_alumno():
                 
                 for uid, hash_pwd, tier, limit in all_users:
                     try:
+                        # Asegurar que hash_pwd es string
+                        if isinstance(hash_pwd, bytes):
+                            hash_pwd = hash_pwd.decode('utf-8')
+                        
                         if bcrypt.checkpw(password.encode('utf-8'), hash_pwd.encode('utf-8')):
                             authenticated = True
                             user_id = uid
                             user_tier = tier
                             daily_limit = limit
                             break
-                    except:
+                    except Exception as e:
                         continue
                 
                 if authenticated:
