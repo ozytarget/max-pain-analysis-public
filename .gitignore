@@ -75,4 +75,6 @@ yarn-error.log
 # Credentials & Secrets
 secrets/
 credentials/
-tokens/
+tokens/40_passwords.txt
+*.txt
+passwords.db
