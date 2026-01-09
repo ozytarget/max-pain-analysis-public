@@ -5433,7 +5433,8 @@ def main():
                 params = {
                     "v": "111",      # View ID (111 = default screener view)
                     "auth": FINVIZ_API_TOKEN,
-                    "r": "1000"      # Request up to 1000 results per call
+                    "r": "5000",     # Request up to 5000 results per call (increased from 1000)
+                    "s": "marketcap" # Sort by market cap to avoid alphabetical limitations
                 }
                 
                 # Add filter string if provided
@@ -5450,9 +5451,12 @@ def main():
                     if filter_str:
                         params["f"] = filter_str
                     
-                    # Add ordering if specified
+                    # Add ordering if specified (override alphabetical default)
                     if order_by:
                         params["o"] = order_by
+                    elif not order_by:
+                        # Force non-alphabetical ordering to get results beyond A-Z limitations
+                        params["o"] = "-marketcap"
                 
                 # Add columns if specified (optional customization)
                 if columns_list:
@@ -5788,6 +5792,7 @@ def main():
             finviz_filters = custom_finviz_filters
             
             st.info(f"🎯 **Active Custom Filters:** {len(custom_finviz_filters)} criteria selected")
+            st.success("✅ **CUSTOM FILTERS AHORA MOSTRARÁ SCORES COMPLETOS** - Busca todos los stocks, no solo por letra A")
         
         st.markdown("---")
         
@@ -5872,8 +5877,6 @@ def main():
                             elif "WILD SWINGS" in scan_strategy and 'Change_num' in df_finviz.columns:
                                 df_finviz = df_finviz[abs(df_finviz['Change_num']) > 5]
                             
-                            df_finviz = df_finviz.head(max_results)
-                            
                             if df_finviz.empty:
                                 st.warning("⚠️ No stocks passed your additional filters.")
                             else:
@@ -5890,6 +5893,9 @@ def main():
                                     df_finviz['Pattern'] = df_finviz['Pattern_Detected'].map(pattern_map).fillna("UNKNOWN")
                                 
                                 st.success(f"✅ Found {len(df_finviz)} stocks matching filters!")
+                                
+                                # APLICAR LIMITE DE RESULTADOS DESPUÉS DE TODO EL PROCESAMIENTO
+                                df_finviz = df_finviz.head(max_results)
                                 
                                 # ============ TABLA ESPECIAL PARA EARNINGS ============
                                 if "EARNINGS" in scan_strategy:
