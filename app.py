@@ -5792,7 +5792,6 @@ def main():
             finviz_filters = custom_finviz_filters
             
             st.info(f"🎯 **Active Custom Filters:** {len(custom_finviz_filters)} criteria selected")
-            st.success("✅ **CUSTOM FILTERS AHORA MOSTRARÁ SCORES COMPLETOS** - Busca todos los stocks, no solo por letra A")
         
         st.markdown("---")
         
