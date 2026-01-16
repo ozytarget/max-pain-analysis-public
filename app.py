@@ -6169,14 +6169,80 @@ def main():
                                     # Leyenda mejorada
                                     st.markdown("---")
                                     st.markdown("### 🎯 Legend & Quick Help")
+                                    
+                                    # Primera fila - Indicadores principales
                                     col_legend1, col_legend2, col_legend3 = st.columns(3)
                                     
                                     with col_legend1:
-                                        st.info("**📈 Bullish** = Strong upside momentum signals")
+                                        st.info("**📈 Bullish** = Strong upside momentum signals\n**🔼 Alcista** = Señales de fuerte impulso al alza")
                                     with col_legend2:
-                                        st.success("**🔥 Squeeze** = Short squeeze candidates")
+                                        st.success("**🔥 Squeeze** = Short squeeze candidates\n**🔥 Presión** = Candidatos para compresión de posiciones cortas")
                                     with col_legend3:
-                                        st.warning("**⭐ Score 40+** = High confidence signals")
+                                        st.warning("**⭐ Score 40+** = High confidence signals\n**⭐ Puntuación 40+** = Señales de alta confianza")
+                                    
+                                    # Segunda fila - Componentes técnicos
+                                    st.markdown("#### 📊 Technical Components / Componentes Técnicos:")
+                                    col_tech1, col_tech2, col_tech3 = st.columns(3)
+                                    
+                                    with col_tech1:
+                                        st.markdown("""
+                                        **⬆️ Positive Momentum**
+                                        El precio tiene movimiento ascendente con fuerza creciente. Indica que los compradores ganan control y la presión de compra aumenta.
+                                        
+                                        **📊 High Volume**
+                                        Gran volumen de transacciones. Señal de interés fuerte. Cuando hay volumen alto + subida = movimiento confiable.
+                                        """)
+                                    
+                                    with col_tech2:
+                                        st.markdown("""
+                                        **🔄 Strong Reversal**
+                                        Cambio significativo de dirección en el precio (de bajada a subida). Indica que el sentimiento del mercado está cambiando.
+                                        
+                                        **📈 Strong Upside Momentum**
+                                        Fuerte impulso/velocidad hacia arriba. El precio sube de forma acelerada. Mayor velocidad = Mayor confianza.
+                                        """)
+                                    
+                                    with col_tech3:
+                                        st.markdown("""
+                                        **🎯 Signal (Señal)**
+                                        Recomendación de acción basada en indicadores: COMPRA, VENTA o ESPERAR.
+                                        
+                                        **💯 Score / Puntuación (0-100)**
+                                        Mide confiabilidad: Score 40+ (Alta) | 70+ (Muy Alta) | <40 (Baja)
+                                        """)
+                                    
+                                    # Tercera fila - Patrones combinados
+                                    st.markdown("#### 🚀 Combined Patterns / Patrones Combinados:")
+                                    col_patterns1, col_patterns2, col_patterns3 = st.columns(3)
+                                    
+                                    with col_patterns1:
+                                        st.success("""
+                                        **✅ Bullish + Strong Momentum + Score 40+**
+                                        
+                                        Tendencia fuerte al alza con confianza alta
+                                        
+                                        **Acción: COMPRAR**
+                                        """)
+                                    
+                                    with col_patterns2:
+                                        st.error("""
+                                        **🚀 Squeeze Short + Score 40+**
+                                        
+                                        Posiciones cortas forzadas a cerrar → Subida explosiva
+                                        
+                                        **Acción: PREPARARSE PARA MOVIMIENTO**
+                                        """)
+                                    
+                                    with col_patterns3:
+                                        st.warning("""
+                                        **📈 Strong Reversal + High Volume**
+                                        
+                                        Cambio de dirección confirmado por volumen fuerte
+                                        
+                                        **Acción: OPORTUNIDAD DE COMPRA**
+                                        """)
+                                    
+                                    st.markdown("💡 **Resumen:** Mayor Score + Mayor Momentum = Mayor confianza en la acción")
                         
                         except Exception as e:
                             st.error(f"Error processing data: {str(e)}")
