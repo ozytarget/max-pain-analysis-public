@@ -12,6 +12,10 @@ from time import sleep
 from typing import List, Dict, Optional, Tuple
 import plotly.graph_objects as go
 import plotly.express as px
+import matplotlib.pyplot as plt
+import io
+import matplotlib.patches as mpatches
+from matplotlib.ticker import MaxNLocator, MultipleLocator, FixedLocator
 from datetime import datetime, timedelta, timezone
 import multiprocessing
 from threading import Lock
@@ -25,7 +29,6 @@ import base64
 import os
 import pytz
 from dotenv import load_dotenv
-import yfinance as yf
 from user_management import (
     authenticate_user, create_user, check_daily_limit, increment_usage,
     get_all_users, get_activity_log, deactivate_user, extend_license, 
@@ -4659,16 +4662,16 @@ def main():
     # MAIN APPLICATION TABS
     # ═════════════════════════════════════════════════════════════════════════════════
     # ═════════════════════════════════════════════════════════════════════════════════
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",
         "| MM Market Analysis |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
-        "| Target Generator |", "|  Metrics  |"
+        "| Target Generator |", "|  Metrics  |", "| Multi-Date Options |"
     ])
 
 
     # Tab 1: Gummy Data Bubbles®
     with tab1:
-        ticker = st.text_input("Ticker", value="SPY", key="ticker_input").upper()
+        ticker = st.text_input("Ticker", value="SPY", key="ticker_input_main").upper()
         
         expiration_dates = get_expiration_dates(ticker)
         if not expiration_dates:
@@ -8264,5 +8267,565 @@ def main():
         st.markdown("---")
 
 
+    with tab9:
+        st.markdown("---")
+        st.subheader("Multi-Date Options Analysis")
+        
+        gummy_ticker = st.text_input("Ticker for Multi-Date Analysis", value=ticker, key="gummy_ticker").upper()
+        
+        if gummy_ticker:
+            try:
+                gummy_expirations = get_expiration_dates(gummy_ticker)
+                gummy_exp_date = st.selectbox("Select End Date (includes all prior weeklies + 3M)", gummy_expirations, key="gummy_exp_date")
+                
+                if st.button("Load Multi-Date Consolidation", key="gummy_load"):
+                    # Obtener TODAS las fechas weeklies y 3-meses hasta la fecha seleccionada
+                    all_gummy_dates = []
+                    from datetime import datetime as dt_module
+                    
+                    if isinstance(gummy_exp_date, str):
+                        selected_date = dt_module.strptime(gummy_exp_date, '%Y-%m-%d').date()
+                    else:
+                        selected_date = gummy_exp_date
+                    
+                    today = dt_module.now().date()
+                    
+                    for exp in gummy_expirations:
+                        if isinstance(exp, str):
+                            exp_dt = dt_module.strptime(exp, '%Y-%m-%d').date()
+                        else:
+                            exp_dt = exp
+                        
+                        if today <= exp_dt <= selected_date:
+                            all_gummy_dates.append(exp)
+                    
+                    all_gummy_dates = sorted(all_gummy_dates)
+                    
+                    if not all_gummy_dates:
+                        st.error("No expiration dates available in range")
+                    else:
+                        gummy_dfs_dict = {}
+                        for date in all_gummy_dates:
+                            try:
+                                gummy_opts = get_options_data(gummy_ticker, date)
+                                if gummy_opts:
+                                    gummy_df = pd.DataFrame(gummy_opts)
+                                    gummy_df['type'] = gummy_df['option_type'].str.upper()
+                                    gummy_df['strike'] = gummy_df['strike'].astype(float)
+                                    gummy_df['openinterest'] = gummy_df['open_interest'].astype(float)
+                                    gummy_dfs_dict[date] = gummy_df
+                            except Exception as e:
+                                logger.error(f"Error loading {date}: {e}")
+                                pass
+                        
+                        if not gummy_dfs_dict:
+                            st.error("Could not load data")
+                        else:
+                            # Generar gráfico multi-fecha
+                            gummy_df_all = pd.concat(gummy_dfs_dict.values(), ignore_index=True)
+                            
+                            all_gummy_strikes = sorted(gummy_df_all['strike'].unique())
+                            all_gummy_strikes = [s for s in all_gummy_strikes if not np.isnan(s)]
+                            
+                            if len(all_gummy_strikes) > 0:
+                                # Calcular pivots (Market Maker style - acumulado PUT <= strike vs acumulado CALL >= strike)
+                                def calc_pivot(df, strikes):
+                                    if len(strikes) == 0:
+                                        return None
+                                    
+                                    # Filtrar strikes con OI > 0
+                                    active_strikes = []
+                                    for s in strikes:
+                                        total_oi_at_strike = df[df['strike'] == s]['openinterest'].sum()
+                                        if total_oi_at_strike > 0:
+                                            active_strikes.append(s)
+                                    
+                                    if len(active_strikes) == 0:
+                                        return None
+                                    
+                                    min_diff = float('inf')
+                                    pivot = None
+                                    
+                                    for s in active_strikes:
+                                        # PUT OI acumulado desde el fondo hasta este strike (<=)
+                                        put_oi = df[(df['type'] == 'PUT') & (df['strike'] <= s)]['openinterest'].sum()
+                                        # CALL OI acumulado desde este strike hacia arriba (>=)
+                                        call_oi = df[(df['type'] == 'CALL') & (df['strike'] >= s)]['openinterest'].sum()
+                                        # Diferencia de balance
+                                        diff = abs(put_oi - call_oi)
+                                        
+                                        if diff < min_diff:
+                                            min_diff = diff
+                                            pivot = s
+                                    
+                                    return pivot
+                                
+                                gummy_pivot = calc_pivot(gummy_df_all, all_gummy_strikes)
+                                
+                                col1, col2, col3, col4, col5 = st.columns(5)
+                                
+                                # CSS para agrandar métricas
+                                st.markdown("""
+                                <style>
+                                    [data-testid="metric-container"] {
+                                        background-color: #1a1a1a;
+                                        padding: 20px;
+                                        border-radius: 10px;
+                                        border: 1px solid #444;
+                                    }
+                                    [data-testid="metric-container"] > div:nth-child(1) {
+                                        font-size: 16px !important;
+                                        color: #aaa;
+                                        font-weight: normal;
+                                    }
+                                    [data-testid="metric-container"] > div:nth-child(2) {
+                                        font-size: 32px !important;
+                                        color: #00ff00;
+                                        font-weight: bold;
+                                        text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00cc00;
+                                    }
+                                </style>
+                                """, unsafe_allow_html=True)
+                                
+                                with col1:
+                                    st.metric("Total Strikes", len(all_gummy_strikes))
+                                with col2:
+                                    st.metric("Global Pivot", f"${gummy_pivot:.2f}" if gummy_pivot else "N/A")
+                                with col3:
+                                    gummy_call_oi = gummy_df_all[gummy_df_all['type']=='CALL']['openinterest'].sum()
+                                    st.metric("Total CALL OI", f"{int(gummy_call_oi):,}")
+                                with col4:
+                                    gummy_put_oi = gummy_df_all[gummy_df_all['type']=='PUT']['openinterest'].sum()
+                                    st.metric("Total PUT OI", f"{int(gummy_put_oi):,}")
+                                with col5:
+                                    gummy_ratio = (gummy_put_oi / gummy_call_oi) if gummy_call_oi > 0 else 0
+                                    ratio_color = "🔴" if gummy_ratio > 1.1 else "🟢" if gummy_ratio < 0.9 else "🟡"
+                                    st.metric(f"{ratio_color} PUT/CALL Ratio", f"{gummy_ratio:.2f}")
+                                
+                                # Obtener precio live para lógica de Y-axis
+                                gummy_live_price = None
+                                try:
+                                    tradier_api_key = os.getenv('TRADIER_API_KEY')
+                                    if tradier_api_key:
+                                        headers = {
+                                            'Authorization': f'Bearer {tradier_api_key}',
+                                            'Accept': 'application/json'
+                                        }
+                                        url_quotes = f'https://api.tradier.com/v1/markets/quotes?symbols={gummy_ticker}&greeks=false'
+                                        resp_quotes = requests.get(url_quotes, headers=headers, timeout=5)
+                                        if resp_quotes.status_code == 200:
+                                            data = resp_quotes.json()
+                                            if 'quotes' in data and 'quote' in data['quotes']:
+                                                quote = data['quotes']['quote']
+                                                if isinstance(quote, list):
+                                                    quote = quote[0]
+                                                if 'last' in quote and quote['last'] is not None:
+                                                    gummy_live_price = float(quote['last'])
+                                    
+                                    if gummy_live_price is None:
+                                        fmp_api_key = os.getenv('FMP_API_KEY')
+                                        if fmp_api_key:
+                                            url_fmp = f'https://financialmodelingprep.com/api/v3/quote/{gummy_ticker}?apikey={fmp_api_key}'
+                                            resp_fmp = requests.get(url_fmp, timeout=5)
+                                            if resp_fmp.status_code == 200:
+                                                fmp_data = resp_fmp.json()
+                                                if fmp_data and len(fmp_data) > 0:
+                                                    gummy_live_price = float(fmp_data[0].get('price', None))
+                                except Exception as e:
+                                    gummy_live_price = None
+                                
+                                # REESCRITURA PROFESIONAL - Auto-fill gráfica
+                                num_dates = len(gummy_dfs_dict)
+                                num_strikes = len(all_gummy_strikes)
+                                
+                                # Figsize sensato - Streamlit maneja el ancho con use_container_width
+                                figwidth = 20 + min(num_dates * 0.8, 12)  # Max 32"
+                                fighight = 16 + min(num_strikes * 0.05, 8)  # Max 24"
+                                figwidth = min(figwidth, 32)
+                                fighight = min(fighight, 24)
+                                
+                                gummy_fig = plt.figure(figsize=(figwidth, fighight), facecolor='black', edgecolor='none')
+                                gummy_ax = gummy_fig.add_subplot(111)
+                                gummy_ax.set_facecolor('black')
+                                
+                                y_min, y_max = all_gummy_strikes[0], all_gummy_strikes[-1]
+                                y_range = max(y_max - y_min, 1)
+                                
+                                # Padding generoso
+                                padding = y_range * 0.30
+                                gummy_ax.set_ylim(y_min - padding, y_max + padding)
+                                gummy_ax.set_xlim(0.5, num_dates + 0.5)
+                                
+                                gummy_ax.set_ylabel('Strike Price ($)', color='white', fontsize=16, fontweight='bold')
+                                
+                                # Y-ticks automáticos basados en el precio del activo
+                                # Si precio > 500, usar increments de 20; si no, de 15
+                                if gummy_live_price and gummy_live_price > 500:
+                                    gummy_ax.yaxis.set_major_locator(MultipleLocator(20))
+                                else:
+                                    gummy_ax.yaxis.set_major_locator(MultipleLocator(15))
+                                
+                                gummy_ax.tick_params(axis='y', colors='white', labelsize=12, which='major', width=2, length=6)
+                                gummy_ax.grid(True, which='major', axis='y', color='white', alpha=0.15, linestyle='-', linewidth=0.5)
+                                
+                                gummy_fig.subplots_adjust(left=0.05, right=0.97, top=0.97, bottom=0.08)
+                                plt.tight_layout(pad=5.0)
+                                
+                                gummy_expirations_sorted = sorted(gummy_dfs_dict.keys())
+                                # Convertir fechas al formato mes-dia-año (ej: Jan-23-2026)
+                                gummy_date_labels = []
+                                for d in gummy_expirations_sorted:
+                                    if isinstance(d, str):
+                                        date_obj = datetime.strptime(d, '%Y-%m-%d')
+                                        label = date_obj.strftime('%b-%d-%Y')
+                                        gummy_date_labels.append(label)
+                                    else:
+                                        label = d.strftime('%b-%d-%Y') if hasattr(d, 'strftime') else str(d)
+                                        gummy_date_labels.append(label)
+                                
+                                gummy_ax.set_xticks(range(1, len(gummy_expirations_sorted) + 1))
+                                gummy_ax.set_xticklabels(gummy_date_labels, rotation=45, ha='right', color='#c0c0c0', fontsize=10)
+                                
+                                gummy_ax.spines['top'].set_visible(False)
+                                gummy_ax.spines['right'].set_visible(False)
+                                gummy_ax.spines['left'].set_color('white')
+                                gummy_ax.spines['bottom'].set_color('white')
+                                gummy_ax.grid(True, axis='y', alpha=0.8, color='white', linestyle=':')
+                                
+                                CALL_TEXT = '#ff0000'
+                                CALL_BORDER = '#ff0000'
+                                CALL_FILL = '#660000'
+                                PUT_TEXT = '#00ff00'
+                                PUT_BORDER = '#00cc00'
+                                PUT_FILL = '#003300'
+                                VERTICAL_LINE = '#00ffff'
+                                PIVOT_LOCAL = '#ffff00'
+                                
+                                dx_near = 0.06
+                                dx_step = 0.04
+                                min_box_height = max(8, 0.025 * y_range)
+                                
+                                # AUTO-AJUSTE DINÁMICO de posiciones de labels
+                                # Basado en el número de fechas y rango de strikes
+                                label_spacing_multiplier = min(2.0, max(0.6, 15 / num_dates))  # Más fechas = menos espacio
+                                x_target_offset = 0.38 * label_spacing_multiplier  # Ajusta proximidad del target
+                                x_volume_offset = 0.05 + (0.35 * label_spacing_multiplier)  # Ajusta distancia del volumen
+                                
+                                # Auto-ajuste de fontsize según densidad
+                                fontsize_target = max(8, min(11, 10 - (num_dates * 0.1)))
+                                fontsize_volume = max(7, min(9, 8 - (num_dates * 0.08)))
+                                
+                                def detect_gummy_clusters(strikes, oi_values, max_clusters=2):
+                                    if len(strikes) == 0:
+                                        return []
+                                    sorted_idx = np.argsort(strikes)
+                                    strikes_sorted = np.array(strikes)[sorted_idx]
+                                    oi_sorted = np.array(oi_values)[sorted_idx]
+                                    n_peaks = min(max_clusters, len(oi_sorted))
+                                    top_indices = np.argsort(oi_sorted)[-n_peaks:]
+                                    clusters = []
+                                    for idx in top_indices:
+                                        peak_oi = oi_sorted[idx]
+                                        low_idx = idx
+                                        high_idx = idx
+                                        while low_idx > 0 and oi_sorted[low_idx-1] > peak_oi * 0.3:
+                                            low_idx -= 1
+                                        while high_idx < len(strikes_sorted)-1 and oi_sorted[high_idx+1] > peak_oi * 0.3:
+                                            high_idx += 1
+                                        strike_low = strikes_sorted[low_idx]
+                                        strike_high = strikes_sorted[high_idx]
+                                        total_oi = np.sum(oi_sorted[low_idx:high_idx+1])
+                                        clusters.append((strike_low, strike_high, total_oi))
+                                    clusters.sort(key=lambda x: x[2], reverse=True)
+                                    return clusters[:max_clusters]
+                                
+                                for i, exp_date in enumerate(gummy_expirations_sorted, start=1):
+                                    gummy_df_exp = gummy_dfs_dict[exp_date]
+                                    
+                                    gummy_ax.axvline(x=i, color=VERTICAL_LINE, linestyle='--', linewidth=0.3, alpha=0.8)
+                                    
+                                    gummy_df_call = gummy_df_exp[gummy_df_exp['type'] == 'CALL']
+                                    gummy_df_put = gummy_df_exp[gummy_df_exp['type'] == 'PUT']
+                                    
+                                    gummy_call_clusters = detect_gummy_clusters(gummy_df_call['strike'].values, gummy_df_call['openinterest'].values, max_clusters=2)
+                                    gummy_put_clusters = detect_gummy_clusters(gummy_df_put['strike'].values, gummy_df_put['openinterest'].values, max_clusters=2)
+                                    
+                                    gummy_pivot_local = calc_pivot(gummy_df_exp, gummy_df_exp['strike'].unique())
+                                    
+                                    if gummy_pivot_local and not np.isnan(gummy_pivot_local):
+                                        gummy_ax.plot([i-0.3, i+0.3], [gummy_pivot_local, gummy_pivot_local], 
+                                                color=PIVOT_LOCAL, linestyle='--', linewidth=1.0, alpha=0.8)
+                                    
+                                    # Marcar máximos de OI (PUT y CALL por separado)
+                                    gummy_df_call = gummy_df_exp[gummy_df_exp['type'] == 'CALL']
+                                    gummy_df_put = gummy_df_exp[gummy_df_exp['type'] == 'PUT']
+                                    
+                                    if len(gummy_df_call) > 0:
+                                        max_call_oi_strike = gummy_df_call.loc[gummy_df_call['openinterest'].idxmax(), 'strike']
+                                        if not np.isnan(max_call_oi_strike):
+                                            gummy_ax.plot([i-0.15, i-0.05], [max_call_oi_strike, max_call_oi_strike], 
+                                                    color=CALL_BORDER, linewidth=2, alpha=0.8)
+                                    
+                                    if len(gummy_df_put) > 0:
+                                        max_put_oi_strike = gummy_df_put.loc[gummy_df_put['openinterest'].idxmax(), 'strike']
+                                        if not np.isnan(max_put_oi_strike):
+                                            gummy_ax.plot([i+0.05, i+0.15], [max_put_oi_strike, max_put_oi_strike], 
+                                                    color=PUT_BORDER, linewidth=2, alpha=0.8)
+                                    
+                                    W = 1.0
+                                    
+                                    # CALLS - Calcular midpoint y mejorar spacing
+                                    gummy_call_labels = []
+                                    for j, (low, high, total_oi) in enumerate(gummy_call_clusters):
+                                        if np.isnan(low) or np.isnan(high) or np.isnan(total_oi):
+                                            continue
+                                        box_height = max(high - low, min_box_height)
+                                        box_center = (low + high) / 2
+                                        box_low = box_center - box_height / 2
+                                        
+                                        rect = mpatches.Rectangle(
+                                            (i - 0.35, box_low), 0.35, box_height,
+                                            linewidth=0, edgecolor='none', facecolor=CALL_FILL, alpha=0.8
+                                        )
+                                        gummy_ax.add_patch(rect)
+                                        
+                                        # Calcular midpoint único para el rango
+                                        midpoint = (low + high) / 2
+                                        strike_label = f"{midpoint:.1f}" if low != high else f"{int(low)}"
+                                        volume_label = f"{int(total_oi):,}"
+                                        y_label = box_center
+                                        gummy_call_labels.append((j, y_label, strike_label, volume_label, box_center))
+                                    
+                                    gummy_call_labels.sort(key=lambda x: x[1])
+                                    
+                                    # Layout horizontal CALLS: TARGET | [RECUADRO ROJO] | (volumen oculto)
+                                    for idx, (j, y_label, strike_label, volume_label, box_center_original) in enumerate(gummy_call_labels):
+                                        y_final = y_label  # Sin offset vertical - mismo nivel
+                                        
+                                        # Target CALL a la IZQUIERDA - BRILLANTE
+                                        x_target_call = i - x_target_offset
+                                        txt_call = gummy_ax.text(x_target_call, y_final, strike_label,
+                                                ha='right', va='center', color='#ffffff', fontsize=fontsize_target+1, fontweight='normal', alpha=1.0)
+                                        from matplotlib.patheffects import withStroke
+                                        txt_call.set_path_effects([withStroke(linewidth=2, foreground='#000000')])
+                                        
+                                        # Volumen CALL (OCULTO - No necesario)
+                                        # x_volume_call = i + x_volume_offset
+                                        # gummy_ax.text(x_volume_call, y_final, volume_label, ...)
+                                    
+                                    # PUTS - Calcular midpoint y mejorar spacing
+                                    gummy_put_labels = []
+                                    for j, (low, high, total_oi) in enumerate(gummy_put_clusters):
+                                        if np.isnan(low) or np.isnan(high) or np.isnan(total_oi):
+                                            continue
+                                        box_height = max(high - low, min_box_height)
+                                        box_center = (low + high) / 2
+                                        box_low = box_center - box_height / 2
+                                        
+                                        rect = mpatches.Rectangle(
+                                            (i, box_low), 0.35, box_height,
+                                            linewidth=0, edgecolor='none', facecolor=PUT_FILL, alpha=0.8
+                                        )
+                                        gummy_ax.add_patch(rect)
+                                        
+                                        # Calcular midpoint único para el rango
+                                        midpoint = (low + high) / 2
+                                        strike_label = f"{midpoint:.1f}" if low != high else f"{int(low)}"
+                                        volume_label = f"{int(total_oi):,}"
+                                        y_label = box_center
+                                        gummy_put_labels.append((j, y_label, strike_label, volume_label, box_center))
+                                    
+                                    gummy_put_labels.sort(key=lambda x: x[1])
+                                    
+                                    # Layout horizontal PUTS: TARGET | [RECUADRO VERDE] | (volumen oculto)
+                                    for idx, (j, y_label, strike_label, volume_label, box_center_original) in enumerate(gummy_put_labels):
+                                        y_final = y_label  # Sin offset vertical - mismo nivel que el recuadro
+                                        
+                                        # Target PUT a la IZQUIERDA del recuadro (auto-ajuste) - BRILLANTE
+                                        x_target_put = i - x_target_offset
+                                        txt_put = gummy_ax.text(x_target_put, y_final, strike_label,
+                                                ha='right', va='center', color='#ffffff', fontsize=fontsize_target+1, fontweight='normal', alpha=1.0)
+                                        from matplotlib.patheffects import withStroke
+                                        txt_put.set_path_effects([withStroke(linewidth=2, foreground='#000000')])
+                                        
+                                        # Volumen PUT (OCULTO - No necesario)
+                                        # x_volume_put = i + 0.35 + x_volume_offset
+                                        # gummy_ax.text(x_volume_put, y_final, volume_label, ...)
+                                
+                                # Dibujar línea de precio live (pequeña y finita) - con alerta si está cerca del pivot
+                                if gummy_live_price is not None:
+                                    try:
+                                        if not np.isnan(gummy_live_price):
+                                            # Detectar proximidad al pivot (dentro del 1.5%)
+                                            near_pivot = False
+                                            price_color = '#FFD700'
+                                            if gummy_pivot and not np.isnan(gummy_pivot):
+                                                distance_pct = abs(gummy_live_price - gummy_pivot) / gummy_pivot * 100
+                                                if distance_pct < 1.5:
+                                                    price_color = '#FF1493'  # Rosa fuerte si está muy cerca
+                                                    near_pivot = True
+                                            
+                                            gummy_ax.plot([0.3, 0.8], [gummy_live_price, gummy_live_price], 
+                                                    color=price_color, linestyle='-', linewidth=2, alpha=1.0, zorder=10)
+                                            label_text = f"${gummy_live_price:.2f}" + (" ⚠️ PIVOT!" if near_pivot else "")
+                                            gummy_ax.text(0.1, gummy_live_price + 3, label_text,
+                                                    ha='right', va='center', color=price_color, fontsize=11, fontweight='bold',
+                                                    bbox=dict(boxstyle='round,pad=0.3', facecolor='black', edgecolor=price_color, linewidth=2))
+                                    except:
+                                        pass
+                                
+                                if gummy_pivot and not np.isnan(gummy_pivot):
+                                    gummy_ax.axhline(y=gummy_pivot, color='white', linestyle='--', linewidth=1, alpha=0.8)
+                                    gummy_ax.text(len(gummy_dfs_dict) + 0.3, gummy_pivot, f"PIVOT {int(gummy_pivot)}",
+                                            ha='left', va='center', color='white', fontsize=8, fontweight='bold',
+                                            bbox=dict(boxstyle='round,pad=0.3', facecolor='black', edgecolor='white', linewidth=1))
+                                
+                                # Layout profesional
+                                gummy_fig.subplots_adjust(left=0.06, right=0.96, top=0.96, bottom=0.10)
+                                plt.tight_layout(pad=4.5)
+                                
+                                plt.title(f"{gummy_ticker}", color='white', fontsize=16, fontweight='bold', pad=20)
+                                
+                                # Crear dos columnas: izquierda para pivots, derecha para gráfico
+                                col_pivots, col_chart = st.columns([1, 5])
+                                
+                                # Columna izquierda: Lista de Rangos por Mes
+                                with col_pivots:
+                                    range_list_html = '<div style="padding: 0;">'
+                                    
+                                    for exp_date in gummy_expirations_sorted:
+                                        gummy_df_exp = gummy_dfs_dict[exp_date]
+                                        
+                                        # Convertir fecha a formato legible
+                                        if isinstance(exp_date, str):
+                                            date_obj = datetime.strptime(exp_date, '%Y-%m-%d')
+                                            date_label = date_obj.strftime('%b-%d')
+                                        else:
+                                            date_label = exp_date.strftime('%b-%d') if hasattr(exp_date, 'strftime') else str(exp_date)
+                                        
+                                        # Detectar clusters para CALLS y PUTS
+                                        gummy_df_call = gummy_df_exp[gummy_df_exp['type'] == 'CALL']
+                                        gummy_df_put = gummy_df_exp[gummy_df_exp['type'] == 'PUT']
+                                        
+                                        gummy_call_clusters = detect_gummy_clusters(gummy_df_call['strike'].values, gummy_df_call['openinterest'].values, max_clusters=2)
+                                        gummy_put_clusters = detect_gummy_clusters(gummy_df_put['strike'].values, gummy_df_put['openinterest'].values, max_clusters=2)
+                                        
+                                        # Extraer primer cluster (mayor OI) para CALLS y PUTS
+                                        call_range = "N/A"
+                                        if gummy_call_clusters and len(gummy_call_clusters) > 0:
+                                            low, high, _ = gummy_call_clusters[0]
+                                            if not (np.isnan(low) or np.isnan(high)):
+                                                call_range = f"${low:.2f} - ${high:.2f}"
+                                        
+                                        put_range = "N/A"
+                                        if gummy_put_clusters and len(gummy_put_clusters) > 0:
+                                            low, high, _ = gummy_put_clusters[0]
+                                            if not (np.isnan(low) or np.isnan(high)):
+                                                put_range = f"${low:.2f} - ${high:.2f}"
+                                        
+                                        range_list_html += f'''<div style="margin-bottom: 10px; padding: 8px;">
+    <div style="color: #ffffff; font-weight: bold; font-size: 12px; margin-bottom: 4px;">{date_label}</div>
+    <div style="color: #ff6666; font-size: 10px; margin-bottom: 2px;">📈 {call_range}</div>
+    <div style="color: #66ff66; font-size: 10px;">📉 {put_range}</div>
+</div>'''
+                                    
+                                    range_list_html += '</div>'
+                                    st.markdown(range_list_html, unsafe_allow_html=True)
+                                
+                                # Columna derecha: Gráfico
+                                with col_chart:
+                                    st.pyplot(gummy_fig, use_container_width=True)
+                                
+                                # Plotly interactivo deshabilitado temporalmente para diagnosticar
+                                # TODO: Restaurar cuando se resuelva el problema de carga
+                                
+                                # Agregar información de fechas/rangos al gráfico antes de guardar
+                                dates_info_lines = ["Expiration Dates & Price Ranges:"]
+                                for exp_date in gummy_expirations_sorted:
+                                    gummy_df_exp = gummy_dfs_dict[exp_date]
+                                    
+                                    # Convertir fecha a formato legible
+                                    if isinstance(exp_date, str):
+                                        date_obj = datetime.strptime(exp_date, '%Y-%m-%d')
+                                        date_label = date_obj.strftime('%b-%d')
+                                    else:
+                                        date_label = exp_date.strftime('%b-%d') if hasattr(exp_date, 'strftime') else str(exp_date)
+                                    
+                                    # Detectar clusters
+                                    gummy_df_call = gummy_df_exp[gummy_df_exp['type'] == 'CALL']
+                                    gummy_df_put = gummy_df_exp[gummy_df_exp['type'] == 'PUT']
+                                    
+                                    gummy_call_clusters = detect_gummy_clusters(gummy_df_call['strike'].values, gummy_df_call['openinterest'].values, max_clusters=2)
+                                    gummy_put_clusters = detect_gummy_clusters(gummy_df_put['strike'].values, gummy_df_put['openinterest'].values, max_clusters=2)
+                                    
+                                    call_range = "N/A"
+                                    if gummy_call_clusters and len(gummy_call_clusters) > 0:
+                                        low, high, _ = gummy_call_clusters[0]
+                                        if not (np.isnan(low) or np.isnan(high)):
+                                            call_range = f"${low:.2f}-${high:.2f}"
+                                    
+                                    put_range = "N/A"
+                                    if gummy_put_clusters and len(gummy_put_clusters) > 0:
+                                        low, high, _ = gummy_put_clusters[0]
+                                        if not (np.isnan(low) or np.isnan(high)):
+                                            put_range = f"${low:.2f}-${high:.2f}"
+                                    
+                                    dates_info_lines.append(f"{date_label}: C:{call_range} | P:{put_range}")
+                                
+                                # Agregar información de fechas/rangos directamente a gummy_fig como texto en el pie
+                                info_text = "EXPIRATION DATES & PRICE RANGES:\n" + "\n".join(dates_info_lines)
+                                gummy_fig.text(0.5, 0.08, info_text, ha='center', va='top',
+                                               fontsize=9, color='#ffffff', family='monospace',
+                                               bbox=dict(boxstyle='round,pad=0.8', facecolor='#1a1a1a', 
+                                                       edgecolor='#FFD700', linewidth=1.5, alpha=0.95))
+                                
+                                # Agregar título
+                                gummy_fig.text(0.5, 0.97, f"{gummy_ticker} - Multi-Date Options Analysis", 
+                                               ha='center', va='top', fontsize=12, color='#ffffff', fontweight='bold')
+                                
+                                # Ajustar espacios en la figura para que no se corten elementos
+                                gummy_fig.subplots_adjust(bottom=0.20, top=0.95)
+                                
+                                # Preparar imagen para descarga directamente de gummy_fig
+                                img_buffer = io.BytesIO()
+                                gummy_fig.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight', 
+                                                   facecolor='black', edgecolor='none')
+                                img_buffer.seek(0)
+                                
+                                # Botón para descargar imagen
+                                st.download_button(
+                                    label="🖼️ Download Chart",
+                                    data=img_buffer,
+                                    file_name=f"{gummy_ticker}_gummy_chart.png",
+                                    mime="image/png",
+                                    key="gummy_chart_download"
+                                )
+                                
+                                # Tabla resumen por fecha
+                                st.markdown("### 📋 Summary by Expiration Date")
+                                summary_data = []
+                                for exp_date in gummy_expirations_sorted:
+                                    df_exp = gummy_dfs_dict[exp_date]
+                                    exp_call_oi = df_exp[df_exp['type']=='CALL']['openinterest'].sum()
+                                    exp_put_oi = df_exp[df_exp['type']=='PUT']['openinterest'].sum()
+                                    exp_ratio = (exp_put_oi / exp_call_oi) if exp_call_oi > 0 else 0
+                                    exp_pivot = calc_pivot(df_exp, df_exp['strike'].unique())
+                                    
+                                    summary_data.append({
+                                        'Expiration': exp_date,
+                                        'Pivot': f"${exp_pivot:.2f}" if exp_pivot else "N/A",
+                                        'Total OI': f"{int(exp_call_oi + exp_put_oi):,}",
+                                        'CALL OI': f"{int(exp_call_oi):,}",
+                                        'PUT OI': f"{int(exp_put_oi):,}",
+                                        'PUT/CALL': f"{exp_ratio:.2f}"
+                                    })
+                                
+                                summary_df = pd.DataFrame(summary_data)
+                                st.dataframe(summary_df, use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+
+
 if __name__ == "__main__":
     main()
+
