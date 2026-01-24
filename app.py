@@ -254,50 +254,17 @@ def login_alumno():
                 st.error("❌ Ingresa tu contraseña")
                 return
             
-            # Verificar contraseña en BD
-            try:
-                conn = sqlite3.connect("auth_data/users.db", timeout=10)
-                cursor = conn.cursor()
-                # Obtener todos los hashes
-                cursor.execute("SELECT id, password_hash, tier, daily_limit FROM users")
-                all_users = cursor.fetchall()
-                conn.close()
-                
-                # Buscar y verificar con bcrypt
-                authenticated = False
-                user_tier = None
-                daily_limit = None
-                user_id = None
-                
-                for uid, hash_pwd, tier, limit in all_users:
-                    try:
-                        # Asegurar que hash_pwd es string
-                        if isinstance(hash_pwd, bytes):
-                            hash_pwd = hash_pwd.decode('utf-8')
-                        
-                        if bcrypt.checkpw(password.encode('utf-8'), hash_pwd.encode('utf-8')):
-                            authenticated = True
-                            user_id = uid
-                            user_tier = tier
-                            daily_limit = limit
-                            break
-                    except Exception as e:
-                        continue
-                
-                if authenticated:
-                    st.session_state["authenticated"] = True
-                    st.session_state["current_user"] = f"alumno_{user_id}"
-                    st.session_state["user_tier"] = user_tier
-                    st.session_state["daily_limit"] = daily_limit
-                    st.session_state["session_token"] = f"token_{user_id}"
-                    st.success("✅ ¡Acceso concedido!")
-                    st.rerun()
-                else:
-                    st.error("❌ Contraseña no válida")
+            # Usar el sistema de autenticación de passwords.db (40 contraseñas)
+            if authenticate_password(password):
+                st.session_state["authenticated"] = True
+                st.session_state["current_user"] = f"trader_{password}"
+                st.session_state["user_tier"] = "PRO"
+                st.session_state["daily_limit"] = None  # Sin límite
+                st.session_state["session_token"] = f"token_{password}"
+                st.success("✅ ¡Acceso concedido!")
+                st.rerun()
+            # Si falla authenticate_password, el error ya se mostró en la función
                     
-            except Exception as e:
-                logger.error(f"Login error: {e}")
-                st.error("❌ Error al autenticar. Intenta de nuevo.")
 
 # Mostrar login si no está autenticado
 if not st.session_state["authenticated"]:
