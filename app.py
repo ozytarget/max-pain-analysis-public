@@ -8477,7 +8477,7 @@ def main():
                                         gummy_date_labels.append(label)
                                 
                                 gummy_ax.set_xticks(range(1, len(gummy_expirations_sorted) + 1))
-                                gummy_ax.set_xticklabels(gummy_date_labels, rotation=45, ha='right', color='#c0c0c0', fontsize=10)
+                                gummy_ax.set_xticklabels(gummy_date_labels, rotation=45, ha='right', color='#c0c0c0', fontsize=20)
                                 
                                 gummy_ax.spines['top'].set_visible(False)
                                 gummy_ax.spines['right'].set_visible(False)
