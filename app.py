@@ -118,27 +118,35 @@ def initialize_passwords_db():
     
     # Check if passwords already exist to avoid redundant inserts
     c.execute("SELECT COUNT(*) FROM passwords")
-    if c.fetchone()[0] == 0:  # Only insert if table is empty
-        # Get passwords from environment variable or use empty list
+    count_existing = c.fetchone()[0]
+    
+    if count_existing == 0:  # Only insert if table is empty
+        # Get passwords from environment variable
         passwords_str = os.getenv("INITIAL_PASSWORDS", "")
+        logger.info(f"INITIAL_PASSWORDS env var length: {len(passwords_str)}")
+        
         if passwords_str:
             initial_passwords = [(pwd.strip(), 0, "", "") for pwd in passwords_str.split(",") if pwd.strip()]
+            logger.info(f"Parsed {len(initial_passwords)} passwords from INITIAL_PASSWORDS")
+            
+            # Hash all passwords
+            hashed_passwords = []
+            for pwd, count, ip1, ip2 in initial_passwords:
+                try:
+                    hashed = bcrypt.hashpw(pwd.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    hashed_passwords.append((hashed, count, ip1, ip2))
+                except Exception as e:
+                    logger.error(f"Error hashing password {pwd}: {e}")
+            
+            # Insert hashed passwords
+            c.executemany("INSERT OR IGNORE INTO passwords VALUES (?, ?, ?, ?)", hashed_passwords)
+            conn.commit()
+            logger.info(f"✓ Password database initialized with {len(hashed_passwords)} hashed passwords")
         else:
-            # Fallback: empty list (force users to add via environment)
-            initial_passwords = []
-            logger.warning("No INITIAL_PASSWORDS found in environment. Database initialized empty.")
-        
-        hashed_passwords = [(bcrypt.hashpw(pwd.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'), count, ip1, ip2) 
-                           for pwd, count, ip1, ip2 in initial_passwords]
-        c.executemany("INSERT OR IGNORE INTO passwords VALUES (?, ?, ?, ?)", hashed_passwords)
-        if initial_passwords:
-            logger.info(f"Password database initialized with {len(initial_passwords)} passwords.")
-        else:
-            logger.warning("Password database initialized empty.")
+            logger.warning("⚠ INITIAL_PASSWORDS environment variable is EMPTY!")
     else:
-        logger.info("Password database already initialized, skipping insertion.")
+        logger.info(f"Password database already has {count_existing} passwords, skipping reinitialization")
     
-    conn.commit()
     conn.close()
 
 def load_passwords():
