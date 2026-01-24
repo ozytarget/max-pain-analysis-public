@@ -59,9 +59,11 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+
+# Auth Data - SENSITIVE
 auth_data/
-# EXCEPT - Permitir la BD con los passwords
-!auth_data/users.db
+auth_data/
 
 # Testing
 .coverage
@@ -75,6 +77,10 @@ yarn-error.log
 # Credentials & Secrets
 secrets/
 credentials/
-tokens/40_passwords.txt
-*.txt
-passwords.db
+tokens/
+
+# Passwords - DO NOT COMMIT
+40_passwords.txt
+passwords.txt
+*_passwords.txt
+*.pwd
