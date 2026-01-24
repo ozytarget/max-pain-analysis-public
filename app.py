@@ -120,7 +120,7 @@ def initialize_passwords_db():
     c.execute("SELECT COUNT(*) FROM passwords")
     if c.fetchone()[0] == 0:  # Only insert if table is empty
         initial_passwords = [
-            ("fabi125", 0, "", ""), ("twmmpro", 0, "", ""), ("sandrira1", 0, "", ""),
+            ("spy11", 0, "", ""), ("fabi125", 0, "", ""), ("twmmpro", 0, "", ""), ("sandrira1", 0, "", ""),
             ("mark123", 0, "", ""), ("nonu12", 0, "", ""), ("mary123", 0, "", ""),
             ("euge1", 0, "", ""), ("zxc11ASD", 0, "", ""), ("y11234", 0, "", ""),
             ("abcd16", 0, "", ""), ("ef1h78", 0, "", ""), ("guz022", 0, "", ""),
