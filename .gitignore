@@ -3,7 +3,14 @@
 .env.local
 .env.*.local
 
-# Python
+# Credentials & Secrets - NEVER COMMIT
+40_passwords.txt
+*_passwords.txt
+*.pwd
+*.secret
+secrets/
+credentials/
+tokens/
 __pycache__/
 *.py[cod]
 *$py.class
