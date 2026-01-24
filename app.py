@@ -8254,90 +8254,108 @@ def main():
                 gummy_exp_date = st.selectbox("Select End Date (includes all prior weeklies + 3M)", gummy_expirations, key="gummy_exp_date")
                 
                 if st.button("Load Multi-Date Consolidation", key="gummy_load"):
-                    # Obtener TODAS las fechas weeklies y 3-meses hasta la fecha seleccionada
-                    all_gummy_dates = []
-                    from datetime import datetime as dt_module
-                    
-                    if isinstance(gummy_exp_date, str):
-                        selected_date = dt_module.strptime(gummy_exp_date, '%Y-%m-%d').date()
-                    else:
-                        selected_date = gummy_exp_date
-                    
-                    today = dt_module.now().date()
-                    
-                    for exp in gummy_expirations:
-                        if isinstance(exp, str):
-                            exp_dt = dt_module.strptime(exp, '%Y-%m-%d').date()
-                        else:
-                            exp_dt = exp
+                    # Mostrar indicador de carga
+                    with st.spinner("⏳ Loading options data..."):
+                        # Obtener TODAS las fechas weeklies y 3-meses hasta la fecha seleccionada
+                        all_gummy_dates = []
+                        from datetime import datetime as dt_module
                         
-                        if today <= exp_dt <= selected_date:
-                            all_gummy_dates.append(exp)
-                    
-                    all_gummy_dates = sorted(all_gummy_dates)
-                    
-                    if not all_gummy_dates:
-                        st.error("No expiration dates available in range")
-                    else:
-                        gummy_dfs_dict = {}
-                        for date in all_gummy_dates:
-                            try:
-                                gummy_opts = get_options_data(gummy_ticker, date)
-                                if gummy_opts:
-                                    gummy_df = pd.DataFrame(gummy_opts)
-                                    gummy_df['type'] = gummy_df['option_type'].str.upper()
-                                    gummy_df['strike'] = gummy_df['strike'].astype(float)
-                                    gummy_df['openinterest'] = gummy_df['open_interest'].astype(float)
-                                    gummy_dfs_dict[date] = gummy_df
-                            except Exception as e:
-                                logger.error(f"Error loading {date}: {e}")
-                                pass
-                        
-                        if not gummy_dfs_dict:
-                            st.error("Could not load data")
+                        if isinstance(gummy_exp_date, str):
+                            selected_date = dt_module.strptime(gummy_exp_date, '%Y-%m-%d').date()
                         else:
-                            # Generar gráfico multi-fecha
-                            gummy_df_all = pd.concat(gummy_dfs_dict.values(), ignore_index=True)
+                            selected_date = gummy_exp_date
+                        
+                        today = dt_module.now().date()
+                        
+                        for exp in gummy_expirations:
+                            if isinstance(exp, str):
+                                exp_dt = dt_module.strptime(exp, '%Y-%m-%d').date()
+                            else:
+                                exp_dt = exp
                             
-                            all_gummy_strikes = sorted(gummy_df_all['strike'].unique())
-                            all_gummy_strikes = [s for s in all_gummy_strikes if not np.isnan(s)]
+                            if today <= exp_dt <= selected_date:
+                                all_gummy_dates.append(exp)
+                        
+                        all_gummy_dates = sorted(all_gummy_dates)
+                        
+                        if not all_gummy_dates:
+                            st.error("No expiration dates available in range")
+                        else:
+                            gummy_dfs_dict = {}
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
                             
-                            if len(all_gummy_strikes) > 0:
-                                # Calcular pivots (Market Maker style - acumulado PUT <= strike vs acumulado CALL >= strike)
-                                def calc_pivot(df, strikes):
-                                    if len(strikes) == 0:
-                                        return None
+                            for idx, date in enumerate(all_gummy_dates):
+                                try:
+                                    # Actualizar barra de progreso
+                                    progress = (idx + 1) / len(all_gummy_dates)
+                                    progress_bar.progress(progress)
+                                    status_text.text(f"Loading: {date} ({idx + 1}/{len(all_gummy_dates)})")
                                     
-                                    # Filtrar strikes con OI > 0
-                                    active_strikes = []
-                                    for s in strikes:
-                                        total_oi_at_strike = df[df['strike'] == s]['openinterest'].sum()
-                                        if total_oi_at_strike > 0:
-                                            active_strikes.append(s)
-                                    
-                                    if len(active_strikes) == 0:
-                                        return None
-                                    
-                                    min_diff = float('inf')
-                                    pivot = None
-                                    
-                                    for s in active_strikes:
-                                        # PUT OI acumulado desde el fondo hasta este strike (<=)
-                                        put_oi = df[(df['type'] == 'PUT') & (df['strike'] <= s)]['openinterest'].sum()
-                                        # CALL OI acumulado desde este strike hacia arriba (>=)
-                                        call_oi = df[(df['type'] == 'CALL') & (df['strike'] >= s)]['openinterest'].sum()
-                                        # Diferencia de balance
-                                        diff = abs(put_oi - call_oi)
+                                    gummy_opts = get_options_data(gummy_ticker, date)
+                                    if gummy_opts:
+                                        gummy_df = pd.DataFrame(gummy_opts)
+                                        gummy_df['type'] = gummy_df['option_type'].str.upper()
+                                        gummy_df['strike'] = gummy_df['strike'].astype(float)
+                                        gummy_df['openinterest'] = gummy_df['open_interest'].astype(float)
+                                        gummy_dfs_dict[date] = gummy_df
+                                except Exception as e:
+                                    logger.error(f"Error loading {date}: {e}")
+                                    status_text.text(f"⚠️ Error loading {date}, skipping...")
+                                    pass
+                            
+                            # Limpiar indicadores de carga
+                            progress_bar.empty()
+                            status_text.empty()
+                            
+                            if not gummy_dfs_dict:
+                                st.error("Could not load data")
+                            else:
+                                # Mostrar éxito
+                                st.success(f"✅ Loaded {len(gummy_dfs_dict)} expiration dates successfully!")
+                                
+                                # Generar gráfico multi-fecha
+                                gummy_df_all = pd.concat(gummy_dfs_dict.values(), ignore_index=True)
+                                
+                                all_gummy_strikes = sorted(gummy_df_all['strike'].unique())
+                                all_gummy_strikes = [s for s in all_gummy_strikes if not np.isnan(s)]
+                                
+                                if len(all_gummy_strikes) > 0:
+                                    # Calcular pivots (Market Maker style - acumulado PUT <= strike vs acumulado CALL >= strike)
+                                    def calc_pivot(df, strikes):
+                                        if len(strikes) == 0:
+                                            return None
                                         
-                                        if diff < min_diff:
-                                            min_diff = diff
-                                            pivot = s
+                                        # Filtrar strikes con OI > 0
+                                        active_strikes = []
+                                        for s in strikes:
+                                            total_oi_at_strike = df[df['strike'] == s]['openinterest'].sum()
+                                            if total_oi_at_strike > 0:
+                                                active_strikes.append(s)
+                                        
+                                        if len(active_strikes) == 0:
+                                            return None
+                                        
+                                        min_diff = float('inf')
+                                        pivot = None
+                                        
+                                        for s in active_strikes:
+                                            # PUT OI acumulado desde el fondo hasta este strike (<=)
+                                            put_oi = df[(df['type'] == 'PUT') & (df['strike'] <= s)]['openinterest'].sum()
+                                            # CALL OI acumulado desde este strike hacia arriba (>=)
+                                            call_oi = df[(df['type'] == 'CALL') & (df['strike'] >= s)]['openinterest'].sum()
+                                            # Diferencia de balance
+                                            diff = abs(put_oi - call_oi)
+                                            
+                                            if diff < min_diff:
+                                                min_diff = diff
+                                                pivot = s
+                                        
+                                        return pivot
                                     
-                                    return pivot
-                                
-                                gummy_pivot = calc_pivot(gummy_df_all, all_gummy_strikes)
-                                
-                                col1, col2, col3, col4, col5 = st.columns(5)
+                                    gummy_pivot = calc_pivot(gummy_df_all, all_gummy_strikes)
+                                    
+                                    col1, col2, col3, col4, col5 = st.columns(5)
                                 
                                 # CSS para agrandar métricas
                                 st.markdown("""
