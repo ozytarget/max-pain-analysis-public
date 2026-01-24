@@ -8717,9 +8717,9 @@ def main():
                                                 put_range = f"${low:.2f} - ${high:.2f}"
                                         
                                         range_list_html += f'''<div style="margin-bottom: 10px; padding: 8px;">
-    <div style="color: #ffffff; font-weight: bold; font-size: 12px; margin-bottom: 4px;">{date_label}</div>
-    <div style="color: #ff6666; font-size: 10px; margin-bottom: 2px;">📈 {call_range}</div>
-    <div style="color: #66ff66; font-size: 10px;">📉 {put_range}</div>
+    <div style="color: #ffffff; font-weight: bold; font-size: 24px; margin-bottom: 4px;">{date_label}</div>
+    <div style="color: #ff6666; font-size: 20px; margin-bottom: 2px;">📈 {call_range}</div>
+    <div style="color: #66ff66; font-size: 20px;">📉 {put_range}</div>
 </div>'''
                                     
                                     range_list_html += '</div>'
@@ -8768,7 +8768,7 @@ def main():
                                 # Agregar información de fechas/rangos directamente a gummy_fig como texto en el pie
                                 info_text = "EXPIRATION DATES & PRICE RANGES:\n" + "\n".join(dates_info_lines)
                                 gummy_fig.text(0.5, 0.08, info_text, ha='center', va='top',
-                                               fontsize=9, color='#ffffff', family='monospace',
+                                               fontsize=18, color='#ffffff', family='monospace',
                                                bbox=dict(boxstyle='round,pad=0.8', facecolor='#1a1a1a', 
                                                        edgecolor='#FFD700', linewidth=1.5, alpha=0.95))
                                 
