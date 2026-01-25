@@ -239,11 +239,97 @@ if "admin_lockout_time" not in st.session_state:
 # SIMPLE LOGIN SCREEN - Solo contraseña
 # ═══════════════════════════════════════════════════════════════════════════════
 def login_alumno():
-    """Pantalla de login simple - Solo contraseña"""
+    """Pantalla de login simple - Solo contraseña con efecto Digital Rain"""
+    
+    # Efecto Digital Rain de fondo
+    st.markdown("""
+    <style>
+    .stApp {
+        background: transparent;
+    }
+    #matrix-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        background: #000;
+    }
+    .login-container {
+        position: relative;
+        z-index: 10;
+        background: rgba(0, 20, 30, 0.85);
+        padding: 3rem;
+        border-radius: 15px;
+        border: 2px solid rgba(0, 240, 255, 0.3);
+        box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
+        backdrop-filter: blur(10px);
+    }
+    </style>
+    
+    <canvas id="matrix-canvas"></canvas>
+    
+    <script>
+    const canvas = document.getElementById('matrix-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // Caracteres para la lluvia (números y letras)
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*';
+    const charArray = chars.split('');
+    
+    const fontSize = 16;
+    const columns = canvas.width / fontSize;
+    
+    // Array de gotas - una por columna
+    const drops = [];
+    for(let i = 0; i < columns; i++) {
+        drops[i] = Math.random() * -100;
+    }
+    
+    function draw() {
+        // Capa semi-transparente negra para crear el efecto de rastro
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#00f0ff'; // Color cyan/azul neón
+        ctx.font = fontSize + 'px monospace';
+        
+        for(let i = 0; i < drops.length; i++) {
+            // Carácter aleatorio
+            const text = charArray[Math.floor(Math.random() * charArray.length)];
+            
+            // Dibujar el carácter
+            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+            
+            // Resetear la gota cuando llega al final
+            if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                drops[i] = 0;
+            }
+            
+            drops[i]++;
+        }
+    }
+    
+    // Animar
+    setInterval(draw, 33);
+    
+    // Redimensionar canvas si cambia el tamaño de ventana
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    });
+    </script>
+    """, unsafe_allow_html=True)
+    
     # Centrar contenido
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
         st.markdown("# 🔐 Pro Scanner")
         st.markdown("---")
         
@@ -264,6 +350,8 @@ def login_alumno():
                 st.success("✅ ¡Acceso concedido!")
                 st.rerun()
             # Si falla authenticate_password, el error ya se mostró en la función
+        
+        st.markdown('</div>', unsafe_allow_html=True)
                     
 
 # Mostrar login si no está autenticado
