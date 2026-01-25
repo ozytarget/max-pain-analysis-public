@@ -241,20 +241,68 @@ if "admin_lockout_time" not in st.session_state:
 def login_alumno():
     """Pantalla de login simple - Solo contraseña con efecto Digital Rain"""
     
-    # Efecto Digital Rain de fondo
+    # Inyectar el canvas con JavaScript funcional
+    import streamlit.components.v1 as components
+    
+    components.html("""
+    <canvas id="matrix-canvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; background: #000;"></canvas>
+    <script>
+    (function() {
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*';
+        const charArray = chars.split('');
+        const fontSize = 16;
+        const columns = Math.floor(canvas.width / fontSize);
+        const drops = [];
+        
+        for(let i = 0; i < columns; i++) {
+            drops[i] = Math.random() * -100;
+        }
+        
+        function draw() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#00f0ff';
+            ctx.font = fontSize + 'px monospace';
+            
+            for(let i = 0; i < drops.length; i++) {
+                const text = charArray[Math.floor(Math.random() * charArray.length)];
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                
+                if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+        
+        setInterval(draw, 33);
+        
+        window.addEventListener('resize', function() {
+            resizeCanvas();
+            drops.length = Math.floor(canvas.width / fontSize);
+            for(let i = 0; i < drops.length; i++) {
+                if(drops[i] === undefined) drops[i] = Math.random() * -100;
+            }
+        });
+    })();
+    </script>
+    """, height=0)
+    
+    # Estilos CSS para el contenedor
     st.markdown("""
     <style>
     .stApp {
-        background: transparent;
-    }
-    #matrix-canvas {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: -1;
-        background: #000;
+        background: transparent !important;
     }
     .login-container {
         position: relative;
@@ -267,62 +315,6 @@ def login_alumno():
         backdrop-filter: blur(10px);
     }
     </style>
-    
-    <canvas id="matrix-canvas"></canvas>
-    
-    <script>
-    const canvas = document.getElementById('matrix-canvas');
-    const ctx = canvas.getContext('2d');
-    
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    
-    // Caracteres para la lluvia (números y letras)
-    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*';
-    const charArray = chars.split('');
-    
-    const fontSize = 16;
-    const columns = canvas.width / fontSize;
-    
-    // Array de gotas - una por columna
-    const drops = [];
-    for(let i = 0; i < columns; i++) {
-        drops[i] = Math.random() * -100;
-    }
-    
-    function draw() {
-        // Capa semi-transparente negra para crear el efecto de rastro
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = '#00f0ff'; // Color cyan/azul neón
-        ctx.font = fontSize + 'px monospace';
-        
-        for(let i = 0; i < drops.length; i++) {
-            // Carácter aleatorio
-            const text = charArray[Math.floor(Math.random() * charArray.length)];
-            
-            // Dibujar el carácter
-            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-            
-            // Resetear la gota cuando llega al final
-            if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-                drops[i] = 0;
-            }
-            
-            drops[i]++;
-        }
-    }
-    
-    // Animar
-    setInterval(draw, 33);
-    
-    // Redimensionar canvas si cambia el tamaño de ventana
-    window.addEventListener('resize', () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    });
-    </script>
     """, unsafe_allow_html=True)
     
     # Centrar contenido
