@@ -241,80 +241,93 @@ if "admin_lockout_time" not in st.session_state:
 def login_alumno():
     """Pantalla de login simple - Solo contraseña con efecto Digital Rain"""
     
-    # Inyectar el canvas con JavaScript funcional
-    import streamlit.components.v1 as components
-    
-    components.html("""
-    <canvas id="matrix-canvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; background: #000;"></canvas>
-    <script>
-    (function() {
-        const canvas = document.getElementById('matrix-canvas');
-        const ctx = canvas.getContext('2d');
-        
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        resizeCanvas();
-        
-        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*';
-        const charArray = chars.split('');
-        const fontSize = 16;
-        const columns = Math.floor(canvas.width / fontSize);
-        const drops = [];
-        
-        for(let i = 0; i < columns; i++) {
-            drops[i] = Math.random() * -100;
-        }
-        
-        function draw() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = '#00f0ff';
-            ctx.font = fontSize + 'px monospace';
-            
-            for(let i = 0; i < drops.length; i++) {
-                const text = charArray[Math.floor(Math.random() * charArray.length)];
-                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                
-                if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-                    drops[i] = 0;
-                }
-                drops[i]++;
-            }
-        }
-        
-        setInterval(draw, 33);
-        
-        window.addEventListener('resize', function() {
-            resizeCanvas();
-            drops.length = Math.floor(canvas.width / fontSize);
-            for(let i = 0; i < drops.length; i++) {
-                if(drops[i] === undefined) drops[i] = Math.random() * -100;
-            }
-        });
-    })();
-    </script>
-    """, height=0)
-    
-    # Estilos CSS para el contenedor
+    # Efecto Digital Rain con canvas HTML5
     st.markdown("""
     <style>
+    /* Ocultar elementos de Streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Fondo negro */
     .stApp {
-        background: transparent !important;
+        background: #000 !important;
     }
+    
+    /* Canvas de fondo */
+    #matrixCanvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+        background: #000;
+    }
+    
+    /* Contenedor de login */
     .login-container {
         position: relative;
-        z-index: 10;
-        background: rgba(0, 20, 30, 0.85);
-        padding: 3rem;
+        z-index: 100;
+        background: rgba(0, 20, 30, 0.9);
+        padding: 2.5rem;
         border-radius: 15px;
-        border: 2px solid rgba(0, 240, 255, 0.3);
-        box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
+        border: 2px solid rgba(0, 240, 255, 0.4);
+        box-shadow: 0 0 40px rgba(0, 240, 255, 0.3);
         backdrop-filter: blur(10px);
     }
+    
+    /* Asegurar que el contenido esté encima */
+    .main .block-container {
+        position: relative;
+        z-index: 10;
+    }
     </style>
+    
+    <canvas id="matrixCanvas"></canvas>
+    
+    <script>
+    // Matrix Rain Effect
+    const canvas = document.getElementById('matrixCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*';
+    const fontSize = 16;
+    const columns = Math.floor(canvas.width / fontSize);
+    const drops = [];
+    
+    for (let i = 0; i < columns; i++) {
+        drops[i] = Math.random() * -100;
+    }
+    
+    function draw() {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#00f0ff';
+        ctx.font = fontSize + 'px monospace';
+        
+        for (let i = 0; i < drops.length; i++) {
+            const char = chars[Math.floor(Math.random() * chars.length)];
+            ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+            
+            if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                drops[i] = 0;
+            }
+            drops[i]++;
+        }
+    }
+    
+    setInterval(draw, 33);
+    
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    });
+    </script>
     """, unsafe_allow_html=True)
     
     # Centrar contenido
