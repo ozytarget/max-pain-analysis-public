@@ -8485,15 +8485,14 @@ def main():
                                 gummy_ax.spines['bottom'].set_color('white')
                                 gummy_ax.grid(True, axis='y', alpha=0.8, color='white', linestyle=':')
                                 
-                                # Sin colores en la gráfica - todo en blanco/gris
-                                CALL_TEXT = '#ffffff'
-                                CALL_BORDER = '#ffffff'
-                                CALL_FILL = 'none'  # Sin relleno
-                                PUT_TEXT = '#ffffff'
-                                PUT_BORDER = '#ffffff'
-                                PUT_FILL = 'none'  # Sin relleno
-                                VERTICAL_LINE = '#ffffff'
-                                PIVOT_LOCAL = '#ffffff'
+                                CALL_TEXT = '#ff0000'
+                                CALL_BORDER = '#ff0000'
+                                CALL_FILL = '#660000'
+                                PUT_TEXT = '#00ff00'
+                                PUT_BORDER = '#00cc00'
+                                PUT_FILL = '#003300'
+                                VERTICAL_LINE = '#00ffff'
+                                PIVOT_LOCAL = '#ffff00'
                                 
                                 dx_near = 0.06
                                 dx_step = 0.04
@@ -8577,9 +8576,11 @@ def main():
                                         box_center = (low + high) / 2
                                         box_low = box_center - box_height / 2
                                         
-                                        # Sin rectángulos de colores - solo líneas blancas
-                                        gummy_ax.plot([i-0.35, i], [box_center, box_center], 
-                                                color='white', linewidth=1, alpha=0.3)
+                                        rect = mpatches.Rectangle(
+                                            (i - 0.35, box_low), 0.35, box_height,
+                                            linewidth=0, edgecolor='none', facecolor=CALL_FILL, alpha=0.8
+                                        )
+                                        gummy_ax.add_patch(rect)
                                         
                                         # Calcular midpoint único para el rango
                                         midpoint = (low + high) / 2
@@ -8614,9 +8615,11 @@ def main():
                                         box_center = (low + high) / 2
                                         box_low = box_center - box_height / 2
                                         
-                                        # Sin rectángulos de colores - solo líneas blancas
-                                        gummy_ax.plot([i, i+0.35], [box_center, box_center], 
-                                                color='white', linewidth=1, alpha=0.3)
+                                        rect = mpatches.Rectangle(
+                                            (i, box_low), 0.35, box_height,
+                                            linewidth=0, edgecolor='none', facecolor=PUT_FILL, alpha=0.8
+                                        )
+                                        gummy_ax.add_patch(rect)
                                         
                                         # Calcular midpoint único para el rango
                                         midpoint = (low + high) / 2
