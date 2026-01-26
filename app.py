@@ -8705,21 +8705,46 @@ def main():
                                         
                                         # Extraer primer cluster (mayor OI) para CALLS y PUTS
                                         call_range = "N/A"
+                                        call_low, call_high = None, None
                                         if gummy_call_clusters and len(gummy_call_clusters) > 0:
                                             low, high, _ = gummy_call_clusters[0]
                                             if not (np.isnan(low) or np.isnan(high)):
                                                 call_range = f"${low:.2f} - ${high:.2f}"
+                                                call_low, call_high = low, high
                                         
                                         put_range = "N/A"
+                                        put_low, put_high = None, None
                                         if gummy_put_clusters and len(gummy_put_clusters) > 0:
                                             low, high, _ = gummy_put_clusters[0]
                                             if not (np.isnan(low) or np.isnan(high)):
                                                 put_range = f"${low:.2f} - ${high:.2f}"
+                                                put_low, put_high = low, high
+                                        
+                                        # Calcular nivel pivote y mids
+                                        pivot_nivel = ""
+                                        mid_alza = ""
+                                        mid_baja = ""
+                                        
+                                        if call_low is not None and put_low is not None:
+                                            # Nivel pivote: promedio de todos los valores
+                                            nivel_pivote_val = (call_low + call_high + put_low + put_high) / 4
+                                            pivot_nivel = f'<div style="color: #ffff00; font-size: 18px; margin-top: 4px;">🎯 Nivel pivote: ≈ {nivel_pivote_val:.2f}</div>'
+                                            
+                                            # Mid alza: promedio de calls
+                                            mid_alza_val = (call_low + call_high) / 2
+                                            mid_alza = f'<div style="color: #ff9999; font-size: 16px;">⬆️ Mid alza: {mid_alza_val:.2f}</div>'
+                                            
+                                            # Mid baja: promedio de puts
+                                            mid_baja_val = (put_low + put_high) / 2
+                                            mid_baja = f'<div style="color: #99ff99; font-size: 16px;">⬇️ Mid baja: {mid_baja_val:.2f}</div>'
                                         
                                         range_list_html += f'''<div style="margin-bottom: 10px; padding: 8px;">
     <div style="color: #ffffff; font-weight: bold; font-size: 24px; margin-bottom: 4px;">{date_label}</div>
     <div style="color: #ff6666; font-size: 20px; margin-bottom: 2px;">📈 {call_range}</div>
     <div style="color: #66ff66; font-size: 20px;">📉 {put_range}</div>
+    {pivot_nivel}
+    {mid_alza}
+    {mid_baja}
 </div>'''
                                     
                                     range_list_html += '</div>'
