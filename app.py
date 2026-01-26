@@ -8718,30 +8718,27 @@ def main():
                                                 put_low, put_high = low, high
                                         
                                         # Calcular nivel pivote y mids
-                                        pivot_nivel = ""
-                                        mid_alza = ""
-                                        mid_baja = ""
+                                        pivot_section = ""
                                         
                                         if call_low is not None and put_low is not None:
                                             # Nivel pivote: promedio de todos los valores
                                             nivel_pivote_val = (call_low + call_high + put_low + put_high) / 4
-                                            pivot_nivel = f'<div style="color: #ffff00; font-size: 18px; margin-top: 4px;">🎯 Nivel pivote: ≈ {nivel_pivote_val:.2f}</div>'
                                             
                                             # Mid alza: promedio de calls
                                             mid_alza_val = (call_low + call_high) / 2
-                                            mid_alza = f'<div style="color: #ff9999; font-size: 16px;">⬆️ Mid alza: {mid_alza_val:.2f}</div>'
                                             
                                             # Mid baja: promedio de puts
                                             mid_baja_val = (put_low + put_high) / 2
-                                            mid_baja = f'<div style="color: #99ff99; font-size: 16px;">⬇️ Mid baja: {mid_baja_val:.2f}</div>'
+                                            
+                                            pivot_section = f'''
+    <div style="color: #ffff00; font-size: 18px; margin-top: 4px;">🎯 Nivel pivote: ≈ {nivel_pivote_val:.2f}</div>
+    <div style="color: #ff9999; font-size: 16px; margin-top: 2px;">⬆️ Mid alza: {mid_alza_val:.2f}</div>
+    <div style="color: #99ff99; font-size: 16px; margin-top: 2px;">⬇️ Mid baja: {mid_baja_val:.2f}</div>'''
                                         
-                                        range_list_html += f'''<div style="margin-bottom: 10px; padding: 8px;">
-    <div style="color: #ffffff; font-weight: bold; font-size: 24px; margin-bottom: 4px;">{date_label}</div>
-    <div style="color: #ff6666; font-size: 20px; margin-bottom: 2px;">📈 {call_range}</div>
-    <div style="color: #66ff66; font-size: 20px;">📉 {put_range}</div>
-    {pivot_nivel}
-    {mid_alza}
-    {mid_baja}
+                                        range_list_html += f'''<div style="margin-bottom: 15px; padding: 8px; border-bottom: 1px solid #333;">
+    <div style="color: #ffffff; font-weight: bold; font-size: 24px; margin-bottom: 6px;">{date_label}</div>
+    <div style="color: #ff6666; font-size: 20px; margin-bottom: 4px;">📈 {call_range}</div>
+    <div style="color: #66ff66; font-size: 20px; margin-bottom: 4px;">📉 {put_range}</div>{pivot_section}
 </div>'''
                                     
                                     range_list_html += '</div>'
