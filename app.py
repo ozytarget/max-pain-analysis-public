@@ -72,8 +72,13 @@ def render_background_video(video_path: str) -> None:
         st.markdown(
             f"""
             <style>
-            .stApp {{
-                background: transparent;
+            html, body {{
+                background: transparent !important;
+            }}
+            .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"],
+            [data-testid="stSidebar"], [data-testid="stSidebarNav"],
+            section.main, .block-container {{
+                background: transparent !important;
             }}
             #video-background {{
                 position: fixed;
@@ -84,6 +89,7 @@ def render_background_video(video_path: str) -> None:
                 object-fit: cover;
                 z-index: -1;
                 filter: brightness(0.45);
+                pointer-events: none;
             }}
             </style>
             <video id="video-background" autoplay loop muted playsinline>
