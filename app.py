@@ -281,9 +281,11 @@ def login_alumno():
         st.markdown("# 🔐 Pro Scanner")
         st.markdown("---")
         
-        password = st.text_input("🔑 Contraseña", type="password", placeholder="Ingresa tu contraseña")
+        with st.form("login_form"):
+            password = st.text_input("🔑 Contraseña", type="password", placeholder="Ingresa tu contraseña")
+            submitted = st.form_submit_button("🚀 Entrar", use_container_width=True)
         
-        if st.button("🚀 Entrar", use_container_width=True):
+        if submitted:
             if not password:
                 st.error("❌ Ingresa tu contraseña")
                 return
