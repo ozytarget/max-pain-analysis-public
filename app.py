@@ -4289,7 +4289,8 @@ def main():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
 
-    render_background_video(r"c:\Users\urbin\OneDrive\Desktop\New folder\starfield-bg.mp4")
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    render_background_video(os.path.join(project_root, "assets", "starfield-bg.mp4"))
 
     
     # Solo una columna para el título, sin logo
