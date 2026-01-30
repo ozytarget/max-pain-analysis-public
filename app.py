@@ -255,26 +255,20 @@ def authenticate_password(input_password):
     logger.warning(f"Authentication failed: Invalid password {input_password}")
     return False
 
-# Initialize database
-initialize_passwords_db()
-
-# Session state initialization
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-if "intro_shown" not in st.session_state:
-    st.session_state["intro_shown"] = False
-if "session_token" not in st.session_state:
-    st.session_state["session_token"] = None
-if "current_user" not in st.session_state:
-    st.session_state["current_user"] = None
-if "admin_authenticated" not in st.session_state:
-    st.session_state["admin_authenticated"] = False
-if "show_admin_panel" not in st.session_state:
-    st.session_state["show_admin_panel"] = False
-if "admin_failed_attempts" not in st.session_state:
-    st.session_state["admin_failed_attempts"] = 0
-if "admin_lockout_time" not in st.session_state:
-    st.session_state["admin_lockout_time"] = None
+def initialize_session_state() -> None:
+    defaults = {
+        "authenticated": False,
+        "intro_shown": False,
+        "session_token": None,
+        "current_user": None,
+        "admin_authenticated": False,
+        "show_admin_panel": False,
+        "admin_failed_attempts": 0,
+        "admin_lockout_time": None,
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 # SIMPLE LOGIN SCREEN - Solo contraseña
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -305,21 +299,6 @@ def login_alumno():
                 st.rerun()
             # Si falla authenticate_password, el error ya se mostró en la función
                     
-
-# Mostrar login si no está autenticado
-if not st.session_state["authenticated"]:
-    login_alumno()
-    st.stop()
-
-# Optimized introductory animation (same format, faster duration)
-if not st.session_state["intro_shown"]:
-    st.session_state["intro_shown"] = True
-
-# ==================== MAIN APPLICATION BEGINS HERE ====================
-# Users see only the trading application, NO login screen, NO admin panels
-
-
-
 
 @st.cache_data(ttl=CACHE_TTL)
 def fetch_logo_url(symbol: str) -> str:
@@ -4286,11 +4265,19 @@ def display_mm_contract_winner(df_contracts, ticker, current_price, target_price
 def main():
     # Pantalla de autenticación sin logo
     initialize_passwords_db()
-    if "authenticated" not in st.session_state:
-        st.session_state["authenticated"] = False
+    initialize_session_state()
 
     project_root = os.path.dirname(os.path.abspath(__file__))
     render_background_video(os.path.join(project_root, "assets", "starfield-bg.mp4"))
+
+    # Mostrar login si no está autenticado
+    if not st.session_state["authenticated"]:
+        login_alumno()
+        st.stop()
+
+    # Optimized introductory animation (same format, faster duration)
+    if not st.session_state["intro_shown"]:
+        st.session_state["intro_shown"] = True
 
     
     # Solo una columna para el título, sin logo
