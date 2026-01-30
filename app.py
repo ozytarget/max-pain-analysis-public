@@ -61,6 +61,40 @@ logging.getLogger("streamlit").setLevel(logging.ERROR)
 from dotenv import load_dotenv
 load_dotenv()
 
+def render_background_video(video_path: str) -> None:
+    if not os.path.isfile(video_path):
+        logger.warning(f"Background video not found: {video_path}")
+        return
+    try:
+        with open(video_path, "rb") as video_file:
+            video_bytes = video_file.read()
+        video_base64 = base64.b64encode(video_bytes).decode("utf-8")
+        st.markdown(
+            f"""
+            <style>
+            .stApp {{
+                background: transparent;
+            }}
+            #video-background {{
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                object-fit: cover;
+                z-index: -1;
+                filter: brightness(0.45);
+            }}
+            </style>
+            <video id="video-background" autoplay loop muted playsinline>
+                <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+            </video>
+            """,
+            unsafe_allow_html=True
+        )
+    except Exception as exc:
+        logger.error(f"Failed to load background video: {exc}")
+
 # API Sessions and Configurations
 session_fmp = requests.Session()
 session_tradier = requests.Session()
@@ -4249,6 +4283,8 @@ def main():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
 
+    render_background_video(r"c:\Users\urbin\OneDrive\Desktop\New folder\starfield-bg.mp4")
+
     
     # Solo una columna para el título, sin logo
     st.markdown("""
@@ -4262,7 +4298,7 @@ def main():
         <style>
         /* Fondo global negro puro como las gráficas */
         .stApp {
-            background-color: #000000;
+            background-color: transparent;
         }
         .stTextInput, .stSelectbox {
             background-color: #2D2D2D;
