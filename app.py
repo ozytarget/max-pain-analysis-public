@@ -8377,6 +8377,19 @@ def main():
                 border-radius: 10px;
                 font-weight: 600;
             }
+            .gamma-controls-row {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin: 10px 0 16px;
+            }
+            .gamma-controls-row .stTextInput > div,
+            .gamma-controls-row .stTextInput input {
+                width: 100%;
+            }
+            .gamma-controls-row .stButton > button {
+                width: 100%;
+            }
             .gamma-scenario {
                 margin: 20px 0 12px;
                 background: #0f172a;
@@ -8515,41 +8528,39 @@ def main():
         st.markdown('<div class="gamma-layout">', unsafe_allow_html=True)
         st.markdown('<section class="gamma-panel">', unsafe_allow_html=True)
 
-        header_left, header_right = st.columns([2, 1])
-        with header_left:
-            st.markdown('<div class="gamma-panel-header">', unsafe_allow_html=True)
-            st.markdown("<div>", unsafe_allow_html=True)
-            header_text = ""
-            expiration_row = "Expirations: --"
-            if st.session_state["gamma_timeline_data"]:
-                header_text = _build_header_text(st.session_state["gamma_timeline_data"])
-                exp_list = st.session_state["gamma_timeline_data"].get("available_expirations", [])
-                if exp_list:
-                    expiration_row = f"Expirations: {' '.join(exp_list)}"
-            loading_text = ""
-            if st.session_state["gamma_loading"]:
-                loading_text = "Loading..."
-            st.markdown(f"<p class=\"gamma-header-text\">{header_text}</p>", unsafe_allow_html=True)
-            st.markdown(f"<p class=\"gamma-loading-text\">{loading_text}</p>", unsafe_allow_html=True)
-            st.markdown(f"<p class=\"gamma-exp-row\">{expiration_row}</p>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('<div class="gamma-panel-header">', unsafe_allow_html=True)
+        st.markdown("<div>", unsafe_allow_html=True)
+        header_text = ""
+        expiration_row = "Expirations: --"
+        if st.session_state["gamma_timeline_data"]:
+            header_text = _build_header_text(st.session_state["gamma_timeline_data"])
+            exp_list = st.session_state["gamma_timeline_data"].get("available_expirations", [])
+            if exp_list:
+                expiration_row = f"Expirations: {' '.join(exp_list)}"
+        loading_text = ""
+        if st.session_state["gamma_loading"]:
+            loading_text = "Loading..."
+        st.markdown(f"<p class=\"gamma-header-text\">{header_text}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class=\"gamma-loading-text\">{loading_text}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class=\"gamma-exp-row\">{expiration_row}</p>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        with header_right:
-            st.markdown('<div class="gamma-controls">', unsafe_allow_html=True)
-            st.markdown('<div class="gamma-label">Symbol</div>', unsafe_allow_html=True)
-            st.text_input(
-                "",
-                value=ticker,
-                key="gamma_symbol",
-                label_visibility="collapsed",
-                on_change=_run_gamma_analysis,
-            )
-            st.button("Analyze", key="gamma_analyze", on_click=_run_gamma_analysis)
-
-            st.markdown('<div class="gamma-downloads">', unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('<div class="gamma-controls-row">', unsafe_allow_html=True)
+        controls_spacer_left, controls_center, controls_spacer_right = st.columns([1, 2, 1])
+        with controls_center:
+            input_col, button_col = st.columns([3, 1])
+            with input_col:
+                st.text_input(
+                    "",
+                    value=ticker,
+                    key="gamma_symbol",
+                    label_visibility="collapsed",
+                    placeholder="Enter ticker",
+                )
+            with button_col:
+                st.button("Analyze", key="gamma_analyze", on_click=_run_gamma_analysis)
+        st.markdown("</div>", unsafe_allow_html=True)
 
         data = st.session_state["gamma_timeline_data"]
         summary_df = pd.DataFrame()
@@ -8857,10 +8868,6 @@ def main():
                 )
 
             summary_df = pd.DataFrame(summary_rows)
-            if summary_rows:
-                st.markdown("### Summary by Expiration Date")
-                st.dataframe(summary_df, use_container_width=True, hide_index=True)
-
             summary_text = _build_summary_text(data)
 
         csv_data = summary_df.to_csv(index=False) if not summary_df.empty else ""
