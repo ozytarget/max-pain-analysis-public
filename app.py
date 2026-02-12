@@ -4673,15 +4673,29 @@ def main():
     # MAIN APPLICATION TABS
     # ═════════════════════════════════════════════════════════════════════════════════
     # ═════════════════════════════════════════════════════════════════════════════════
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
-        "| Gummy Data Bubbles® |", "| Market Scanner |", "| News |",
-        "| MM Market Analysis |", "| Analyst Rating Flow |", "| Elliott Pulse® |",
-        "| Target Generator |", "|  Metrics  |", "| Multi-Date Options |"
-    ])
+    tab_labels = [
+        "| Gummy Data Bubbles® |",
+        "| Market Scanner |",
+        "| News |",
+        "| MM Market Analysis |",
+        "| Analyst Rating Flow |",
+        "| Elliott Pulse® |",
+        "| Target Generator |",
+        "|  Metrics  |",
+        "| Multi-Date Options |",
+    ]
+    active_tab = st.radio(
+        "",
+        tab_labels,
+        key="active_tab",
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    default_ticker = st.session_state.get("ticker_input_main", "SPY")
 
 
     # Tab 1: Gummy Data Bubbles®
-    with tab1:
+    if active_tab == tab_labels[0]:
         ticker = st.text_input("Ticker", value="SPY", key="ticker_input_main").upper()
         
         expiration_dates = get_expiration_dates(ticker)
@@ -5392,7 +5406,7 @@ def main():
     # ==================================================================================
     # TAB 2: CRAZY SCANNER (FinViz Elite Integration)
     # ==================================================================================
-    with tab2:
+    if active_tab == tab_labels[1]:
         st.markdown("""
         <div style='text-align: center; padding: 20px; background: linear-gradient(90deg, #FF00FF, #FF8C00); border-radius: 10px;'>
             <h1 style='color: white; font-size: 48px; text-shadow: 0 0 10px rgba(255,255,255,0.8);'>
@@ -6268,7 +6282,7 @@ def main():
         st.markdown("---")
         st.markdown("*🚀 Developed by Ozy *")
     # Tab 3: News Scanner
-    with tab3:
+    if active_tab == tab_labels[2]:
         st.subheader("News Scanner")
         
         # Inicializar st.session_state para latest_news si no existe
@@ -6377,7 +6391,7 @@ def main():
 
 
     # Tab 4: MM Market Analysis
-    with tab4:
+    if active_tab == tab_labels[3]:
         st.subheader("📊 Market Maker Analysis - Smart Strike Valuation")
         
         # Input fields
@@ -6561,7 +6575,7 @@ def main():
 
     # Tab 5: Analyst Rating Flow
         # Tab 5: Analyst Rating Flow
-    with tab5:
+    if active_tab == tab_labels[4]:
         st.subheader("Rating Flow")
         
         # Estilos personalizados
@@ -6879,7 +6893,7 @@ def main():
             st.markdown("*Developed by Ozy | © 2025*")
 
     # Tab 6: MM Flow Dynamics
-    with tab6:
+    if active_tab == tab_labels[5]:
         st.subheader("📊 MM Flow Dynamics - Market Maker Positioning Analysis")
         
         col1, col2 = st.columns(2)
@@ -7159,7 +7173,7 @@ def main():
                 """)
 
     # Tab 7: Trade Targets & MM Logic
-    with tab7:
+    if active_tab == tab_labels[6]:
         st.subheader("🎯 Trade Targets & MM Logic")
         
         # Configuración inicial
@@ -8051,7 +8065,7 @@ def main():
         st.markdown("*Developed by Ozy | © 2025*")
 
     # Tab 8: INSTITUTIONAL MM SYSTEM - Phase 1
-    with tab8:
+    if active_tab == tab_labels[7]:
         st.markdown("# Gamma-Based Market Microstructure Analysis")
         st.divider()
         
@@ -8278,7 +8292,7 @@ def main():
         st.markdown("---")
 
 
-    with tab9:
+    if active_tab == tab_labels[8]:
         st.markdown("---")
         st.subheader("")
 
@@ -8553,7 +8567,7 @@ def main():
             with input_col:
                 st.text_input(
                     "",
-                    value=ticker,
+                    value=default_ticker,
                     key="gamma_symbol",
                     label_visibility="collapsed",
                     placeholder="Enter ticker",
