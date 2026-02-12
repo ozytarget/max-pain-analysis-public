@@ -8305,8 +8305,6 @@ def main():
 
 
     if active_tab == tab_labels[8]:
-        st.subheader("")
-
         st.markdown(
             """
             <style>
