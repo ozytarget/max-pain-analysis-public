@@ -29,6 +29,8 @@ import socket
 import base64
 import os
 import pytz
+import json
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 from user_management import (
     authenticate_user, create_user, check_daily_limit, increment_usage,
@@ -8283,16 +8285,49 @@ def main():
         st.markdown(
             """
             <style>
+            :root {
+                --bg: #0b0f1a;
+                --panel: #111827;
+                --text: #e5e7eb;
+                --muted: #94a3b8;
+                --green: #22c55e;
+                --red: #ef4444;
+                --gold: #facc15;
+                --grid: rgba(148, 163, 184, 0.15);
+            }
+            .gamma-layout {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 18px 10px 24px;
+            }
             .gamma-panel {
-                background: #111827;
+                background: var(--panel);
                 border-radius: 18px;
-                padding: 18px;
+                padding: 24px;
                 box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+            }
+            .gamma-panel-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                flex-wrap: wrap;
+            }
+            .gamma-panel-header h1 {
+                margin: 0 0 8px;
+                font-size: 28px;
             }
             .gamma-header-text {
                 margin: 0;
-                color: #94a3b8;
+                color: var(--muted);
                 font-size: 14px;
+            }
+            .gamma-loading-text {
+                margin: 6px 0 0;
+                color: #38bdf8;
+                font-size: 12px;
+                min-height: 16px;
+                opacity: 0.9;
             }
             .gamma-exp-row {
                 margin: 6px 0 0;
@@ -8300,8 +8335,50 @@ def main():
                 font-size: 12px;
                 opacity: 0.7;
             }
+            .gamma-controls {
+                display: flex;
+                gap: 12px;
+                align-items: flex-end;
+                flex-wrap: wrap;
+            }
+            .gamma-controls .gamma-label {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .gamma-controls input {
+                padding: 8px 10px;
+                border-radius: 8px;
+                border: 1px solid #1f2937;
+                background: #0f172a;
+                color: var(--text);
+            }
+            .gamma-controls .stButton > button {
+                padding: 10px 18px;
+                border-radius: 10px;
+                border: none;
+                background: linear-gradient(120deg, #22c55e, #16a34a);
+                color: #0b0f1a;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            .gamma-downloads {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .gamma-downloads .stDownloadButton > button {
+                background: #111c33;
+                color: #cbd5f5;
+                border: 1px solid #1f2a44;
+                padding: 10px 14px;
+                border-radius: 10px;
+                font-weight: 600;
+            }
             .gamma-scenario {
-                margin: 18px 0 12px;
+                margin: 20px 0 12px;
                 background: #0f172a;
                 border-radius: 999px;
                 overflow: hidden;
@@ -8327,6 +8404,20 @@ def main():
                 color: #450a0a;
                 font-weight: 700;
             }
+            .gamma-chart-wrap {
+                background: #0b1220;
+                padding: 20px;
+                border-radius: 16px;
+                height: 820px;
+            }
+            @media (max-width: 720px) {
+                .gamma-controls {
+                    width: 100%;
+                }
+                .gamma-controls .stButton > button {
+                    width: 100%;
+                }
+            }
             </style>
             """,
             unsafe_allow_html=True,
@@ -8334,6 +8425,8 @@ def main():
 
         if "gamma_timeline_data" not in st.session_state:
             st.session_state["gamma_timeline_data"] = None
+        if "gamma_loading" not in st.session_state:
+            st.session_state["gamma_loading"] = False
 
         @st.cache_data(ttl=300)
         def _gamma_get_expirations(symbol: str) -> List[str]:
@@ -8405,9 +8498,14 @@ def main():
             )
             return f"{base} | {scenario_text}" if scenario_text else base
 
-        col_left, col_right = st.columns([3, 2])
-        with col_left:
-            st.markdown('<div class="gamma-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="gamma-layout">', unsafe_allow_html=True)
+        st.markdown('<section class="gamma-panel">', unsafe_allow_html=True)
+
+        header_left, header_right = st.columns([2, 1])
+        with header_left:
+            st.markdown('<div class="gamma-panel-header">', unsafe_allow_html=True)
+            st.markdown("<div>", unsafe_allow_html=True)
+            st.markdown("<h1>Gamma Timeline</h1>", unsafe_allow_html=True)
             header_text = "Enter a ticker symbol to begin."
             expiration_row = "Expirations: --"
             if st.session_state["gamma_timeline_data"]:
@@ -8415,35 +8513,40 @@ def main():
                 exp_list = st.session_state["gamma_timeline_data"].get("available_expirations", [])
                 if exp_list:
                     expiration_row = f"Expirations: {' '.join(exp_list)}"
+            loading_text = ""
+            if st.session_state["gamma_loading"]:
+                loading_text = "Loading..."
             st.markdown(f"<p class=\"gamma-header-text\">{header_text}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p class=\"gamma-loading-text\">{loading_text}</p>", unsafe_allow_html=True)
             st.markdown(f"<p class=\"gamma-exp-row\">{expiration_row}</p>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        with col_right:
-            gamma_symbol = st.text_input("Symbol", value=ticker, key="gamma_symbol").upper()
-            gamma_expiration = None
-            expiration_options = ["All"]
-            if gamma_symbol:
-                try:
-                    expiration_options += _gamma_get_expirations(gamma_symbol)
-                except Exception as exc:
-                    logger.error(f"Gamma timeline expirations error: {exc}")
-            selected_expiration = st.selectbox("Expiration", expiration_options, key="gamma_expiration")
-            if selected_expiration != "All":
-                gamma_expiration = selected_expiration
-
+        with header_right:
+            st.markdown('<div class="gamma-controls">', unsafe_allow_html=True)
+            st.markdown('<div class="gamma-label">Symbol</div>', unsafe_allow_html=True)
+            gamma_symbol = st.text_input("", value=ticker, key="gamma_symbol", label_visibility="collapsed").upper()
             if st.button("Analyze", key="gamma_analyze"):
                 if not gamma_symbol:
                     st.warning("Enter a ticker symbol first.")
                 else:
+                    st.session_state["gamma_loading"] = True
                     with st.spinner("Loading options data..."):
                         try:
-                            st.session_state["gamma_timeline_data"] = _gamma_analyze(gamma_symbol, gamma_expiration)
+                            st.session_state["gamma_timeline_data"] = _gamma_analyze(gamma_symbol, None)
                         except Exception as exc:
                             logger.error(f"Gamma timeline error: {exc}")
                             st.error(f"Error: {str(exc)}")
+                    st.session_state["gamma_loading"] = False
+
+            st.markdown('<div class="gamma-downloads">', unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         data = st.session_state["gamma_timeline_data"]
+        summary_df = pd.DataFrame()
+        chart_bytes = None
+        summary_text = ""
         if data:
             scenario = data.get("scenario")
             bull = scenario.get("bull_prob", 50) if scenario else 50
@@ -8466,7 +8569,230 @@ def main():
             hist_series = timeline.get("historical", [])
             target_series = timeline.get("target", [])
             price_value = data.get("price")
-            price_series = [price_value for _ in expirations]
+
+            chart_payload = {
+                "gamma_timeline": {
+                    "expirations": expirations,
+                    "total": total_series,
+                    "call": call_series,
+                    "put": put_series,
+                    "historical": hist_series,
+                    "target": target_series,
+                },
+                "price": price_value,
+                "pivot": data.get("pivot"),
+                "levels": data.get("levels", {}),
+                "sentiment_by_expiration": data.get("sentiment_by_expiration", {}),
+            }
+            chart_json = json.dumps(chart_payload)
+
+            chart_html = f"""
+            <div style="background:#0b1220;padding:20px;border-radius:16px;height:820px;">
+                <canvas id="gammaChart" style="width:100%;height:100%;"></canvas>
+            </div>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+            <script>
+            const payload = {chart_json};
+
+            function formatCurrency(value) {{
+                if (value === null || value === undefined || Number.isNaN(value)) {{
+                    return "--";
+                }}
+                return `$${{Number(value).toFixed(2)}}`;
+            }}
+
+            function buildLevelLines(levels, labelPrefix, color, labelColor) {{
+                return (levels || []).map((level) => ({
+                    y: level.level,
+                    label: `${{labelPrefix}} ${{formatCurrency(level.level)}} (${{level.probability}}%)`,
+                    color,
+                    labelColor,
+                }));
+            }}
+
+            const backgroundPlugin = {{
+                id: "columnBackgrounds",
+                beforeDatasetsDraw(chart, args, pluginOptions) {{
+                    const {{ ctx, chartArea, scales }} = chart;
+                    const {{ top, bottom }} = chartArea;
+                    const xScale = scales.x;
+                    if (!pluginOptions || !pluginOptions.sentiment) {{
+                        return;
+                    }}
+                    ctx.save();
+                    pluginOptions.sentiment.forEach((item, idx) => {{
+                        const x = xScale.getPixelForValue(idx);
+                        const next = xScale.getPixelForValue(idx + 1);
+                        const width = next ? next - x : xScale.getPixelForValue(idx) - xScale.getPixelForValue(idx - 1);
+                        if (!width || Number.isNaN(width)) {{
+                            return;
+                        }}
+                        const intensity = Math.min(Math.abs(item.dominance || 0), 1);
+                        if (intensity <= 0) {{
+                            return;
+                        }}
+                        const color = item.dominance > 0 ? `rgba(34, 197, 94, ${{0.12 + intensity * 0.3}})` : `rgba(239, 68, 68, ${{0.12 + intensity * 0.3}})`;
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x - width / 2, top, width, bottom - top);
+                    }});
+                    ctx.restore();
+                }},
+            }};
+
+            const lineLabelPlugin = {{
+                id: "lineLabels",
+                afterDatasetsDraw(chart, args, pluginOptions) {{
+                    const {{ ctx, chartArea, scales }} = chart;
+                    const items = pluginOptions?.lines || [];
+                    const yScale = scales.price;
+                    if (!yScale || items.length === 0) {{
+                        return;
+                    }}
+                    ctx.save();
+                    items.forEach((line) => {{
+                        const y = yScale.getPixelForValue(line.y);
+                        ctx.setLineDash([6, 6]);
+                        ctx.strokeStyle = line.color;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(chartArea.left, y);
+                        ctx.lineTo(chartArea.right, y);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.fillStyle = line.labelColor || line.color;
+                        ctx.font = "12px 'Space Grotesk', sans-serif";
+                        ctx.fillText(line.label, chartArea.right - 180, y - 6);
+                    }});
+                    ctx.restore();
+                }},
+            }};
+
+            function renderChart(data) {{
+                const timeline = data.gamma_timeline || {{}};
+                const expirations = timeline.expirations || [];
+                const sentimentMap = data.sentiment_by_expiration || {{}};
+                const sentimentList = expirations.map((exp) => sentimentMap[exp] || {{ dominance: 0 }});
+
+                const datasets = [
+                    {{
+                        type: "bar",
+                        label: "Total Gamma",
+                        data: timeline.total || [],
+                        backgroundColor: "rgba(59, 130, 246, 0.7)",
+                        borderRadius: 4,
+                        yAxisID: "gamma",
+                        hidden: true,
+                    }},
+                    {{
+                        type: "bar",
+                        label: "Call Gamma",
+                        data: timeline.call || [],
+                        backgroundColor: "rgba(34, 197, 94, 0.7)",
+                        borderRadius: 4,
+                        yAxisID: "gamma",
+                        hidden: true,
+                    }},
+                    {{
+                        type: "bar",
+                        label: "Put Gamma",
+                        data: timeline.put || [],
+                        backgroundColor: "rgba(239, 68, 68, 0.7)",
+                        borderRadius: 4,
+                        yAxisID: "gamma",
+                        hidden: true,
+                    }},
+                    {{
+                        type: "bar",
+                        label: "Historical",
+                        data: timeline.historical || [],
+                        backgroundColor: "rgba(148, 163, 184, 0.5)",
+                        borderRadius: 4,
+                        yAxisID: "gamma",
+                    }},
+                    {{
+                        type: "line",
+                        label: "Price",
+                        data: expirations.map(() => data.price || null),
+                        yAxisID: "price",
+                        borderColor: "rgba(250, 204, 21, 0.9)",
+                        backgroundColor: "rgba(250, 204, 21, 0.2)",
+                        tension: 0.2,
+                        pointRadius: 3,
+                    }},
+                    {{
+                        type: "line",
+                        label: "MM Target",
+                        data: timeline.target || [],
+                        yAxisID: "price",
+                        borderColor: "rgba(14, 165, 233, 0.9)",
+                        backgroundColor: "rgba(14, 165, 233, 0.15)",
+                        borderDash: [6, 4],
+                        tension: 0.3,
+                        pointRadius: 3,
+                    }},
+                ];
+
+                const levelLines = [];
+                if (data.pivot) {{
+                    levelLines.push({{
+                        y: data.pivot,
+                        label: `PIVOT ${{formatCurrency(data.pivot)}}`,
+                        color: "rgba(250, 204, 21, 0.9)",
+                        labelColor: "rgba(250, 204, 21, 0.9)",
+                    }});
+                }}
+
+                const levels = data.levels || {{}};
+                levelLines.push(...buildLevelLines(levels.resistance, "R", "rgba(239, 68, 68, 0.8)", "rgba(239, 68, 68, 0.9)"));
+                levelLines.push(...buildLevelLines(levels.support, "S", "rgba(34, 197, 94, 0.8)", "rgba(34, 197, 94, 0.9)"));
+
+                const ctx = document.getElementById("gammaChart");
+                if (!ctx) {{
+                    return;
+                }}
+
+                new Chart(ctx, {{
+                    data: {{
+                        labels: expirations,
+                        datasets,
+                    }},
+                    options: {{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {{
+                            x: {{
+                                grid: {{ color: "rgba(148, 163, 184, 0.1)" }},
+                                ticks: {{ color: "#94a3b8" }},
+                            }},
+                            price: {{
+                                position: "left",
+                                grid: {{ drawOnChartArea: false }},
+                                ticks: {{ color: "#facc15" }},
+                                title: {{ display: true, text: "Price", color: "#facc15" }},
+                            }},
+                            gamma: {{
+                                position: "right",
+                                grid: {{ color: "rgba(148, 163, 184, 0.12)" }},
+                                ticks: {{ color: "#94a3b8" }},
+                                title: {{ display: true, text: "Gamma", color: "#94a3b8" }},
+                            }},
+                        }},
+                        plugins: {{
+                            legend: {{ labels: {{ color: "#cbd5f5" }} }},
+                            tooltip: {{ mode: "index", intersect: false }},
+                            columnBackgrounds: {{ sentiment: sentimentList }},
+                            lineLabels: {{ lines: levelLines }},
+                        }},
+                    }},
+                    plugins: [backgroundPlugin, lineLabelPlugin],
+                }});
+            }}
+
+            renderChart(payload);
+            </script>
+            """
+
+            components.html(chart_html, height=860)
 
             fig = make_subplots(specs=[[{"secondary_y": True}]])
             fig.add_trace(
@@ -8486,24 +8812,13 @@ def main():
                 secondary_y=True,
             )
             fig.add_trace(
-                go.Scatter(name="Price", x=expirations, y=price_series, mode="lines+markers", line=dict(color="rgba(250,204,21,0.9)")),
+                go.Scatter(name="Price", x=expirations, y=[price_value for _ in expirations], mode="lines+markers", line=dict(color="rgba(250,204,21,0.9)")),
                 secondary_y=False,
             )
             fig.add_trace(
                 go.Scatter(name="MM Target", x=expirations, y=target_series, mode="lines+markers", line=dict(color="rgba(14,165,233,0.9)", dash="dash")),
                 secondary_y=False,
             )
-
-            pivot_value = data.get("pivot")
-            if pivot_value:
-                fig.add_hline(y=pivot_value, line_dash="dash", line_color="rgba(250,204,21,0.9)")
-
-            levels = data.get("levels", {})
-            for level in levels.get("resistance", []):
-                fig.add_hline(y=level.get("level"), line_dash="dot", line_color="rgba(239,68,68,0.8)")
-            for level in levels.get("support", []):
-                fig.add_hline(y=level.get("level"), line_dash="dot", line_color="rgba(34,197,94,0.8)")
-
             fig.update_layout(
                 barmode="group",
                 height=720,
@@ -8513,11 +8828,10 @@ def main():
                 legend=dict(orientation="h"),
                 margin=dict(l=30, r=30, t=30, b=40),
             )
-            fig.update_xaxes(tickangle=45, gridcolor="rgba(148,163,184,0.1)")
-            fig.update_yaxes(title_text="Price", secondary_y=False, color="#facc15")
-            fig.update_yaxes(title_text="Gamma", secondary_y=True, color="#94a3b8")
-
-            st.plotly_chart(fig, use_container_width=True)
+            try:
+                chart_bytes = fig.to_image(format="png", scale=2)
+            except Exception as exc:
+                logger.warning(f"Chart download unavailable: {exc}")
 
             stats = data.get("expiration_stats", [])
             summary_rows = []
@@ -8538,40 +8852,37 @@ def main():
                 st.markdown("### Summary by Expiration Date")
                 st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
-            csv_data = summary_df.to_csv(index=False) if summary_rows else ""
             summary_text = _build_summary_text(data)
 
-            chart_bytes = None
-            try:
-                chart_bytes = fig.to_image(format="png", scale=2)
-            except Exception as exc:
-                logger.warning(f"Chart download unavailable: {exc}")
+        csv_data = summary_df.to_csv(index=False) if not summary_df.empty else ""
 
-            dl_col1, dl_col2, dl_col3 = st.columns(3)
-            with dl_col1:
-                st.download_button(
-                    label="Download CSV",
-                    data=csv_data,
-                    file_name=f"{data.get('symbol', 'export')}_expiration_stats.csv",
-                    mime="text/csv",
-                    disabled=not bool(summary_rows),
-                )
-            with dl_col2:
-                st.download_button(
-                    label="Download Summary",
-                    data=summary_text,
-                    file_name=f"{data.get('symbol', 'summary')}_summary.txt",
-                    mime="text/plain",
-                    disabled=not bool(summary_rows),
-                )
-            with dl_col3:
-                st.download_button(
-                    label="Download Chart",
-                    data=chart_bytes or b"",
-                    file_name=f"{data.get('symbol', 'chart')}_gamma_timeline.png",
-                    mime="image/png",
-                    disabled=chart_bytes is None,
-                )
+        dl_col1, dl_col2, dl_col3 = st.columns(3)
+        with dl_col1:
+            st.download_button(
+                label="Download CSV",
+                data=csv_data,
+                file_name=f"{(data or {}).get('symbol', 'export')}_expiration_stats.csv",
+                mime="text/csv",
+                disabled=summary_df.empty,
+            )
+        with dl_col2:
+            st.download_button(
+                label="Download Summary",
+                data=summary_text or "",
+                file_name=f"{(data or {}).get('symbol', 'summary')}_summary.txt",
+                mime="text/plain",
+                disabled=summary_df.empty,
+            )
+        with dl_col3:
+            st.download_button(
+                label="Download Chart",
+                data=chart_bytes or b"",
+                file_name=f"{(data or {}).get('symbol', 'chart')}_gamma_timeline.png",
+                mime="image/png",
+                disabled=chart_bytes is None,
+            )
+
+        st.markdown("</section></div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
