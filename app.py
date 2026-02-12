@@ -5869,10 +5869,12 @@ def main():
                         else:
                             df_finviz = pd.DataFrame()
                     else:
-                        df_finviz = get_finviz_screener(finviz_filters, columns_to_fetch, add_delay=False)
+                        with st.spinner("🔍 Fetching data from FinViz Elite API..."):
+                            df_finviz = get_finviz_screener(finviz_filters, columns_to_fetch, add_delay=True)
                     
                     if "DOUBLE TOP" in scan_strategy and 'finviz_filters_alt' in locals():
-                        df_finviz_alt = get_finviz_screener(finviz_filters_alt, columns_to_fetch, add_delay=False)
+                        with st.spinner("🔍 Fetching alternative pattern data..."):
+                            df_finviz_alt = get_finviz_screener(finviz_filters_alt, columns_to_fetch, add_delay=True)
                         df_finviz = pd.concat([df_finviz, df_finviz_alt], ignore_index=True)
                     
                     if df_finviz.empty:
@@ -6159,7 +6161,7 @@ def main():
                                     # ════════════════════════════════════════════════════════
                                     # TABLA INTERACTIVA Y ORDENABLE
                                     # ════════════════════════════════════════════════════════
-                                    st.markdown("### 📊 Scanned Results - Click Headers to Sort")
+                                    st.markdown("### 📊 Scanned Results - Sort by Column") 
                                     
                                     # Crear columnas de control
                                     col_sort1, col_sort2 = st.columns([3, 1])
