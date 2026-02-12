@@ -4345,15 +4345,15 @@ def main():
             background: #00FFFF;
             color: #1E1E1E;
             font-weight: 700;
-            transform: scale(1.05);
+            transform: none;
             box-shadow: 0 0 7.5px rgba(0, 255, 255, 0.4);
             border: 1px solid rgba(0, 255, 255, 0.5);
             border-radius: 5px;
             padding: 5px 10px;
-            margin: -5px -10px;
+            margin: 0;
         }
         .stRadio div[role="radiogroup"] > label > div {
-            padding: 0;
+            padding: 5px 10px;
             margin: 0;
         }
         /* Estilo para botones de descarga */
@@ -8089,7 +8089,8 @@ def main():
             mem = MemorySystem()
             
             # Get expiration dates dynamically
-            exp_dates = get_expiration_dates(ticker) if ticker else []
+            ticker_mm8 = st.session_state.get("mm_ticker_select", default_ticker)
+            exp_dates = get_expiration_dates(ticker_mm8) if ticker_mm8 else []
             if not exp_dates:
                 # Fallback: generate next 5 friday expirations
                 today = datetime.now()
@@ -8105,7 +8106,7 @@ def main():
             col1, col2, col3 = st.columns([3, 2, 2])
             
             with col1:
-                ticker = st.selectbox(
+                ticker_mm8 = st.selectbox(
                     "Underlying Asset",
                     ["SPY", "QQQ", "NVDA", "TSLA"],
                     key="mm_ticker_select",
@@ -8114,7 +8115,7 @@ def main():
             
             with col2:
                 # Get fresh expirations when ticker changes
-                exp_dates = get_expiration_dates(ticker) if ticker else []
+                exp_dates = get_expiration_dates(ticker_mm8) if ticker_mm8 else []
                 if not exp_dates:
                     today = datetime.now()
                     exp_dates = []
@@ -8582,6 +8583,7 @@ def main():
                     key="gamma_symbol",
                     label_visibility="collapsed",
                     placeholder="Enter ticker",
+                    on_change=_run_gamma_analysis,
                 )
             with button_col:
                 st.button("Analyze", key="gamma_analyze", on_click=_run_gamma_analysis)
