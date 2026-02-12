@@ -8086,8 +8086,11 @@ def main():
             orch = MMSystemOrchestrator()
             mem = MemorySystem()
             
+            # Initialize ticker from session state or default
+            mm_ticker = st.session_state.get("mm_ticker_select", "SPY")
+            
             # Get expiration dates dynamically
-            exp_dates = get_expiration_dates(ticker) if ticker else []
+            exp_dates = get_expiration_dates(mm_ticker) if mm_ticker else []
             if not exp_dates:
                 # Fallback: generate next 5 friday expirations
                 today = datetime.now()
@@ -8103,7 +8106,7 @@ def main():
             col1, col2, col3 = st.columns([3, 2, 2])
             
             with col1:
-                ticker = st.selectbox(
+                mm_ticker = st.selectbox(
                     "Underlying Asset",
                     ["SPY", "QQQ", "NVDA", "TSLA"],
                     key="mm_ticker_select",
@@ -8112,7 +8115,7 @@ def main():
             
             with col2:
                 # Get fresh expirations when ticker changes
-                exp_dates = get_expiration_dates(ticker) if ticker else []
+                exp_dates = get_expiration_dates(mm_ticker) if mm_ticker else []
                 if not exp_dates:
                     today = datetime.now()
                     exp_dates = []
@@ -8122,7 +8125,7 @@ def main():
                         if current.weekday() == 4:
                             exp_dates.append(current.strftime("%Y-%m-%d"))
                 
-                expiration = st.selectbox(
+                mm_expiration = st.selectbox(
                     "Options Expiration",
                     exp_dates if exp_dates else ["No expirations available"],
                     key="mm_expiration_select"
@@ -8132,20 +8135,20 @@ def main():
                 refresh = st.button("Compute", use_container_width=True, key="mm_analyze_btn")
             
             if refresh:
-                with st.spinner(f"Processing {ticker} options chain..."):
+                with st.spinner(f"Processing {mm_ticker} options chain..."):
                     try:
                         # Get current price
-                        mm_current_price = get_current_price(ticker)
+                        mm_current_price = get_current_price(mm_ticker)
                         if not mm_current_price or mm_current_price == 0:
-                            st.error(f"Error: Unable to retrieve price data for {ticker}")
+                            st.error(f"Error: Unable to retrieve price data for {mm_ticker}")
                         else:
                             # Fetch options data
-                            chain_data = get_options_data(ticker, expiration)
+                            chain_data = get_options_data(mm_ticker, mm_expiration)
                             
                             # If no data from API, use mock data for demo
                             if not chain_data:
-                                st.warning(f"Using mock data for {ticker} (API unavailable)")
-                                chain_data = _generate_mock_contracts(ticker, mm_current_price)
+                                st.warning(f"Using mock data for {mm_ticker} (API unavailable)")
+                                chain_data = _generate_mock_contracts(mm_ticker, mm_current_price)
                             else:
                                 # Convert to contract list
                                 if isinstance(chain_data, pd.DataFrame):
@@ -8160,15 +8163,15 @@ def main():
                                     iv = 0.25
                                     
                                     # Get ticker profile
-                                    profile = mem.get_ticker_profile(ticker)
+                                    profile = mem.get_ticker_profile(mm_ticker)
                                     
                                     # Run full pipeline
                                     brief = orch.analyze_ticker(
-                                        ticker=ticker,
+                                        ticker=mm_ticker,
                                         contracts=contracts,
                                         price=mm_current_price,
                                         iv=iv,
-                                        expiration=expiration,
+                                        expiration=mm_expiration,
                                         ticker_profile=profile
                                     )
                                     
@@ -8205,7 +8208,7 @@ def main():
                                     st.divider()
                                     st.markdown("## 2. Gamma Wall Detection")
                                     
-                                    call_wall, put_wall = quant.detect_walls(contracts, mm_current_price, expiration)
+                                    call_wall, put_wall = quant.detect_walls(contracts, mm_current_price, mm_expiration)
                                     
                                     walls_df = pd.DataFrame({
                                         'Type': ['CALL WALL', 'PUT WALL'],
@@ -8278,7 +8281,7 @@ def main():
                                     st.divider()
                                     st.markdown("## 6. Backtesting & Accuracy Tracking")
                                     
-                                    summary = mem.get_backtesting_summary(ticker, days=30)
+                                    summary = mem.get_backtesting_summary(mm_ticker, days=30)
                                     
                                     col_bt1, col_bt2, col_bt3 = st.columns(3)
                                     with col_bt1:
@@ -8288,7 +8291,7 @@ def main():
                                     with col_bt3:
                                         st.metric("Avg Move", f"{summary['avg_price_move']:.2f}%")
                                     
-                                    st.success(f"✓ Analysis complete for {ticker} | Expiration {expiration}")
+                                    st.success(f"✓ Analysis complete for {mm_ticker} | Expiration {mm_expiration}")
                     
                     except Exception as e:
                         st.error(f"Pipeline error: {str(e)}")
