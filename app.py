@@ -4317,12 +4317,16 @@ def main():
             gap: 2px;
             margin-top: 10px;
         }
+        /* Ocultar círculos de radio */
+        .stRadio div[role="radiogroup"] > label input[type="radio"] {
+            display: none;
+        }
         .stRadio div[role="radiogroup"] > label {
             padding: 5px 10px;
             margin: 2px;
             color: rgba(57, 255, 20, 0.7);
-            background: #0f172a;
-            border: 1px solid rgba(59, 130, 246, 0.25);
+            background: rgba(10, 25, 41, 0.8);
+            border: 1px solid rgba(57, 255, 20, 0.15);
             border-radius: 5px;
             font-size: 10px;
             font-weight: 600;
@@ -4332,28 +4336,22 @@ def main():
             box-shadow: 0 0 2.5px rgba(57, 255, 20, 0.1);
             cursor: pointer;
         }
-        .stRadio div[role="radiogroup"] > label > input {
-            display: none;
-        }
         .stRadio div[role="radiogroup"] > label:hover {
             background: #39FF14;
             color: #1E1E1E;
             transform: translateY(-2px);
             box-shadow: 0 4px 5px rgba(57, 255, 20, 0.4);
         }
-        .stRadio div[role="radiogroup"] > label input:checked + div {
-            background: #00FFFF;
-            color: #1E1E1E;
+        .stRadio div[role="radiogroup"] > label:has(input:checked) {
+            background: rgba(0, 255, 255, 0.2);
+            color: #00FFFF;
             font-weight: 700;
-            transform: none;
-            box-shadow: 0 0 7.5px rgba(0, 255, 255, 0.4);
-            border: 1px solid rgba(0, 255, 255, 0.5);
-            border-radius: 5px;
-            padding: 5px 10px;
-            margin: 0;
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+            border: 1px solid rgba(0, 255, 255, 0.8);
         }
         .stRadio div[role="radiogroup"] > label > div {
-            padding: 5px 10px;
+            padding: 0;
             margin: 0;
         }
         /* Estilo para botones de descarga */
@@ -8089,8 +8087,7 @@ def main():
             mem = MemorySystem()
             
             # Get expiration dates dynamically
-            ticker_mm8 = st.session_state.get("mm_ticker_select", default_ticker)
-            exp_dates = get_expiration_dates(ticker_mm8) if ticker_mm8 else []
+            exp_dates = get_expiration_dates(ticker) if ticker else []
             if not exp_dates:
                 # Fallback: generate next 5 friday expirations
                 today = datetime.now()
@@ -8106,7 +8103,7 @@ def main():
             col1, col2, col3 = st.columns([3, 2, 2])
             
             with col1:
-                ticker_mm8 = st.selectbox(
+                ticker = st.selectbox(
                     "Underlying Asset",
                     ["SPY", "QQQ", "NVDA", "TSLA"],
                     key="mm_ticker_select",
@@ -8115,7 +8112,7 @@ def main():
             
             with col2:
                 # Get fresh expirations when ticker changes
-                exp_dates = get_expiration_dates(ticker_mm8) if ticker_mm8 else []
+                exp_dates = get_expiration_dates(ticker) if ticker else []
                 if not exp_dates:
                     today = datetime.now()
                     exp_dates = []
@@ -8583,7 +8580,6 @@ def main():
                     key="gamma_symbol",
                     label_visibility="collapsed",
                     placeholder="Enter ticker",
-                    on_change=_run_gamma_analysis,
                 )
             with button_col:
                 st.button("Analyze", key="gamma_analyze", on_click=_run_gamma_analysis)
