@@ -4321,8 +4321,8 @@ def main():
             padding: 5px 10px;
             margin: 2px;
             color: rgba(57, 255, 20, 0.7);
-            background: #000000;
-            border: 1px solid rgba(57, 255, 20, 0.15);
+            background: #0f172a;
+            border: 1px solid rgba(59, 130, 246, 0.25);
             border-radius: 5px;
             font-size: 10px;
             font-weight: 600;
@@ -4331,6 +4331,9 @@ def main():
             transition: all 0.3s ease;
             box-shadow: 0 0 2.5px rgba(57, 255, 20, 0.1);
             cursor: pointer;
+        }
+        .stRadio div[role="radiogroup"] > label > input {
+            display: none;
         }
         .stRadio div[role="radiogroup"] > label:hover {
             background: #39FF14;
