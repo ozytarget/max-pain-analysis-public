@@ -8369,19 +8369,13 @@ def main():
                 gap: 8px;
                 flex-wrap: wrap;
             }
-            .gamma-downloads button {
+            .gamma-downloads .stDownloadButton > button {
                 background: #111c33;
                 color: #cbd5f5;
                 border: 1px solid #1f2a44;
                 padding: 10px 14px;
                 border-radius: 10px;
                 font-weight: 600;
-                cursor: pointer;
-            }
-            .gamma-downloads button:disabled {
-                opacity: 0.6;
-                cursor: not-allowed;
-                filter: grayscale(0.2);
             }
             .gamma-controls-row {
                 display: flex;
@@ -8570,8 +8564,8 @@ def main():
 
         data = st.session_state["gamma_timeline_data"]
         summary_df = pd.DataFrame()
+        chart_bytes = None
         summary_text = ""
-        csv_data = ""
         if data:
             scenario = data.get("scenario")
             bull = scenario.get("bull_prob", 50) if scenario else 50
@@ -8585,24 +8579,6 @@ def main():
                 """,
                 unsafe_allow_html=True,
             )
-
-            stats = data.get("expiration_stats", [])
-            summary_rows = []
-            for item in stats:
-                summary_rows.append(
-                    {
-                        "Expiration": item.get("expiration"),
-                        "Pivot": _format_currency(item.get("pivot")) if item.get("pivot") else "N/A",
-                        "Total OI": f"{item.get('total_oi', 0):,}",
-                        "CALL OI": f"{item.get('call_oi', 0):,}",
-                        "PUT OI": f"{item.get('put_oi', 0):,}",
-                        "PUT/CALL": f"{item.get('put_call', 0):.2f}",
-                    }
-                )
-
-            summary_df = pd.DataFrame(summary_rows)
-            summary_text = _build_summary_text(data)
-            csv_data = summary_df.to_csv(index=False) if not summary_df.empty else ""
 
             timeline = data.get("gamma_timeline", {})
             expirations = timeline.get("expirations", [])
@@ -8626,12 +8602,6 @@ def main():
                 "pivot": data.get("pivot"),
                 "levels": data.get("levels", {}),
                 "sentiment_by_expiration": data.get("sentiment_by_expiration", {}),
-                "downloads": {
-                    "csv_text": csv_data,
-                    "summary_text": summary_text,
-                    "symbol": data.get("symbol", "export"),
-                    "has_data": bool(not summary_df.empty),
-                },
             }
             chart_json = json.dumps(chart_payload)
 
@@ -8639,15 +8609,9 @@ def main():
             <div style="background:#0b1220;padding:20px;border-radius:16px;height:820px;">
                 <canvas id="gammaChart" style="width:100%;height:100%;"></canvas>
             </div>
-            <div class="gamma-downloads" style="margin-top:12px;">
-                <button id="downloadCsvBtn" disabled>Download CSV</button>
-                <button id="downloadTextBtn" disabled>Download Summary</button>
-                <button id="downloadChartBtn" disabled>Download Chart</button>
-            </div>
             <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
             <script>
             const payload = __GAMMA_PAYLOAD__;
-            let gammaChart = null;
 
             function formatCurrency(value) {
                 if (value === null || value === undefined || Number.isNaN(value)) {
@@ -8663,77 +8627,6 @@ def main():
                     color,
                     labelColor,
                 }));
-            }
-
-            function downloadBlob(content, filename, type) {
-                const blob = new Blob([content], { type });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.href = url;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }
-
-            function setDownloadEnabled(enabled) {
-                const csvBtn = document.getElementById("downloadCsvBtn");
-                const textBtn = document.getElementById("downloadTextBtn");
-                const chartBtn = document.getElementById("downloadChartBtn");
-                if (csvBtn) {
-                    csvBtn.disabled = !enabled;
-                }
-                if (textBtn) {
-                    textBtn.disabled = !enabled;
-                }
-                if (chartBtn) {
-                    chartBtn.disabled = !enabled || !gammaChart;
-                }
-            }
-
-            function setupDownloads(data) {
-                const downloads = data.downloads || {};
-                const hasData = !!downloads.has_data;
-                const symbol = downloads.symbol || "export";
-                const csvText = downloads.csv_text || "";
-                const summaryText = downloads.summary_text || "";
-                const csvBtn = document.getElementById("downloadCsvBtn");
-                const textBtn = document.getElementById("downloadTextBtn");
-                const chartBtn = document.getElementById("downloadChartBtn");
-
-                if (csvBtn) {
-                    csvBtn.onclick = () => {
-                        if (!hasData) {
-                            return;
-                        }
-                        downloadBlob(csvText, `${symbol}_expiration_stats.csv`, "text/csv");
-                    };
-                }
-                if (textBtn) {
-                    textBtn.onclick = () => {
-                        if (!hasData) {
-                            return;
-                        }
-                        downloadBlob(summaryText, `${symbol}_summary.txt`, "text/plain");
-                    };
-                }
-                if (chartBtn) {
-                    chartBtn.onclick = () => {
-                        if (!gammaChart) {
-                            return;
-                        }
-                        const url = gammaChart.toBase64Image("image/png", 1);
-                        const link = document.createElement("a");
-                        link.href = url;
-                        link.download = `${symbol}_gamma_timeline.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    };
-                }
-
-                setDownloadEnabled(hasData);
             }
 
             const backgroundPlugin = {
@@ -8877,16 +8770,7 @@ def main():
                     return;
                 }
 
-                if (gammaChart) {
-                    gammaChart.data.labels = expirations;
-                    gammaChart.data.datasets = datasets;
-                    gammaChart.options.plugins.columnBackgrounds.sentiment = sentimentList;
-                    gammaChart.options.plugins.lineLabels.lines = levelLines;
-                    gammaChart.update();
-                    return;
-                }
-
-                gammaChart = new Chart(ctx, {
+                new Chart(ctx, {
                     data: {
                         labels: expirations,
                         datasets,
@@ -8924,12 +8808,95 @@ def main():
             }
 
             renderChart(payload);
-            setupDownloads(payload);
             </script>
             """
             chart_html = chart_html.replace("__GAMMA_PAYLOAD__", chart_json)
 
             components.html(chart_html, height=860)
+
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+            fig.add_trace(
+                go.Bar(name="Total Gamma", x=expirations, y=total_series, marker_color="rgba(59,130,246,0.7)"),
+                secondary_y=True,
+            )
+            fig.add_trace(
+                go.Bar(name="Call Gamma", x=expirations, y=call_series, marker_color="rgba(34,197,94,0.7)"),
+                secondary_y=True,
+            )
+            fig.add_trace(
+                go.Bar(name="Put Gamma", x=expirations, y=put_series, marker_color="rgba(239,68,68,0.7)"),
+                secondary_y=True,
+            )
+            fig.add_trace(
+                go.Bar(name="Historical", x=expirations, y=hist_series, marker_color="rgba(148,163,184,0.5)"),
+                secondary_y=True,
+            )
+            fig.add_trace(
+                go.Scatter(name="Price", x=expirations, y=[price_value for _ in expirations], mode="lines+markers", line=dict(color="rgba(250,204,21,0.9)")),
+                secondary_y=False,
+            )
+            fig.add_trace(
+                go.Scatter(name="MM Target", x=expirations, y=target_series, mode="lines+markers", line=dict(color="rgba(14,165,233,0.9)", dash="dash")),
+                secondary_y=False,
+            )
+            fig.update_layout(
+                barmode="group",
+                height=720,
+                plot_bgcolor="#0b1220",
+                paper_bgcolor="#0b1220",
+                font=dict(color="#cbd5f5"),
+                legend=dict(orientation="h"),
+                margin=dict(l=30, r=30, t=30, b=40),
+            )
+            try:
+                chart_bytes = fig.to_image(format="png", scale=2)
+            except Exception as exc:
+                logger.warning(f"Chart download unavailable: {exc}")
+
+            stats = data.get("expiration_stats", [])
+            summary_rows = []
+            for item in stats:
+                summary_rows.append(
+                    {
+                        "Expiration": item.get("expiration"),
+                        "Pivot": _format_currency(item.get("pivot")) if item.get("pivot") else "N/A",
+                        "Total OI": f"{item.get('total_oi', 0):,}",
+                        "CALL OI": f"{item.get('call_oi', 0):,}",
+                        "PUT OI": f"{item.get('put_oi', 0):,}",
+                        "PUT/CALL": f"{item.get('put_call', 0):.2f}",
+                    }
+                )
+
+            summary_df = pd.DataFrame(summary_rows)
+            summary_text = _build_summary_text(data)
+
+        csv_data = summary_df.to_csv(index=False) if not summary_df.empty else ""
+
+        dl_col1, dl_col2, dl_col3 = st.columns(3)
+        with dl_col1:
+            st.download_button(
+                label="Download CSV",
+                data=csv_data,
+                file_name=f"{(data or {}).get('symbol', 'export')}_expiration_stats.csv",
+                mime="text/csv",
+                disabled=summary_df.empty,
+            )
+        with dl_col2:
+            st.download_button(
+                label="Download Summary",
+                data=summary_text or "",
+                file_name=f"{(data or {}).get('symbol', 'summary')}_summary.txt",
+                mime="text/plain",
+                disabled=summary_df.empty,
+            )
+        with dl_col3:
+            st.download_button(
+                label="Download Chart",
+                data=chart_bytes or b"",
+                file_name=f"{(data or {}).get('symbol', 'chart')}_gamma_timeline.png",
+                mime="image/png",
+                disabled=chart_bytes is None,
+            )
 
         st.markdown("</section></div>", unsafe_allow_html=True)
 
