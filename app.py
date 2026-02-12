@@ -5513,8 +5513,8 @@ def main():
                 
                 # Check if response is valid
                 if not response.text or response.text.strip() == "":
-                    logger.warning("Finviz screener returned empty response")
-                    st.warning("⚠️ No data returned from Finviz. Try different filters.")
+                    logger.warning("Screener returned empty response")
+                    st.warning("⚠️ No stocks found with the current criteria. Try adjusting your filters.")
                     return pd.DataFrame()
                 
                 # Parse CSV response into DataFrame
@@ -5533,15 +5533,15 @@ def main():
                 if hasattr(e, 'response') and e.response is not None:
                     logger.error(f"Status Code: {e.response.status_code}")
                     logger.error(f"Response: {e.response.text[:500]}")
-                st.error(f"🚨 API Connection Error: {str(e)[:100]}")
+                st.error("🚨 Unable to fetch market data at this moment. Please try again in a few seconds.")
                 return pd.DataFrame()
             except pd.errors.ParserError as e:
                 logger.error(f"Finviz CSV Parsing Error: {str(e)}")
-                st.warning("⚠️ Invalid response format from Finviz. Endpoint may have changed.")
+                st.warning("⚠️ Data format issue detected. Please try with different filters.")
                 return pd.DataFrame()
             except Exception as e:
                 logger.error(f"Finviz screener error: {str(e)}", exc_info=True)
-                st.error(f"❌ Error processing data: {str(e)[:100]}")
+                st.error("❌ Something unexpected happened while fetching data. Please try again.")
                 return pd.DataFrame()
         
         # ===== SELECTOR DE ESTRATEGIA =====
@@ -6284,11 +6284,12 @@ def main():
                                     st.markdown("💡 **Resumen:** Mayor Score + Mayor Momentum = Mayor confianza en la acción")
                         
                         except Exception as e:
-                            st.error(f"Error processing data: {str(e)}")
-                            st.write("Debug - DataFrame columns:", df_finviz.columns.tolist())
+                            logger.error(f"Error processing data: {str(e)}", exc_info=True)
+                            st.error("⚠️ There was an issue processing the results. Please try a different scan.")
                 
                 except Exception as e:
-                    st.error(f"❌ Scanner Error: {str(e)}")
+                    logger.error(f"Tab 2 Scanner Error: {str(e)}", exc_info=True)
+                    st.error("❌ The scanner encountered an issue. Please refresh and try again.")
         
         st.markdown("---")
         st.markdown("*🚀 Developed by Ozy *")
