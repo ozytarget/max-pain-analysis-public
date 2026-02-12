@@ -4324,8 +4324,8 @@ def main():
         .stRadio div[role="radiogroup"] > label {
             padding: 5px 10px;
             margin: 2px;
-            color: rgba(57, 255, 20, 0.7);
-            background: rgba(10, 25, 41, 0.8);
+            color: rgba(57, 255, 20, 0.15);
+            background: rgba(10, 25, 41, 0.2);
             border: 1px solid rgba(57, 255, 20, 0.15);
             border-radius: 5px;
             font-size: 10px;
@@ -8305,7 +8305,6 @@ def main():
 
 
     if active_tab == tab_labels[8]:
-        st.markdown("---")
         st.subheader("")
 
         st.markdown(
