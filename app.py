@@ -8333,11 +8333,12 @@ def main():
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 16px;
+                gap: 8px;
                 flex-wrap: wrap;
+                margin: 0;
             }
             .gamma-panel-header h1 {
-                margin: 0 0 8px;
+                margin: 0;
                 font-size: 28px;
             }
             .gamma-header-text {
@@ -8346,14 +8347,14 @@ def main():
                 font-size: 14px;
             }
             .gamma-loading-text {
-                margin: 6px 0 0;
+                margin: 0;
                 color: #38bdf8;
                 font-size: 12px;
                 min-height: 16px;
                 opacity: 0.9;
             }
             .gamma-exp-row {
-                margin: 6px 0 0;
+                margin: 0;
                 color: #cbd5f5;
                 font-size: 12px;
                 opacity: 0.7;
@@ -8404,7 +8405,7 @@ def main():
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                margin: 10px 0 16px;
+                margin: 0;
             }
             .gamma-controls-row .stTextInput > div,
             .gamma-controls-row .stTextInput input {
