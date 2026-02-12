@@ -4337,10 +4337,10 @@ def main():
             cursor: pointer;
         }
         .stRadio div[role="radiogroup"] > label:hover {
-            background: #39FF14;
-            color: #1E1E1E;
+            background: rgba(57, 255, 20, 0.15);
+            color: #39FF14;
             transform: translateY(-2px);
-            box-shadow: 0 4px 5px rgba(57, 255, 20, 0.4);
+            box-shadow: 0 4px 5px rgba(57, 255, 20, 0.2);
         }
         .stRadio div[role="radiogroup"] > label:has(input:checked) {
             background: rgba(0, 255, 255, 0.2);
@@ -8326,10 +8326,10 @@ def main():
                 padding: 18px 10px 24px;
             }
             .gamma-panel {
-                background: var(--panel);
+                background: transparent;
                 border-radius: 18px;
                 padding: 24px;
-                box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+                box-shadow: none;
             }
             .gamma-panel-header {
                 display: flex;
