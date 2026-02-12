@@ -8321,12 +8321,12 @@ def main():
             .gamma-layout {
                 max-width: 1200px;
                 margin: 0 auto;
-                padding: 18px 10px 24px;
+                padding: 0px 10px 24px;
             }
             .gamma-panel {
                 background: transparent;
                 border-radius: 18px;
-                padding: 24px;
+                padding: 0px;
                 box-shadow: none;
             }
             .gamma-panel-header {
