@@ -4307,43 +4307,51 @@ def main():
         .stSpinner > div > div {
             border-color: #32CD32 !important;
         }
-        /* Menú sin rectángulo */
-        .stTabs [data-baseweb="tab-list"] {
+        /* Tabs estilo radio (selector horizontal) */
+        .stRadio div[role="radiogroup"] {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            background: none; /* Sin fondo rectangular */
+            background: none;
             padding: 5px;
             gap: 2px;
             margin-top: 10px;
         }
-        .stTabs [data-baseweb="tab"] {
+        .stRadio div[role="radiogroup"] > label {
             padding: 5px 10px;
             margin: 2px;
-            color: rgba(57, 255, 20, 0.7); /* Verde lima apagado como base */
-            background: #000000; /* Negro puro para combinar con el fondo */
-            border: 1px solid rgba(57, 255, 20, 0.15); /* Borde sutil de neón, 50% menos brillante */
+            color: rgba(57, 255, 20, 0.7);
+            background: #000000;
+            border: 1px solid rgba(57, 255, 20, 0.15);
             border-radius: 5px;
             font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 1px;
             transition: all 0.3s ease;
-            box-shadow: 0 0 2.5px rgba(57, 255, 20, 0.1); /* Brillo reducido al 50% */
+            box-shadow: 0 0 2.5px rgba(57, 255, 20, 0.1);
+            cursor: pointer;
         }
-        .stTabs [data-baseweb="tab"]:hover {
-            background: #39FF14; /* Verde lima brillante al pasar el ratón */
+        .stRadio div[role="radiogroup"] > label:hover {
+            background: #39FF14;
             color: #1E1E1E;
             transform: translateY(-2px);
-            box-shadow: 0 4px 5px rgba(57, 255, 20, 0.4); /* Brillo reducido al 50% */
+            box-shadow: 0 4px 5px rgba(57, 255, 20, 0.4);
         }
-        .stTabs [data-baseweb="tab"][aria-selected="true"] {
-            background: #00FFFF; /* Azul neón para tab activo */
+        .stRadio div[role="radiogroup"] > label input:checked + div {
+            background: #00FFFF;
             color: #1E1E1E;
             font-weight: 700;
-            transform: scale(1.1); /* Se "infla" un poco más */
-            box-shadow: 0 0 7.5px rgba(0, 255, 255, 0.4); /* Brillo reducido al 50% */
-            border: 1px solid rgba(0, 255, 255, 0.5); /* Borde menos brillante */
+            transform: scale(1.05);
+            box-shadow: 0 0 7.5px rgba(0, 255, 255, 0.4);
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            border-radius: 5px;
+            padding: 5px 10px;
+            margin: -5px -10px;
+        }
+        .stRadio div[role="radiogroup"] > label > div {
+            padding: 0;
+            margin: 0;
         }
         /* Estilo para botones de descarga */
         .stDownloadButton > button {
